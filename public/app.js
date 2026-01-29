@@ -5,6 +5,13 @@ let currentMonth = new Date().getMonth() + 1;
 let currentTab = 'commitment'; // 'commitment', 'kpi', 'level', 'dashboard', 'recruitment', 'admin'
 let kpiMonthYear = null; // Store selected KPI month/year, format: { month, year }
 
+// ===== USER PAGINATION VARIABLES =====
+let allUsers = [];
+let filteredUsers = [];
+let currentUserPage = 1;
+const USER_PAGE_SIZE = 25; // số user / trang
+
+
 // ===== UTILITY FUNCTIONS =====
 function formatLargeNumber(value, kpiName = '', forceShort = false) {
   if (!value || value === '-') return '-';
@@ -2302,7 +2309,7 @@ function renderAdminUsers(container) {
 }
 
 let adminMetadata = { regions: [], positions: [] };
-let allUsers = []; // Store all users for filtering
+
 
 async function loadAdminStatistics() {
   try {
@@ -2564,8 +2571,10 @@ async function loadAdminUsers() {
   }
 }
 
+// ===== RENDER USER TABLE WITH PAGINATION =====
 function renderUserTable(users) {
   const container = document.getElementById('admin-users-container');
+  filteredUsers = users; // Store filtered results
   
   if (users.length === 0) {
     container.innerHTML = `
@@ -2578,68 +2587,172 @@ function renderUserTable(users) {
     return;
   }
   
-  const html = `
-    <div class="overflow-x-auto">
-      <table class="w-full">
-        <thead>
-          <tr class="bg-gradient-to-r from-red-500 to-pink-600 text-white">
-            <th class="px-4 py-3 text-left">STT</th>
-            <th class="px-4 py-3 text-left">Tên đăng nhập</th>
-            <th class="px-4 py-3 text-left">Họ tên</th>
-            <th class="px-4 py-3 text-left">Khối</th>
-            <th class="px-4 py-3 text-left">Team</th>
-            <th class="px-4 py-3 text-left">Vị trí</th>
-            <th class="px-4 py-3 text-left">Ngày nhận việc</th>
-            <th class="px-4 py-3 text-center">Thao tác</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${users.map((user, idx) => `
-            <tr class="border-b hover:bg-gray-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
-              <td class="px-4 py-3 font-semibold">${idx + 1}</td>
-              <td class="px-4 py-3 text-blue-600">${user.username}</td>
-              <td class="px-4 py-3 font-semibold">${user.full_name}</td>
-              <td class="px-4 py-3">
-                <span class="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
-                  ${user.region_name}
-                </span>
-              </td>
-              <td class="px-4 py-3">
-                <span class="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-mono">
-                  ${user.team || '-'}
-                </span>
-              </td>
-              <td class="px-4 py-3">
-                <span class="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full">
-                  ${user.position_name}
-                </span>
-              </td>
-              <td class="px-4 py-3 text-sm text-gray-600">
-                ${user.start_date || '<span class="text-gray-400 italic">Chưa có</span>'}
-              </td>
-              <td class="px-4 py-3 text-center">
-                <div class="flex items-center justify-center space-x-2">
-                  <button 
-                    onclick="showEditUserModal(${user.id})"
-                    class="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg hover:shadow-lg transition-all text-sm"
-                    title="Sửa thông tin"
-                  >
-                    <i class="fas fa-edit"></i>
-                  </button>
-                  <button 
-                    onclick="deleteUser(${user.id}, '${user.full_name}')"
-                    class="px-3 py-2 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg hover:shadow-lg transition-all text-sm"
-                    title="Xóa tài khoản"
-                  >
-                    <i class="fas fa-trash"></i>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </div>
+  // Calculate pagination
+  const totalPages = Math.ceil(users.length / USER_PAGE_SIZE);
+  const startIndex = (currentUserPage - 1) * USER_PAGE_SIZE;
+  const endIndex = Math.min(startIndex + USER_PAGE_SIZE, users.length);
+  const pageUsers = users.slice(startIndex, endIndex);
+  
+  let html = '<div class="overflow-x-auto">';
+  html += '<table class="w-full">';
+  
+  // Header - CANH TRÁI
+  html += `
+    <thead>
+      <tr class="bg-gradient-to-r from-red-500 to-pink-600 text-white">
+        <th class="px-4 py-3 text-left">STT</th>
+        <th class="px-4 py-3 text-left">Tên đăng nhập</th>
+        <th class="px-4 py-3 text-left">Họ tên</th>
+        <th class="px-4 py-3 text-left">Khối</th>
+        <th class="px-4 py-3 text-left">Team</th>
+        <th class="px-4 py-3 text-left">Vị trí</th>
+        <th class="px-4 py-3 text-left">Ngày nhận việc</th>
+        <th class="px-4 py-3 text-left">Thao tác</th>
+      </tr>
+    </thead>
+  `;
+  
+  // Body - CANH TRÁI
+  html += '<tbody>';
+  pageUsers.forEach((user, idx) => {
+    const globalIndex = startIndex + idx;
+    html += `
+      <tr class="border-b hover:bg-gray-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
+        <td class="px-4 py-3 font-semibold text-left">${globalIndex + 1}</td>
+        <td class="px-4 py-3 text-blue-600 text-left">${user.username}</td>
+        <td class="px-4 py-3 font-semibold text-left">${user.full_name}</td>
+        <td class="px-4 py-3 text-left">
+          <span class="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
+            ${user.region_name}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-left">
+          <span class="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-mono">
+            ${user.team || '-'}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-left">
+          <span class="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full">
+            ${user.position_name}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-sm text-gray-600 text-left">
+          ${user.start_date || '<span class="text-gray-400 italic">Chưa có</span>'}
+        </td>
+        <td class="px-4 py-3 text-left">
+          <div class="flex items-center space-x-2">
+            <button 
+              onclick="showEditUserModal(${user.id})"
+              class="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg hover:shadow-lg transition-all text-sm"
+              title="Sửa thông tin"
+            >
+              <i class="fas fa-edit"></i>
+            </button>
+            <button 
+              onclick="deleteUser(${user.id}, '${user.full_name}')"
+              class="px-3 py-2 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg hover:shadow-lg transition-all text-sm"
+              title="Xóa tài khoản"
+            >
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  });
+  html += '</tbody>';
+  html += '</table>';
+  html += '</div>';
+  
+  // Pagination Controls
+  if (totalPages > 1) {
+    html += '<div class="mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">';
+    
+    // Page info - CANH TRÁI
+    html += `
+      <div class="text-sm text-gray-600 text-left">
+        Hiển thị <span class="font-semibold">${startIndex + 1}</span> đến 
+        <span class="font-semibold">${endIndex}</span> trong tổng số 
+        <span class="font-semibold">${users.length}</span> người dùng
+      </div>
+    `;
+    
+    // Page buttons
+    html += '<div class="flex items-center space-x-2">';
+    
+    // Previous button
+    html += `
+      <button 
+        onclick="goToUserPage(${currentUserPage - 1})"
+        class="px-3 py-2 rounded-lg ${currentUserPage === 1 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-500 text-white hover:bg-blue-600'}"
+        ${currentUserPage === 1 ? 'disabled' : ''}
+      >
+        <i class="fas fa-chevron-left"></i>
+      </button>
+    `;
+    
+    // Page numbers
+    const maxPagesToShow = 5;
+    let startPage = Math.max(1, currentUserPage - Math.floor(maxPagesToShow / 2));
+    let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+    
+    if (endPage - startPage < maxPagesToShow - 1) {
+      startPage = Math.max(1, endPage - maxPagesToShow + 1);
+    }
+    
+    // First page
+    if (startPage > 1) {
+      html += `
+        <button onclick="goToUserPage(1)" class="px-3 py-2 rounded-lg bg-white border border-gray-300 hover:bg-gray-50">
+          1
+        </button>
+      `;
+      if (startPage > 2) {
+        html += '<span class="px-2 text-gray-500">...</span>';
+      }
+    }
+    
+    // Page range
+    for (let i = startPage; i <= endPage; i++) {
+      html += `
+        <button 
+          onclick="goToUserPage(${i})"
+          class="px-3 py-2 rounded-lg ${i === currentUserPage ? 'bg-blue-600 text-white font-semibold' : 'bg-white border border-gray-300 hover:bg-gray-50'}"
+        >
+          ${i}
+        </button>
+      `;
+    }
+    
+    // Last page
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) {
+        html += '<span class="px-2 text-gray-500">...</span>';
+      }
+      html += `
+        <button onclick="goToUserPage(${totalPages})" class="px-3 py-2 rounded-lg bg-white border border-gray-300 hover:bg-gray-50">
+          ${totalPages}
+        </button>
+      `;
+    }
+    
+    // Next button
+    html += `
+      <button 
+        onclick="goToUserPage(${currentUserPage + 1})"
+        class="px-3 py-2 rounded-lg ${currentUserPage === totalPages ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-500 text-white hover:bg-blue-600'}"
+        ${currentUserPage === totalPages ? 'disabled' : ''}
+      >
+        <i class="fas fa-chevron-right"></i>
+      </button>
+    `;
+    
+    html += '</div>'; // end page buttons
+    html += '</div>'; // end pagination controls
+  }
+  
+  // Footer info
+  html += `
     <div class="mt-4 text-sm text-gray-600">
       <i class="fas fa-info-circle mr-2"></i>
       <strong>Cấu trúc phân cấp:</strong> Giám sát → Trợ lý KD → GĐKD → GĐKDCC → PTGĐ
@@ -2650,6 +2763,21 @@ function renderUserTable(users) {
   document.getElementById('filter-count').textContent = users.length;
 }
 
+
+// ===== PAGINATION NAVIGATION =====
+function goToUserPage(page) {
+  const totalPages = Math.ceil(filteredUsers.length / USER_PAGE_SIZE);
+  
+  if (page < 1 || page > totalPages) return;
+  
+  currentUserPage = page;
+  renderUserTable(filteredUsers);
+  
+  // Scroll to top of table
+  document.getElementById('admin-users-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ===== UPDATE FILTER FUNCTION =====
 function filterUsers() {
   const searchText = document.getElementById('user-search')?.value.toLowerCase() || '';
   const filterRegionId = document.getElementById('filter-region')?.value || '';
@@ -2670,8 +2798,11 @@ function filterUsers() {
     return matchSearch && matchRegion && matchPosition;
   });
   
+  // Reset to page 1 when filtering
+  currentUserPage = 1;
   renderUserTable(filtered);
 }
+
 
 // Old render code removed, replaced with renderUserTable()
 
