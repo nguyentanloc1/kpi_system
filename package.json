@@ -18,7 +18,8 @@
     "git:commit": "git add . && git commit -m"
   },
   "dependencies": {
-    "hono": "^4.11.2"
+    "hono": "^4.11.2",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@hono/vite-build": "^1.2.0",
