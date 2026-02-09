@@ -506,8 +506,6 @@ async function loadKpiData() {
   // Store selected month/year for Level tab
   kpiMonthYear = { month: parseInt(month), year: parseInt(year) };
   
-  container.innerHTML = '<div class="text-center py-12"><i class="fas fa-spinner fa-spin text-4xl text-blue-500"></i></div>';
-  
   try {
     // Use new API with revenue plan
     const response = await axios.get(
@@ -3715,7 +3713,7 @@ async function loadPositionDashboard(positionIds, positionName) {
       for (let m = 1; m <= 12; m++) {
         const monthData = userMonthlyData[user.id]?.[m];
         if (monthData) {
-          const kpiPercent = Math.round(monthData.total_kpi_score || 0);
+          const kpiPercent = Math.round((monthData.total_kpi_score || 0) * 100);
           const kpiColor = kpiPercent >= 100 ? 'text-green-600' : kpiPercent >= 80 ? 'text-blue-600' : 'text-orange-600';
           
           html += `<td class="border px-2 py-2 text-center">
@@ -3764,7 +3762,7 @@ async function loadPositionDashboard(positionIds, positionName) {
       for (let m = 1; m <= 12; m++) {
         const monthData = userMonthlyData[user.id]?.[m];
         if (monthData) {
-          const levelPercent = Math.round(monthData.total_level_score || 0);
+          const levelPercent = Math.round((monthData.total_level_score || 0) * 100);
           const levelColor = levelPercent >= 100 ? 'text-green-600' : levelPercent >= 80 ? 'text-blue-600' : 'text-orange-600';
           
           html += `<td class="border px-2 py-2 text-center">
