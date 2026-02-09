@@ -1314,6 +1314,88 @@ app.post('/api/admin/revenue-plan', async (c) => {
   }
 })
 
+app.post("/api/admin/import-actual-revenue", async (c) => {
+  try {
+  const body = await c.req.json()
+  const rows = body.rows
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+      return c.json({ success: false, message: 'Invalid rows data' }, 400)
+    }
+  const db = c.env.DB
+
+  const KPI_TEMPLATE_ID = 1 // doanh thu thực tế
+
+  const results = {
+    success: 0,
+    updated: 0,
+    inserted: 0,
+    skipped: []
+  }
+  
+  for (const row of rows) {
+    
+    const { actual_value, email, month, year  } = row
+    if (!email || !month || !year || actual_value == null) continue
+
+    // 1. Tìm user
+    const user = await db
+      .prepare("SELECT id FROM users WHERE username = ?")
+      .bind(email)
+      .first()
+
+    if (!user) {
+      results.skipped.push({ email, reason: "USER_NOT_FOUND" })
+      continue
+    }
+
+    // 2. Kiểm tra kpi_data
+    const existing = await db.prepare(`
+      SELECT id FROM kpi_data
+      WHERE user_id = ?
+        AND month = ?
+        AND year = ?
+        AND kpi_template_id = ?
+    `)
+    .bind(user.id, month, year, KPI_TEMPLATE_ID)
+    .first()
+
+    if (existing) {
+      // UPDATE
+      await db.prepare(`
+        UPDATE kpi_data
+        SET actual_value = ?,
+            completion_percent = 0,
+            weighted_score = 0,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).bind(actual_value, existing.id).run()
+
+      results.updated++
+    } else {
+      // INSERT
+      await db.prepare(`
+        INSERT INTO kpi_data
+          (user_id, month, year, kpi_template_id, actual_value, completion_percent, weighted_score)
+        VALUES (?, ?, ?, ?, ?, 0, 0)
+      `)
+      .bind(user.id, month, year, KPI_TEMPLATE_ID, actual_value)
+      .run()
+
+      results.inserted++
+    }
+
+    results.success++
+  }
+
+  return c.json({ success: true, results })
+  } catch (error) {
+    console.error('Error saving revenue actual:', error)
+    return c.json({ error: 'Lỗi lưu doanh thu' }, 500)
+  }
+})
+
+
 // Get potential managers for a position
 app.get('/api/admin/potential-managers/:regionId/:positionId', async (c) => {
   try {

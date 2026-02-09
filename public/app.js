@@ -1987,6 +1987,9 @@ function renderAdminTab(container) {
           <button onclick="showAdminSubTab('lock-month')" class="admin-subtab px-6 py-3 rounded-lg font-semibold transition-all" data-tab="lock-month">
             <i class="fas fa-lock mr-2"></i>Khóa tháng
           </button>
+          <button onclick="showAdminSubTab('revenue-actual')" class="admin-subtab px-6 py-3 rounded-lg font-semibold transition-all" data-tab="revenue-actual">
+            <i class="fas fa-upload mr-2"></i>Upload Doanh thu
+          </button>
           
           <!-- Separator -->
           <div class="w-full border-t border-gray-300 my-2"></div>
@@ -2044,6 +2047,8 @@ function showAdminSubTab(tabName) {
     renderPositionDashboard(content, '4', 'Giám sát');
   } else if (tabName === 'revenue-plan') {
     renderRevenuePlan(content);
+  } else if (tabName === 'revenue-actual') {
+    renderActualRevenueUpload(content);
   } else if (tabName === 'ptgd-kpi') {
     renderKpiDetail(content, '1,5', 'PTGĐ/GĐKDCC - Doanh thu', [7]); // KPI ID 7: Doanh thu
   } else if (tabName === 'gdkd-kpi') {
@@ -4274,6 +4279,94 @@ async function importRevenuePlan(event) {
     alert('❌ Lỗi import file: ' + (error.response?.data?.error || error.message));
   }
 }
+
+// ===== ACTUAL REVENUE UPLOAD (ADMIN) =====
+function renderActualRevenueUpload(container) {
+  container.innerHTML = `
+    <div class="bg-white rounded-2xl shadow-xl p-6 mt-8">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-2xl font-bold text-gray-800">
+          <i class="fas fa-file-upload mr-2 text-indigo-600"></i>
+          Upload Doanh thu Thực tế
+        </h3>
+      </div>
+
+      <div class="mb-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-800">
+        <p><strong>File Excel gồm các cột:</strong></p>
+        <ul class="list-disc ml-5 mt-1">
+          <li><b>email</b> (VD: trungnguyen@nhankiet.vn, locnguyen@nhankiet.vn ...</li>
+          <li><b>month</b> (1–12)</li>
+          <li><b>year</b> (VD: 2026)</li>
+          <li><b>actual_value</b> (Doanh thu thực tế)</li>
+        </ul>
+      </div>
+
+      <div class="flex items-center gap-3 mb-4">
+        <button
+          onclick="document.getElementById('actual-revenue-file').click()"
+          class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+        >
+          <i class="fas fa-upload mr-2"></i>Upload Excel
+        </button>
+
+        <input
+          type="file"
+          id="actual-revenue-file"
+          accept=".xlsx,.xls"
+          hidden
+          onchange="importActualRevenue(event)"
+        />
+      </div>
+
+      <div id="actual-revenue-result" class="text-sm text-gray-600"></div>
+    </div>
+  `;
+}
+
+async function importActualRevenue(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const data = await file.arrayBuffer();
+  const workbook = XLSX.read(data);
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(sheet);
+
+  // Chuẩn hóa dữ liệu
+  const payload = rows.map(row => {
+  let emailRaw = String(row.email || '').trim().toLowerCase();
+
+  // Cắt phần sau @ nếu có
+  const email = emailRaw.includes('@')
+    ? emailRaw.split('@')[0]
+    : emailRaw;
+
+  return {
+    email,
+    month: Number(row.month),
+    year: Number(row.year),
+    actual_value: Number(row.actual_value)
+  };
+});
+
+
+  console.log("IMPORT DATA:", payload);
+
+  const response = await fetch('/api/admin/import-actual-revenue', {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rows: payload })
+  });
+  
+  if (response.ok) {
+    alert("Upload thành công");
+  }else{
+    alert("Upload xảy ra lỗi.");
+  }
+  
+}
+
+
 // Change Password Modal
 function showChangePasswordModal() {
   const modal = document.createElement('div');
