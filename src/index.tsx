@@ -25,8 +25,7 @@ app.post('/api/login', async (c) => {
     const { username, password } = await c.req.json()
     
     const result = await c.env.DB.prepare(`
-      SELECT u.id, u.username, u.full_name, u.region_id, u.position_id, u.start_date,
-             r.name as region_name, p.name as position_name, p.display_name as position_display
+      SELECT *, r.name as region_name, p.name as position_name, p.display_name as position_display
       FROM users u
       JOIN regions r ON u.region_id = r.id
       JOIN positions p ON u.position_id = p.id
@@ -1442,6 +1441,7 @@ app.post('/api/admin/users', async (c) => {
     const position_id = body.positionId || body.position_id
     const start_date = body.startDate || body.start_date
     const team = body.team || null
+    const manager = body.manager || null
     
     // Check if username already exists
     const existing = await c.env.DB.prepare(`
@@ -1454,9 +1454,9 @@ app.post('/api/admin/users', async (c) => {
     
     // Insert new user
     const result = await c.env.DB.prepare(`
-      INSERT INTO users (username, password, full_name, region_id, position_id, start_date, team)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).bind(username, password, full_name, region_id, position_id, start_date, team).run()
+      INSERT INTO users (username, password, full_name, region_id, position_id, start_date, team, manager_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(username, password, full_name, region_id, position_id, start_date, team, manager).run()
     
     return c.json({ 
       success: true, 
@@ -1474,6 +1474,8 @@ app.put('/api/admin/users/:userId', async (c) => {
   try {
     const userId = c.req.param('userId')
     const body = await c.req.json()
+
+    console.log("ahihi" + body)
     
     // Build dynamic update query
     const updates = []
