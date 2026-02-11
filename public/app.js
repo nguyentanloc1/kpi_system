@@ -27,6 +27,10 @@ function formatLargeNumber(value, kpiName = '', forceShort = false) {
     }
     return '1';
   }
+
+  if (kpiName && (kpiName.includes('năm kinh nghiệm') || kpiName.includes('thâm niên'))) {
+    return Number(value).toFixed(2) + ' năm';
+  }
   
   // If value is between 0 and 1 (excluding 1), treat as percentage
   if (num > 0 && num < 1) {
@@ -612,7 +616,7 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) 
               data-revenue-plan="${revenuePlan}"
               class="kpi-input w-full px-3 lg:px-4 py-2.5 lg:py-3 text-sm lg:text-base border-2 border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition-all font-semibold"
               placeholder="VD: 5.5 (nghĩa là 5.5 tỷ VNĐ)"
-              value="${value}"
+              value="${value / 1000000000}"
               oninput="calculateRevenuePercent(this)"
             >
           </div>
@@ -645,7 +649,7 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) 
               data-type="kpi"
               class="kpi-input w-full px-3 lg:px-4 py-2.5 lg:py-3 text-sm lg:text-base border-2 border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all font-semibold"
               placeholder="VD: 5.5 (nghĩa là 5.5 tỷ VNĐ)"
-              value="${value}"
+              value="${value / 1000000000}"
             >
           </div>
         </div>
