@@ -2994,7 +2994,7 @@ async function showEditUserModal(userId) {
         `<option value="${p.id}" ${p.id === user.position_id ? 'selected' : ''}>${p.display_name}</option>`
       ).join('');
 
-    await loadEditPotentialManagers();
+    await loadEditPotentialManagers(user.manager_id);
     
     // Populate team field
     document.getElementById('edit-team').value = user.team || '';
@@ -3046,7 +3046,7 @@ function hideEditUserModal() {
   document.getElementById('edit-startdate').value = '';
 }
 
-async function loadEditPotentialManagers() {
+async function loadEditPotentialManagers(managerId = null) {
   const regionId = document.getElementById('edit-region').value;
   const positionId = document.getElementById('edit-position').value;
   const managerSelect = document.getElementById('edit-manager');
@@ -3060,14 +3060,14 @@ async function loadEditPotentialManagers() {
     const response = await axios.get(`/api/admin/potential-managers/${regionId}/${positionId}`);
     const managers = response.data.managers;
     
-    const currentManagerId = managerSelect.value; // Remember current selection
+    const currentManagerId = managerId; // Remember current selection
     
     if (managers.length === 0) {
       managerSelect.innerHTML = '<option value="">Không có quản lý cấp trên (Phó Tổng)</option>';
     } else {
       managerSelect.innerHTML = '<option value="">Chọn quản lý</option>' +
         managers.map(m => 
-          `<option value="${m.id}" ${m.id == currentManagerId ? 'selected' : ''}>${m.full_name} (${m.username})</option>`
+          `<option value="${m.id}" ${m.id === currentManagerId ? 'selected' : ''}>${m.full_name} (${m.username})</option>`
         ).join('');
     }
   } catch (error) {
