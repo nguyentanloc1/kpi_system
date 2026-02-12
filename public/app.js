@@ -2179,14 +2179,17 @@ function renderAdminUsers(container) {
               Thông tin công việc
             </h4>
       
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="edit-user-job-info">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1">
                   Khối vận hành <span class="text-red-500">*</span>
                 </label>
-                <select id="edit-region"
-                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
-                         focus:outline-none focus:border-blue-500 transition">
+                <select 
+                    id="edit-region" 
+                    class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg 
+                    focus:outline-none focus:border-blue-500 transition"
+                    onchange="loadEditPotentialManagers()"
+                >
                   <option value="">Chọn khối</option>
                 </select>
               </div>
@@ -2194,10 +2197,22 @@ function renderAdminUsers(container) {
                 <label class="block text-sm font-semibold text-gray-700 mb-1">
                   Vị trí <span class="text-red-500">*</span>
                 </label>
-                <select id="edit-position"
+                <select 
+                    id="edit-position" 
+                    class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition"
+                    onchange="loadEditPotentialManagers()"
+                >
+                  <option value="">Chọn vị trí</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">
+                  Quản lý <span class="text-red-500">*</span>
+                </label>
+                <select id="edit-manager"
                   class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
                          focus:outline-none focus:border-blue-500 transition">
-                  <option value="">Chọn vị trí</option>
+                  <option value="">Chọn quản lý</option>
                 </select>
               </div>
               <div>
@@ -2912,45 +2927,6 @@ function filterUsers() {
   renderUserTable(filtered);
 }
 
-async function updateUser(userId) {
-  const dateInput = document.getElementById(`date-${userId}`);
-  const startDate = dateInput.value;
-  const messageDiv = document.getElementById('admin-message');
-  
-  if (!startDate) {
-    messageDiv.innerHTML = `
-      <div class="p-4 bg-yellow-50 border-l-4 border-yellow-500 text-yellow-700 rounded-lg">
-        <i class="fas fa-exclamation-triangle mr-2"></i>Vui lòng chọn ngày nhận việc
-      </div>
-    `;
-    return;
-  }
-  
-  try {
-    await axios.put(`/api/admin/users/${userId}`, { 
-      start_date: startDate,
-      manager_id: null // Will be managed through create form for now
-    });
-    
-    messageDiv.innerHTML = `
-      <div class="p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded-lg">
-        <i class="fas fa-check-circle mr-2"></i>Cập nhật thành công!
-      </div>
-    `;
-    
-    setTimeout(() => {
-      messageDiv.innerHTML = '';
-    }, 3000);
-    
-  } catch (error) {
-    messageDiv.innerHTML = `
-      <div class="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
-        <i class="fas fa-exclamation-circle mr-2"></i>Lỗi cập nhật
-      </div>
-    `;
-  }
-}
-
 async function deleteUser(userId, fullName) {
   if (!confirm(`Bạn có chắc muốn xóa tài khoản "${fullName}"?\n\nLưu ý: Tất cả dữ liệu KPI của người này sẽ bị xóa.`)) {
     return;
@@ -2967,7 +2943,7 @@ async function deleteUser(userId, fullName) {
       </div>
     `;
     
-    loadAdminUsers();
+    await loadAdminUsers();
     
     setTimeout(() => {
       messageDiv.innerHTML = '';
@@ -3017,6 +2993,8 @@ async function showEditUserModal(userId) {
       adminMetadata.positions.map(p => 
         `<option value="${p.id}" ${p.id === user.position_id ? 'selected' : ''}>${p.display_name}</option>`
       ).join('');
+
+    await loadEditPotentialManagers();
     
     // Populate team field
     document.getElementById('edit-team').value = user.team || '';
@@ -3104,6 +3082,7 @@ async function saveEditUser() {
   const password = document.getElementById('edit-password').value.trim();
   const regionId = document.getElementById('edit-region').value;
   const positionId = document.getElementById('edit-position').value;
+  const managerId = document.getElementById('edit-manager').value;
   const team = document.getElementById('edit-team').value.trim();
   const startDate = document.getElementById('edit-startdate').value;
   const coverImageUrl = document.getElementById('edit-cover-url').value.trim();
@@ -3123,6 +3102,7 @@ async function saveEditUser() {
       region_id: parseInt(regionId),
       position_id: parseInt(positionId),
       team: team || null,
+      manager_id: managerId,
       start_date: startDate,
       cover_image_url: coverImageUrl || null
     };
@@ -3141,7 +3121,7 @@ async function saveEditUser() {
     `;
     
     hideEditUserModal();
-    loadAdminUsers();
+    await loadAdminUsers();
     
     setTimeout(() => {
       messageDiv.innerHTML = '';

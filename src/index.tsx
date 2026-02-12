@@ -1474,8 +1474,6 @@ app.put('/api/admin/users/:userId', async (c) => {
   try {
     const userId = c.req.param('userId')
     const body = await c.req.json()
-
-    console.log("ahihi" + body)
     
     // Build dynamic update query
     const updates = []
@@ -1503,6 +1501,12 @@ app.put('/api/admin/users/:userId', async (c) => {
     if (body.position_id || body.positionId) {
       updates.push('position_id = ?')
       bindings.push(body.position_id || body.positionId)
+    }
+
+    // manager
+    if (body.manager_id || body.managerId) {
+      updates.push('manager_id = ?')
+      bindings.push(body.manager_id || body.managerId)
     }
     
     // Team
