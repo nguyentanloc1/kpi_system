@@ -2757,7 +2757,7 @@ function renderUserTable(users) {
         </td>
         <td class="px-4 py-3 text-left">
           <span class="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full">
-            ${user.manager_id != null ? user.manager_name : "-"}
+            ${user.manager_id != null ? `${user.manager_name} (${user.manager_username})` : "-"}
           </span>
         </td>
         <td class="px-4 py-3 text-sm text-gray-600 text-left">

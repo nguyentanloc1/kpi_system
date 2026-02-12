@@ -1003,7 +1003,8 @@ app.get('/api/admin/users', async (c) => {
         u.id, u.username, u.full_name, u.employee_id, u.team, u.start_date, u.manager_id,
         r.id as region_id, r.name as region_name,
         p.id as position_id, p.display_name as position_name,
-        manager.full_name as manager_name
+        manager.full_name as manager_name,
+        manager.username as manager_username
       FROM users u
       JOIN regions r ON u.region_id = r.id
       JOIN positions p ON u.position_id = p.id
