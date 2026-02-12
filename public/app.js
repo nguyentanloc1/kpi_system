@@ -4306,7 +4306,8 @@ function renderActualRevenueUpload(container) {
       <div class="flex items-center gap-3 mb-4">
         <button
           onclick="document.getElementById('actual-revenue-file').click()"
-          class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+          class="px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-400"
+          disabled
         >
           <i class="fas fa-upload mr-2"></i>Upload Excel
         </button>
