@@ -25,8 +25,8 @@ app.post('/api/login', async (c) => {
     const { username, password } = await c.req.json()
     
     const result = await c.env.DB.prepare(`
-      SELECT u.id, u.username, u.full_name, u.region_id, u.position_id, u.start_date,
-             r.name as region_name, p.name as position_name, p.display_name as position_display
+      SELECT u.id, u.username, u.full_name, u.region_id, u.position_id, u.start_date, u.cover_image_url,
+        r.name as region_name, p.name as position_name, p.display_name as position_display
       FROM users u
       JOIN regions r ON u.region_id = r.id
       JOIN positions p ON u.position_id = p.id
