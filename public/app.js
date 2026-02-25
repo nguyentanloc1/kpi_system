@@ -420,7 +420,7 @@ function renderKpiTab(container) {
         </div>
       </div>
       
-      <div id="kpi-form-container" class="text-center py-12 text-gray-500">
+      <div id="kpi-form-container" class="text-center py-2 text-gray-500">
         <i class="fas fa-spinner fa-spin text-3xl lg:text-4xl mb-4"></i>
         <p class="text-sm lg:text-base">Đang tải dữ liệu...</p>
       </div>
@@ -1002,7 +1002,7 @@ function renderLevelTab(container) {
       </div>
       
       <!-- Level Data Container -->
-      <div id="level-data-container" class="text-center py-8 md:py-12 text-gray-500">
+      <div id="level-data-container" class="text-center py-2 md:py-2 text-gray-500">
         <i class="fas fa-info-circle text-3xl md:text-4xl mb-3 md:mb-4 text-purple-400"></i>
         <p class="text-sm md:text-lg px-4">Chọn tháng/năm và nhấn <strong>"Tải dữ liệu"</strong> để xem Level</p>
       </div>
@@ -1631,7 +1631,7 @@ function renderDashboardTab(container) {
         </div>
       </div>
       
-      <div id="dashboard-container" class="text-center py-12 text-gray-500">
+      <div id="dashboard-container" class="text-center py-2 text-gray-500">
         <i class="fas fa-spinner fa-spin text-3xl lg:text-4xl mb-4"></i>
         <p class="text-sm lg:text-base">Đang tải dữ liệu...</p>
       </div>
@@ -3550,7 +3550,7 @@ function renderRecruitmentChart(chartData) {
             </thead>
             <tbody>
               ${top10.map((user, idx) => `
-                <tr class="border-b hover:bg-green-50 ${user.id === currentUser.id ? 'bg-purple-50' : ''}">>
+                <tr class="border-b hover:bg-green-50 ${user.id === currentUser.id ? 'bg-purple-50' : ''}">
                   <td class="px-4 py-3">
                     <span class="inline-flex items-center justify-center w-8 h-8 rounded-full ${
                       idx === 0 ? 'bg-yellow-400 text-yellow-900' :
@@ -3561,7 +3561,7 @@ function renderRecruitmentChart(chartData) {
                       ${idx + 1}
                     </span>
                   </td>
-                  <td class="px-4 py-3 text-sm font-semibold ${user.id === currentUser.id ? 'text-purple-600' : 'text-gray-800'}">>
+                  <td class="px-4 py-3 text-sm font-semibold ${user.id === currentUser.id ? 'text-purple-600' : 'text-gray-800'}">
                     ${user.full_name}
                     ${user.id === currentUser.id ? '<span class="text-purple-600 ml-1">(Bạn)</span>' : ''}
                   </td>
