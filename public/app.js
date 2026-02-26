@@ -3600,7 +3600,7 @@ function renderRecruitmentChart(chartData) {
             </thead>
             <tbody>
               ${needImprovement.map((user, idx) => `
-                <tr class="border-b hover:bg-red-50 ${user.id === currentUser.id ? 'bg-purple-50' : ''}">>
+                <tr class="border-b hover:bg-red-50 ${user.id === currentUser.id ? 'bg-purple-50' : ''}">
                   <td class="px-4 py-3">
                     <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-red-100 text-red-600 font-bold text-sm">
                       ${idx + 1}
