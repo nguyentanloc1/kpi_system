@@ -3606,7 +3606,7 @@ function renderRecruitmentChart(chartData) {
                       ${idx + 1}
                     </span>
                   </td>
-                  <td class="px-4 py-3 text-sm font-semibold ${user.id === currentUser.id ? 'text-purple-600' : 'text-gray-800'}">>
+                  <td class="px-4 py-3 text-sm font-semibold ${user.id === currentUser.id ? 'text-purple-600' : 'text-gray-800'}">
                     ${user.full_name}
                     ${user.id === currentUser.id ? '<span class="text-purple-600 ml-1">(Bạn)</span>' : ''}
                   </td>
