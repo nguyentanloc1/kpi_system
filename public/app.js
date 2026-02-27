@@ -605,7 +605,7 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) 
           <div>
             <label class="text-sm font-bold text-gray-700 mb-2 block bg-yellow-50 px-3 py-2 rounded-lg border border-yellow-200">
               <i class="fas fa-hand-point-right mr-2 text-orange-500"></i>
-              Nhập doanh thu thực tế tháng ${month} (Tỷ VNĐ):
+              Nhập doanh thu thực tế tháng ${month} (ĐVT: Tỷ VNĐ - VD: 5.5 (nghĩa là 5.5 tỷ VNĐ)):
             </label>
             <input 
               type="number" 
@@ -640,7 +640,7 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) 
           <div>
             <label class="text-sm font-bold text-gray-700 mb-2 block bg-yellow-50 px-3 py-2 rounded-lg border border-yellow-200">
               <i class="fas fa-hand-point-right mr-2 text-orange-500"></i>
-              Nhập doanh thu thực tế tháng ${month} (Tỷ VNĐ):
+              Nhập doanh thu thực tế tháng ${month} (ĐVT: Tỷ VNĐ - VD: 5.5 (nghĩa là 5.5 tỷ VNĐ)):
             </label>
             <input 
               type="number" 
