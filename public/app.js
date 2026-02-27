@@ -3109,6 +3109,7 @@ async function saveEditUser() {
   
   const fullName = document.getElementById('edit-fullname').value.trim();
   const password = document.getElementById('edit-password').value.trim();
+  const passwordConfirm = document.getElementById('edit-password-confirm').value.trim();
   const regionId = document.getElementById('edit-region').value;
   const positionId = document.getElementById('edit-position').value;
   const managerId = document.getElementById('edit-manager').value;
@@ -3119,6 +3120,11 @@ async function saveEditUser() {
   // Validation
   if (!fullName || !regionId || !positionId || !startDate) {
     alert('Vui lòng điền đầy đủ thông tin bắt buộc (*)');
+    return;
+  }
+
+  if (password !== passwordConfirm) {
+    alert('Mật khẩu xác nhận không trùng khớp!');
     return;
   }
   
@@ -3137,7 +3143,7 @@ async function saveEditUser() {
     };
     
     // Only include password if provided
-    if (password) {
+    if (password && passwordConfirm) {
       updateData.password = password;
     }
     

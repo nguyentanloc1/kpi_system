@@ -1001,7 +1001,7 @@ app.get('/api/admin/users', async (c) => {
     
     const results = await c.env.DB.prepare(`
       SELECT 
-        u.id, u.username, u.full_name, u.employee_id, u.team, u.start_date, u.manager_id,
+        u.id, u.username, u.full_name, u.employee_id, u.team, u.start_date, u.manager_id, u.cover_image_url,
         r.id as region_id, r.name as region_name,
         p.id as position_id, p.display_name as position_name,
         manager.full_name as manager_name,
