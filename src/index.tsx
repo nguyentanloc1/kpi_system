@@ -1001,10 +1001,11 @@ app.get('/api/admin/users', async (c) => {
     
     const results = await c.env.DB.prepare(`
       SELECT 
-        u.id, u.username, u.full_name, u.employee_id, u.team, u.start_date, u.manager_id,
+        u.id, u.username, u.full_name, u.employee_id, u.team, u.start_date, u.manager_id, u.cover_image_url,
         r.id as region_id, r.name as region_name,
         p.id as position_id, p.display_name as position_name,
-        manager.full_name as manager_name
+        manager.full_name as manager_name,
+        manager.username as manager_username
       FROM users u
       JOIN regions r ON u.region_id = r.id
       JOIN positions p ON u.position_id = p.id
@@ -1442,6 +1443,7 @@ app.post('/api/admin/users', async (c) => {
     const position_id = body.positionId || body.position_id
     const start_date = body.startDate || body.start_date
     const team = body.team || null
+    const manager = body.manager || null
     
     // Check if username already exists
     const existing = await c.env.DB.prepare(`
@@ -1454,9 +1456,9 @@ app.post('/api/admin/users', async (c) => {
     
     // Insert new user
     const result = await c.env.DB.prepare(`
-      INSERT INTO users (username, password, full_name, region_id, position_id, start_date, team)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).bind(username, password, full_name, region_id, position_id, start_date, team).run()
+      INSERT INTO users (username, password, full_name, region_id, position_id, start_date, team, manager_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(username, password, full_name, region_id, position_id, start_date, team, manager).run()
     
     return c.json({ 
       success: true, 
@@ -1501,6 +1503,12 @@ app.put('/api/admin/users/:userId', async (c) => {
     if (body.position_id || body.positionId) {
       updates.push('position_id = ?')
       bindings.push(body.position_id || body.positionId)
+    }
+
+    // manager
+    if (body.manager_id || body.managerId) {
+      updates.push('manager_id = ?')
+      bindings.push(body.manager_id || body.managerId)
     }
     
     // Team
@@ -1571,6 +1579,33 @@ app.delete('/api/admin/users/:userId', async (c) => {
   } catch (error) {
     console.error('Error deleting user:', error)
     return c.json({ error: 'Lỗi xóa tài khoản' }, 500)
+  }
+})
+
+// Get single user profile (used for refreshing currentUser from DB on page load)
+app.get('/api/users/:userId', async (c) => {
+  try {
+    const userId = c.req.param('userId')
+
+    const result = await c.env.DB.prepare(`
+      SELECT u.*, r.name as region_name, p.name as position_name, p.display_name as position_display
+      FROM users u
+      LEFT JOIN regions r ON u.region_id = r.id
+      LEFT JOIN positions p ON u.position_id = p.id
+      WHERE u.id = ?
+    `).bind(userId).first()
+
+    if (!result) {
+      return c.json({ error: 'Không tìm thấy người dùng' }, 404)
+    }
+
+    // Remove password from response
+    const { password, ...safeUser } = result as any
+
+    return c.json({ user: safeUser })
+  } catch (error) {
+    console.error('Error fetching user profile:', error)
+    return c.json({ error: 'Lỗi lấy thông tin người dùng' }, 500)
   }
 })
 

@@ -64,22 +64,51 @@ function checkAuth() {
   return false;
 }
 
+async function refreshUserFromDB() {
+  if (!currentUser || !currentUser.id) return false;
+  try {
+    const response = await axios.get(`/api/users/${currentUser.id}`);
+    if (response.data && response.data.user) {
+      const fresh = response.data.user;
+      const merged = { ...currentUser, ...fresh };
+      currentUser = merged;
+      localStorage.setItem('user', JSON.stringify(merged));
+      return true;
+    }
+  } catch (error) {
+    if (error.response && error.response.status === 404) {
+      localStorage.removeItem('user');
+      currentUser = null;
+      return false;
+    }
+    console.warn(error.message);
+  }
+  return true;
+}
+
 function logout() {
+  if (!confirm('Bạn có chắc muốn đăng xuất không?')) return;
   localStorage.removeItem('user');
   currentUser = null;
   renderApp();
 }
 
 // ===== MAIN APP =====
-function renderApp() {
+async function renderApp() {
   const app = document.getElementById('app');
   if (!checkAuth()) {
     app.innerHTML = renderLoginPage();
     setupLoginListeners();
-  } else {
-    app.innerHTML = renderMainPage();
-    setupMainPageListeners();
+    return;
   }
+  const stillValid = await refreshUserFromDB();
+  if (!stillValid) {
+    app.innerHTML = renderLoginPage();
+    setupLoginListeners();
+    return;
+  }
+  app.innerHTML = renderMainPage();
+  setupMainPageListeners();
 }
 
 // ===== LOGIN PAGE =====
@@ -2111,79 +2140,176 @@ function renderAdminUsers(container) {
           <i class="fas fa-user-plus mr-2"></i>Tạo tài khoản mới
         </button>
       </div>
-      
+
       <!-- Edit User Modal (hidden by default) -->
-      <div id="edit-user-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-          <h3 class="text-2xl font-bold text-gray-800 mb-6">
-            <i class="fas fa-user-edit mr-2 text-blue-600"></i>Chỉnh sửa thông tin tài khoản
-          </h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="md:col-span-2">
-              <label class="block text-sm font-semibold text-gray-700 mb-2">Tên đăng nhập</label>
-              <input type="text" id="edit-username" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-gray-100" disabled>
-              <p class="text-xs text-gray-500 mt-1">Không thể thay đổi tên đăng nhập</p>
-            </div>
-            <div class="md:col-span-2">
-              <label class="block text-sm font-semibold text-gray-700 mb-2">Họ và tên *</label>
-              <input type="text" id="edit-fullname" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div class="md:col-span-2">
-              <label class="block text-sm font-semibold text-gray-700 mb-2">Mật khẩu mới</label>
-              <input type="password" id="edit-password" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Để trống nếu không đổi">
-              <p class="text-xs text-gray-500 mt-1">Chỉ nhập nếu muốn đổi mật khẩu</p>
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-2">Khối vận hành *</label>
-              <select id="edit-region" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">Chọn khối</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-2">Vị trí *</label>
-              <select id="edit-position" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">Chọn vị trí</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-2">Team</label>
-              <input type="text" id="edit-team" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ví dụ: BD1U1, HCM2, MT1">
-              <p class="text-xs text-gray-500 mt-1">Mã team của nhân viên</p>
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-2">Ngày nhận việc *</label>
-              <input type="date" id="edit-startdate" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div class="md:col-span-2">
-              <label class="block text-sm font-semibold text-gray-700 mb-2">
-                <i class="fas fa-image mr-2 text-purple-600"></i>Ảnh Cover (Bảng giao chỉ tiêu)
-              </label>
-              <input 
-                type="text" 
-                id="edit-cover-url" 
-                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" 
-                placeholder="https://www.genspark.ai/api/files/s/..."
-              >
-              <p class="text-xs text-gray-500 mt-1">
-                <i class="fas fa-info-circle mr-1"></i>Paste URL ảnh từ GenSpark AI Drive (VD: https://www.genspark.ai/api/files/s/wWzr8gPf)
-              </p>
-              <div id="edit-cover-preview" class="mt-2 hidden">
-                <img src="" alt="Cover Preview" class="w-full max-h-48 object-contain rounded-lg border-2 border-purple-200">
+      <div id="edit-user-modal"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      
+        <div
+          class="bg-white w-full max-w-3xl mx-4 rounded-2xl shadow-2xl p-8 max-h-[90vh] overflow-y-auto">
+      
+          <!-- HEADER -->
+          <div class="flex items-center justify-between mb-6">
+            <h3 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+              <i class="fas fa-user-edit text-blue-600"></i>
+              Chỉnh sửa tài khoản
+            </h3>
+            <button onclick="hideEditUserModal()"
+              class="text-gray-400 hover:text-gray-600 transition">
+              <i class="fas fa-times text-xl"></i>
+            </button>
+          </div>
+      
+          <!-- THÔNG TIN TÀI KHOẢN -->
+          <div class="mb-8">
+            <h4 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">
+              Thông tin tài khoản
+            </h4>
+      
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="md:col-span-2">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">
+                  Tên đăng nhập
+                </label>
+                <input type="text" id="edit-username" disabled
+                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed">
+                <p class="text-xs text-gray-500 mt-1">Không thể thay đổi</p>
+              </div>
+              <div class="md:col-span-2">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">
+                  Họ và tên <span class="text-red-500">*</span>
+                </label>
+                <input type="text" id="edit-fullname" required
+                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
+                         focus:outline-none focus:border-blue-500 transition">
+              </div>
+      
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">
+                  Mật khẩu mới
+                </label>
+                <input type="password" id="edit-password"
+                  placeholder="Để trống nếu không đổi"
+                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
+                         focus:outline-none focus:border-blue-500 transition">
+              </div>
+      
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">
+                  Xác nhận mật khẩu
+                </label>
+                <input type="password" id="edit-password-confirm"
+                  placeholder="Nhập lại mật khẩu"
+                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
+                         focus:outline-none focus:border-blue-500 transition">
               </div>
             </div>
           </div>
-          <div class="flex items-center space-x-4 mt-8">
-            <button 
-              onclick="saveEditUser()"
-              class="flex-1 px-6 py-3 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all"
-            >
+      
+          <!-- THÔNG TIN CÔNG VIỆC -->
+          <div class="mb-8">
+            <h4 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">
+              Thông tin công việc
+            </h4>
+      
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">
+                  Khối vận hành <span class="text-red-500">*</span>
+                </label>
+                <select 
+                    id="edit-region" 
+                    class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg 
+                    focus:outline-none focus:border-blue-500 transition"
+                    onchange="loadEditPotentialManagers()"
+                >
+                  <option value="">Chọn khối</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">
+                  Vị trí <span class="text-red-500">*</span>
+                </label>
+                <select 
+                    id="edit-position" 
+                    class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition"
+                    onchange="loadEditPotentialManagers()"
+                >
+                  <option value="">Chọn vị trí</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">
+                  Quản lý <span class="text-red-500">*</span>
+                </label>
+                <select id="edit-manager"
+                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
+                         focus:outline-none focus:border-blue-500 transition">
+                  <option value="">Chọn quản lý</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">
+                  Team
+                </label>
+                <input type="text" id="edit-team"
+                  placeholder="VD: BD1U1, HCM2"
+                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
+                         focus:outline-none focus:border-blue-500 transition">
+                <p class="text-xs text-gray-500 mt-1">
+                  Ví dụ:
+                  <span class="font-mono bg-gray-100 px-2 py-0.5 rounded">
+                    BD1U1
+                  </span>
+                </p>
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">
+                  Ngày nhận việc <span class="text-red-500">*</span>
+                </label>
+                <input type="date" id="edit-startdate"
+                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
+                         focus:outline-none focus:border-blue-500 transition">
+              </div>
+            </div>
+          </div>
+      
+          <!-- ẢNH COVER KPI -->
+          <div class="mb-8">
+            <h4 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">
+              Ảnh Cover KPI
+            </h4>
+      
+            <label class="block text-sm font-semibold text-gray-700 mb-1">
+              URL ảnh
+            </label>
+            <input type="text" id="edit-cover-url"
+              placeholder="https://www.genspark.ai/api/files/s/..."
+              class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
+                     focus:outline-none focus:border-purple-500 transition">
+      
+            <p class="text-xs text-gray-500 mt-1">
+              Dán link ảnh từ GenSpark AI Drive
+            </p>
+      
+            <div id="edit-cover-preview" class="hidden mt-4">
+              <img class="w-full max-h-48 object-contain rounded-lg border">
+            </div>
+          </div>
+      
+          <!-- CTA -->
+          <div class="flex gap-4">
+            <button onclick="saveEditUser()"
+              class="flex-1 py-3 rounded-lg font-semibold text-white
+                     bg-gradient-to-r from-green-500 to-teal-500
+                     hover:shadow-lg transition">
               <i class="fas fa-save mr-2"></i>Lưu thay đổi
             </button>
-            <button 
-              onclick="hideEditUserModal()"
-              class="flex-1 px-6 py-3 bg-gray-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all"
-            >
-              <i class="fas fa-times mr-2"></i>Hủy
+      
+            <button onclick="hideEditUserModal()"
+              class="flex-1 py-3 rounded-lg font-semibold text-white
+                     bg-gray-500 hover:shadow-lg transition">
+              Hủy
             </button>
           </div>
         </div>
@@ -2194,29 +2320,36 @@ function renderAdminUsers(container) {
         <h3 class="text-xl font-bold text-gray-800 mb-4">
           <i class="fas fa-user-plus mr-2"></i>Tạo tài khoản mới
         </h3>
+        <div id="create-new-user-message" class="my-4"></div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-2">Tên đăng nhập *</label>
-            <input type="text" id="new-username" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ví dụ: gs_binhduong_02">
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Tên đăng nhập <span class="text-red-500">*</span></label>
+            <input type="text" id="new-username" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ví dụ: gs_binhduong_02" required>
           </div>
           <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-2">Mật khẩu *</label>
-            <input type="password" id="new-password" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Mật khẩu">
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Mật khẩu <span class="text-red-500">*</span></label>
+            <input type="password" id="new-password" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Mật khẩu" required>
           </div>
           <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-2">Họ tên *</label>
-            <input type="text" id="new-fullname" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Họ và tên đầy đủ">
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Họ tên <span class="text-red-500">*</span></label>
+            <input type="text" id="new-fullname" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Họ và tên đầy đủ" required>
           </div>
           <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-2">Khối vận hành *</label>
-            <select id="new-region" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" onchange="loadPotentialManagers()">
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Khối vận hành <span class="text-red-500">*</span></label>
+            <select id="new-region" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" onchange="loadPotentialManagers()" required>
               <option value="">Chọn khối</option>
             </select>
           </div>
           <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-2">Vị trí *</label>
-            <select id="new-position" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" onchange="loadPotentialManagers()">
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Vị trí <span class="text-red-500">*</span></label>
+            <select id="new-position" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" onchange="loadPotentialManagers()" required>
               <option value="">Chọn vị trí</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Quản lý <span class="text-red-500">*</span></label>
+            <select id="new-manager" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+              <option value="">Chọn quản lý</option>
             </select>
           </div>
           <div>
@@ -2225,8 +2358,8 @@ function renderAdminUsers(container) {
             <p class="text-xs text-gray-500 mt-1">Mã team của nhân viên</p>
           </div>
           <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-2">Ngày nhận việc *</label>
-            <input type="date" id="new-startdate" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Ngày nhận việc <span class="text-red-500">*</span></label>
+            <input type="date" id="new-startdate" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
           </div>
         </div>
         <div class="flex items-center space-x-4 mt-6">
@@ -2301,12 +2434,12 @@ function renderAdminUsers(container) {
         </div>
       </div>
       
+      <div id="admin-message" class="mt-4"></div>
+      
       <div id="admin-users-container" class="text-center py-12 text-gray-500">
         <i class="fas fa-spinner fa-spin text-4xl mb-4"></i>
         <p>Đang tải danh sách người dùng...</p>
       </div>
-      
-      <div id="admin-message" class="mt-4"></div>
     </div> <!-- end bg-white -->
   `;
   
@@ -2496,14 +2629,19 @@ function showCreateUserForm() {
 
 function hideCreateUserForm() {
   document.getElementById('create-user-form').classList.add('hidden');
-  // Clear form
-  document.getElementById('new-username').value = '';
-  document.getElementById('new-password').value = '';
-  document.getElementById('new-fullname').value = '';
-  document.getElementById('new-region').value = '';
-  document.getElementById('new-position').value = '';
-  document.getElementById('new-manager').value = '';
-  document.getElementById('new-startdate').value = '';
+
+  const fields = [
+    'new-username', 'new-password', 'new-fullname', 'new-region',
+    'new-position', 'new-team', 'new-manager', 'new-startdate'
+  ];
+  fields.forEach(id => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.value = '';
+    }
+  });
+
+  document.getElementById('create-new-user-message').innerHTML = '';
 }
 
 async function createNewUser() {
@@ -2513,11 +2651,11 @@ async function createNewUser() {
   const regionId = document.getElementById('new-region').value;
   const positionId = document.getElementById('new-position').value;
   const team = document.getElementById('new-team').value.trim();
+  const manager = document.getElementById('new-manager').value.trim();
   const startDate = document.getElementById('new-startdate').value;
-  const messageDiv = document.getElementById('admin-message');
-  
+  const messageDiv = document.getElementById('create-new-user-message');
   // Validation
-  if (!username || !password || !fullName || !regionId || !positionId || !startDate) {
+  if (!username || !password || !fullName || !regionId || !positionId || !manager || !startDate) {
     messageDiv.innerHTML = `
       <div class="p-4 bg-yellow-50 border-l-4 border-yellow-500 text-yellow-700 rounded-lg">
         <i class="fas fa-exclamation-triangle mr-2"></i>Vui lòng điền đầy đủ thông tin bắt buộc (*)
@@ -2525,31 +2663,37 @@ async function createNewUser() {
     `;
     return;
   }
-  
+
+  if (password.length < 6) {
+    messageDiv.innerHTML = `
+      <div class="p-4 bg-yellow-50 border-l-4 border-yellow-500 text-yellow-700 rounded-lg">
+        <i class="fas fa-exclamation-triangle mr-2"></i>Mật khẩu phải có ít nhất 6 ký tự
+      </div>
+    `;
+    return;
+  }
+
   try {
-    await axios.post('/api/admin/users', {
+    const response = await axios.post('/api/admin/users', {
       username,
       password,
       full_name: fullName,
       region_id: parseInt(regionId),
       position_id: parseInt(positionId),
       start_date: startDate,
-      team: team || null
+      team: team || null,
+      manager: manager,
     });
-    
-    messageDiv.innerHTML = `
-      <div class="p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded-lg">
-        <i class="fas fa-check-circle mr-2"></i>Tạo tài khoản thành công!
-      </div>
-    `;
-    
-    hideCreateUserForm();
-    loadAdminUsers();
-    
-    setTimeout(() => {
-      messageDiv.innerHTML = '';
-    }, 3000);
-    
+
+    if (response.data.success) {
+      messageDiv.innerHTML = `
+        <div class="p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded-lg">
+          <i class="fas fa-check-circle mr-2"></i>${response.data.message}
+        </div>
+      `;
+      hideCreateUserForm();
+      await loadAdminUsers();
+    }
   } catch (error) {
     messageDiv.innerHTML = `
       <div class="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
@@ -2613,6 +2757,7 @@ function renderUserTable(users) {
         <th class="px-4 py-3 text-left">Khối</th>
         <th class="px-4 py-3 text-left">Team</th>
         <th class="px-4 py-3 text-left">Vị trí</th>
+        <th class="px-4 py-3 text-left">Quản lý</th>
         <th class="px-4 py-3 text-left">Ngày nhận việc</th>
         <th class="px-4 py-3 text-left">Thao tác</th>
       </tr>
@@ -2641,6 +2786,11 @@ function renderUserTable(users) {
         <td class="px-4 py-3 text-left">
           <span class="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full">
             ${user.position_name}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-left">
+          <span class="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full">
+            ${user.manager_id != null ? `${user.manager_name} (${user.manager_username})` : "-"}
           </span>
         </td>
         <td class="px-4 py-3 text-sm text-gray-600 text-left">
@@ -2810,48 +2960,6 @@ function filterUsers() {
   renderUserTable(filtered);
 }
 
-
-// Old render code removed, replaced with renderUserTable()
-
-async function updateUser(userId) {
-  const dateInput = document.getElementById(`date-${userId}`);
-  const startDate = dateInput.value;
-  const messageDiv = document.getElementById('admin-message');
-  
-  if (!startDate) {
-    messageDiv.innerHTML = `
-      <div class="p-4 bg-yellow-50 border-l-4 border-yellow-500 text-yellow-700 rounded-lg">
-        <i class="fas fa-exclamation-triangle mr-2"></i>Vui lòng chọn ngày nhận việc
-      </div>
-    `;
-    return;
-  }
-  
-  try {
-    await axios.put(`/api/admin/users/${userId}`, { 
-      start_date: startDate,
-      manager_id: null // Will be managed through create form for now
-    });
-    
-    messageDiv.innerHTML = `
-      <div class="p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded-lg">
-        <i class="fas fa-check-circle mr-2"></i>Cập nhật thành công!
-      </div>
-    `;
-    
-    setTimeout(() => {
-      messageDiv.innerHTML = '';
-    }, 3000);
-    
-  } catch (error) {
-    messageDiv.innerHTML = `
-      <div class="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
-        <i class="fas fa-exclamation-circle mr-2"></i>Lỗi cập nhật
-      </div>
-    `;
-  }
-}
-
 async function deleteUser(userId, fullName) {
   if (!confirm(`Bạn có chắc muốn xóa tài khoản "${fullName}"?\n\nLưu ý: Tất cả dữ liệu KPI của người này sẽ bị xóa.`)) {
     return;
@@ -2868,7 +2976,7 @@ async function deleteUser(userId, fullName) {
       </div>
     `;
     
-    loadAdminUsers();
+    await loadAdminUsers();
     
     setTimeout(() => {
       messageDiv.innerHTML = '';
@@ -2904,7 +3012,7 @@ async function showEditUserModal(userId) {
     document.getElementById('edit-fullname').value = user.full_name;
     document.getElementById('edit-password').value = ''; // Always empty
     document.getElementById('edit-startdate').value = user.start_date || '';
-    
+
     // Populate region dropdown
     const regionSelect = document.getElementById('edit-region');
     regionSelect.innerHTML = '<option value="">Chọn khối</option>' +
@@ -2918,6 +3026,8 @@ async function showEditUserModal(userId) {
       adminMetadata.positions.map(p => 
         `<option value="${p.id}" ${p.id === user.position_id ? 'selected' : ''}>${p.display_name}</option>`
       ).join('');
+
+    await loadEditPotentialManagers(user.manager_id);
     
     // Populate team field
     document.getElementById('edit-team').value = user.team || '';
@@ -2969,7 +3079,7 @@ function hideEditUserModal() {
   document.getElementById('edit-startdate').value = '';
 }
 
-async function loadEditPotentialManagers() {
+async function loadEditPotentialManagers(managerId = null) {
   const regionId = document.getElementById('edit-region').value;
   const positionId = document.getElementById('edit-position').value;
   const managerSelect = document.getElementById('edit-manager');
@@ -2983,14 +3093,14 @@ async function loadEditPotentialManagers() {
     const response = await axios.get(`/api/admin/potential-managers/${regionId}/${positionId}`);
     const managers = response.data.managers;
     
-    const currentManagerId = managerSelect.value; // Remember current selection
+    const currentManagerId = managerId; // Remember current selection
     
     if (managers.length === 0) {
       managerSelect.innerHTML = '<option value="">Không có quản lý cấp trên (Phó Tổng)</option>';
     } else {
       managerSelect.innerHTML = '<option value="">Chọn quản lý</option>' +
         managers.map(m => 
-          `<option value="${m.id}" ${m.id == currentManagerId ? 'selected' : ''}>${m.full_name} (${m.username})</option>`
+          `<option value="${m.id}" ${m.id === currentManagerId ? 'selected' : ''}>${m.full_name} (${m.username})</option>`
         ).join('');
     }
   } catch (error) {
@@ -3003,8 +3113,10 @@ async function saveEditUser() {
   
   const fullName = document.getElementById('edit-fullname').value.trim();
   const password = document.getElementById('edit-password').value.trim();
+  const passwordConfirm = document.getElementById('edit-password-confirm').value.trim();
   const regionId = document.getElementById('edit-region').value;
   const positionId = document.getElementById('edit-position').value;
+  const managerId = document.getElementById('edit-manager').value;
   const team = document.getElementById('edit-team').value.trim();
   const startDate = document.getElementById('edit-startdate').value;
   const coverImageUrl = document.getElementById('edit-cover-url').value.trim();
@@ -3012,6 +3124,11 @@ async function saveEditUser() {
   // Validation
   if (!fullName || !regionId || !positionId || !startDate) {
     alert('Vui lòng điền đầy đủ thông tin bắt buộc (*)');
+    return;
+  }
+
+  if (password !== passwordConfirm) {
+    alert('Mật khẩu xác nhận không trùng khớp!');
     return;
   }
   
@@ -3024,12 +3141,13 @@ async function saveEditUser() {
       region_id: parseInt(regionId),
       position_id: parseInt(positionId),
       team: team || null,
+      manager_id: managerId,
       start_date: startDate,
       cover_image_url: coverImageUrl || null
     };
     
     // Only include password if provided
-    if (password) {
+    if (password && passwordConfirm) {
       updateData.password = password;
     }
     
@@ -3042,13 +3160,14 @@ async function saveEditUser() {
     `;
     
     hideEditUserModal();
-    loadAdminUsers();
+    await loadAdminUsers();
     
     setTimeout(() => {
       messageDiv.innerHTML = '';
     }, 3000);
     
   } catch (error) {
+    console.log(error)
     messageDiv.innerHTML = `
       <div class="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
         <i class="fas fa-exclamation-circle mr-2"></i>${error.response?.data?.error || 'Lỗi cập nhật thông tin'}
