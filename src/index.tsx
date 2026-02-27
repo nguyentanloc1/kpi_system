@@ -25,7 +25,8 @@ app.post('/api/login', async (c) => {
     const { username, password } = await c.req.json()
     
     const result = await c.env.DB.prepare(`
-      SELECT *, r.name as region_name, p.name as position_name, p.display_name as position_display
+      SELECT u.id, u.username, u.full_name, u.region_id, u.position_id, u.start_date, u.cover_image_url,
+             r.name as region_name, p.name as position_name, p.display_name as position_display
       FROM users u
       JOIN regions r ON u.region_id = r.id
       JOIN positions p ON u.position_id = p.id
@@ -1578,6 +1579,33 @@ app.delete('/api/admin/users/:userId', async (c) => {
   } catch (error) {
     console.error('Error deleting user:', error)
     return c.json({ error: 'Lỗi xóa tài khoản' }, 500)
+  }
+})
+
+// Get single user profile (used for refreshing currentUser from DB on page load)
+app.get('/api/users/:userId', async (c) => {
+  try {
+    const userId = c.req.param('userId')
+
+    const result = await c.env.DB.prepare(`
+      SELECT u.*, r.name as region_name, p.name as position_name, p.display_name as position_display
+      FROM users u
+      LEFT JOIN regions r ON u.region_id = r.id
+      LEFT JOIN positions p ON u.position_id = p.id
+      WHERE u.id = ?
+    `).bind(userId).first()
+
+    if (!result) {
+      return c.json({ error: 'Không tìm thấy người dùng' }, 404)
+    }
+
+    // Remove password from response
+    const { password, ...safeUser } = result as any
+
+    return c.json({ user: safeUser })
+  } catch (error) {
+    console.error('Error fetching user profile:', error)
+    return c.json({ error: 'Lỗi lấy thông tin người dùng' }, 500)
   }
 })
 

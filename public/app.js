@@ -60,6 +60,28 @@ function checkAuth() {
   return false;
 }
 
+async function refreshUserFromDB() {
+  if (!currentUser || !currentUser.id) return false;
+  try {
+    const response = await axios.get(`/api/users/${currentUser.id}`);
+    if (response.data && response.data.user) {
+      const fresh = response.data.user;
+      const merged = { ...currentUser, ...fresh };
+      currentUser = merged;
+      localStorage.setItem('user', JSON.stringify(merged));
+      return true;
+    }
+  } catch (error) {
+    if (error.response && error.response.status === 404) {
+      localStorage.removeItem('user');
+      currentUser = null;
+      return false;
+    }
+    console.warn(error.message);
+  }
+  return true;
+}
+
 function logout() {
   localStorage.removeItem('user');
   currentUser = null;
@@ -67,15 +89,21 @@ function logout() {
 }
 
 // ===== MAIN APP =====
-function renderApp() {
+async function renderApp() {
   const app = document.getElementById('app');
   if (!checkAuth()) {
     app.innerHTML = renderLoginPage();
     setupLoginListeners();
-  } else {
-    app.innerHTML = renderMainPage();
-    setupMainPageListeners();
+    return;
   }
+  const stillValid = await refreshUserFromDB();
+  if (!stillValid) {
+    app.innerHTML = renderLoginPage();
+    setupLoginListeners();
+    return;
+  }
+  app.innerHTML = renderMainPage();
+  setupMainPageListeners();
 }
 
 // ===== LOGIN PAGE =====
