@@ -83,6 +83,7 @@ async function refreshUserFromDB() {
 }
 
 function logout() {
+  if (!confirm('Bạn có chắc muốn đăng xuất không?')) return;
   localStorage.removeItem('user');
   currentUser = null;
   renderApp();
