@@ -27,6 +27,10 @@ function formatLargeNumber(value, kpiName = '', forceShort = false) {
     }
     return '1';
   }
+
+  if (kpiName && (kpiName.includes('năm kinh nghiệm') || kpiName.includes('thâm niên'))) {
+    return Number(value).toFixed(2) + ' năm';
+  }
   
   // If value is between 0 and 1 (excluding 1), treat as percentage
   if (num > 0 && num < 1) {
@@ -445,7 +449,7 @@ function renderKpiTab(container) {
         </div>
       </div>
       
-      <div id="kpi-form-container" class="text-center py-12 text-gray-500">
+      <div id="kpi-form-container" class="text-center py-2 text-gray-500">
         <i class="fas fa-spinner fa-spin text-3xl lg:text-4xl mb-4"></i>
         <p class="text-sm lg:text-base">Đang tải dữ liệu...</p>
       </div>
@@ -630,7 +634,7 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) 
           <div>
             <label class="text-sm font-bold text-gray-700 mb-2 block bg-yellow-50 px-3 py-2 rounded-lg border border-yellow-200">
               <i class="fas fa-hand-point-right mr-2 text-orange-500"></i>
-              Nhập doanh thu thực tế tháng ${month} (Tỷ VNĐ):
+              Nhập doanh thu thực tế tháng ${month} (ĐVT: Tỷ VNĐ - VD: 5.5 (nghĩa là 5.5 tỷ VNĐ)):
             </label>
             <input 
               type="number" 
@@ -641,7 +645,7 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) 
               data-revenue-plan="${revenuePlan}"
               class="kpi-input w-full px-3 lg:px-4 py-2.5 lg:py-3 text-sm lg:text-base border-2 border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition-all font-semibold"
               placeholder="VD: 5.5 (nghĩa là 5.5 tỷ VNĐ)"
-              value="${value}"
+              value="${value / 1000000000}"
               oninput="calculateRevenuePercent(this)"
             >
           </div>
@@ -665,7 +669,7 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) 
           <div>
             <label class="text-sm font-bold text-gray-700 mb-2 block bg-yellow-50 px-3 py-2 rounded-lg border border-yellow-200">
               <i class="fas fa-hand-point-right mr-2 text-orange-500"></i>
-              Nhập doanh thu thực tế tháng ${month} (Tỷ VNĐ):
+              Nhập doanh thu thực tế tháng ${month} (ĐVT: Tỷ VNĐ - VD: 5.5 (nghĩa là 5.5 tỷ VNĐ)):
             </label>
             <input 
               type="number" 
@@ -674,7 +678,7 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) 
               data-type="kpi"
               class="kpi-input w-full px-3 lg:px-4 py-2.5 lg:py-3 text-sm lg:text-base border-2 border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all font-semibold"
               placeholder="VD: 5.5 (nghĩa là 5.5 tỷ VNĐ)"
-              value="${value}"
+              value="${value / 1000000000}"
             >
           </div>
         </div>
@@ -1027,7 +1031,7 @@ function renderLevelTab(container) {
       </div>
       
       <!-- Level Data Container -->
-      <div id="level-data-container" class="text-center py-8 md:py-12 text-gray-500">
+      <div id="level-data-container" class="text-center py-2 md:py-2 text-gray-500">
         <i class="fas fa-info-circle text-3xl md:text-4xl mb-3 md:mb-4 text-purple-400"></i>
         <p class="text-sm md:text-lg px-4">Chọn tháng/năm và nhấn <strong>"Tải dữ liệu"</strong> để xem Level</p>
       </div>
@@ -1656,7 +1660,7 @@ function renderDashboardTab(container) {
         </div>
       </div>
       
-      <div id="dashboard-container" class="text-center py-12 text-gray-500">
+      <div id="dashboard-container" class="text-center py-2 text-gray-500">
         <i class="fas fa-spinner fa-spin text-3xl lg:text-4xl mb-4"></i>
         <p class="text-sm lg:text-base">Đang tải dữ liệu...</p>
       </div>
@@ -4421,7 +4425,8 @@ function renderActualRevenueUpload(container) {
       <div class="flex items-center gap-3 mb-4">
         <button
           onclick="document.getElementById('actual-revenue-file').click()"
-          class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+          class="px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-400"
+          disabled
         >
           <i class="fas fa-upload mr-2"></i>Upload Excel
         </button>
