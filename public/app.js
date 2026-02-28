@@ -33,9 +33,10 @@ function formatLargeNumber(value, kpiName = '', forceShort = false) {
   }
   
   // If value is between 0 and 1 (excluding 1), treat as percentage
-  if (num > 0 && num < 1) {
+  if (kpiName && kpiName.includes('Tỷ lệ') && num > 0 && num < 1) {
     return (num * 100) + '%';
   }
+
   
   // For "Tỷ lệ %" indicators with value > 1, show as percentage directly
   if (kpiName && kpiName.includes('Tỷ lệ %') && num >= 1 && num <= 200) {
