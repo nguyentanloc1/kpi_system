@@ -4486,7 +4486,6 @@ async function importRevenuePlan(event) {
 
 // Hiển thị modal thông báo lỗi và cho phép tải về file lỗi
 function showImportErrors(errors, successCount, total, year) {
-    console.log(errors)
     // Xóa modal cũ nếu có
     document.getElementById('import-error-modal')?.remove();
 
@@ -4573,8 +4572,7 @@ function downloadImportErrors(errors, year) {
 
     const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
     ws['!cols'] = [
-        {wch: 5}, {wch: 10}, {wch: 25}, {wch: 35},
-        ...Array(12).fill({wch: 10})
+        {wch: 5}, {wch: 10}, {wch: 25}, {wch: 35}, {wch: 35}, {wch: 35}
     ];
 
     // Tô đỏ cột lý do lỗi
