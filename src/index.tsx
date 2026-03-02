@@ -1295,7 +1295,9 @@ app.post('/api/admin/revenue-plan', async (c) => {
     
     // Delete existing plans for this user/year
     await c.env.DB.prepare(`
-      DELETE FROM revenue_plan WHERE user_id = ? AND year = ?
+      DELETE
+      FROM revenue_plan
+      WHERE user_id = ? AND year = ?
     `).bind(user_id, year).run()
     
     // Insert new plans

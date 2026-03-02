@@ -14,150 +14,150 @@ const USER_PAGE_SIZE = 25; // số user / trang
 
 // ===== UTILITY FUNCTIONS =====
 function formatLargeNumber(value, kpiName = '', forceShort = false) {
-  if (!value || value === '-') return '-';
-  const num = parseFloat(value);
-  if (isNaN(num)) return value;
-  
-  // Special case: value = 1
-  // If kpi_name contains "Tỷ lệ" (any ratio/percentage) -> show as 100%
-  // Otherwise (e.g., "Số lượng") -> show as 1
-  if (num === 1) {
-    if (kpiName && kpiName.includes('Tỷ lệ')) {
-      return '100%';
+    if (!value || value === '-') return '-';
+    const num = parseFloat(value);
+    if (isNaN(num)) return value;
+
+    // Special case: value = 1
+    // If kpi_name contains "Tỷ lệ" (any ratio/percentage) -> show as 100%
+    // Otherwise (e.g., "Số lượng") -> show as 1
+    if (num === 1) {
+        if (kpiName && kpiName.includes('Tỷ lệ')) {
+            return '100%';
+        }
+        return '1';
     }
-    return '1';
-  }
 
-  if (kpiName && (kpiName.includes('năm kinh nghiệm') || kpiName.includes('thâm niên'))) {
-    return Number(value).toFixed(2) + ' năm';
-  }
-  
-  // If value is between 0 and 1 (excluding 1), treat as percentage
-  if (kpiName && kpiName.includes('Tỷ lệ') && num > 0 && num < 1) {
-    return (num * 100) + '%';
-  }
+    if (kpiName && (kpiName.includes('năm kinh nghiệm') || kpiName.includes('thâm niên'))) {
+        return Number(value).toFixed(2) + ' năm';
+    }
 
-  
-  // For "Tỷ lệ %" indicators with value > 1, show as percentage directly
-  if (kpiName && kpiName.includes('Tỷ lệ %') && num >= 1 && num <= 200) {
-    return num.toFixed(1).replace('.0', '') + '%';
-  }
-  
-  // Short format for very large numbers (revenue)
-  if (num >= 1000000000) {
-    const billions = num / 1000000000;
-    return billions.toFixed(billions >= 10 ? 0 : 1).replace('.0', '') + ' tỷ';
-  } else if (num >= 1000000) {
-    return (num / 1000000).toFixed(1).replace('.0', '') + ' triệu';
-  } else if (num >= 1000) {
-    return (num / 1000).toFixed(1).replace('.0', '') + 'K';
-  }
-  return num.toLocaleString('vi-VN');
+    // If value is between 0 and 1 (excluding 1), treat as percentage
+    if (kpiName && kpiName.includes('Tỷ lệ') && num > 0 && num < 1) {
+        return (num * 100) + '%';
+    }
+
+
+    // For "Tỷ lệ %" indicators with value > 1, show as percentage directly
+    if (kpiName && kpiName.includes('Tỷ lệ %') && num >= 1 && num <= 200) {
+        return num.toFixed(1).replace('.0', '') + '%';
+    }
+
+    // Short format for very large numbers (revenue)
+    if (num >= 1000000000) {
+        const billions = num / 1000000000;
+        return billions.toFixed(billions >= 10 ? 0 : 1).replace('.0', '') + ' tỷ';
+    } else if (num >= 1000000) {
+        return (num / 1000000).toFixed(1).replace('.0', '') + ' triệu';
+    } else if (num >= 1000) {
+        return (num / 1000).toFixed(1).replace('.0', '') + 'K';
+    }
+    return num.toLocaleString('vi-VN');
 }
 
 // ===== LOADING OVERLAY =====
 function showLoadingOverlay(message = 'Đang xử lý...') {
-  let overlay = document.getElementById('loading-overlay');
-  if (!overlay) {
-    overlay = document.createElement('div');
-    overlay.id = 'loading-overlay';
-    overlay.style.cssText = `
+    let overlay = document.getElementById('loading-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'loading-overlay';
+        overlay.style.cssText = `
       position: fixed; inset: 0; z-index: 9999;
       background: rgba(0,0,0,0.55);
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       gap: 16px;
     `;
-    overlay.innerHTML = `
+        overlay.innerHTML = `
       <div style="width:56px;height:56px;border:5px solid rgba(255,255,255,0.3);
                   border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
       <p id="loading-overlay-msg" style="color:#fff;font-size:1.1rem;font-weight:600;
                                           text-shadow:0 1px 4px rgba(0,0,0,0.5);">${message}</p>
     `;
-    // Thêm keyframe nếu chưa có
-    if (!document.getElementById('loading-overlay-style')) {
-      const style = document.createElement('style');
-      style.id = 'loading-overlay-style';
-      style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
-      document.head.appendChild(style);
+        // Thêm keyframe nếu chưa có
+        if (!document.getElementById('loading-overlay-style')) {
+            const style = document.createElement('style');
+            style.id = 'loading-overlay-style';
+            style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+            document.head.appendChild(style);
+        }
+        document.body.appendChild(overlay);
+    } else {
+        document.getElementById('loading-overlay-msg').textContent = message;
+        overlay.style.display = 'flex';
     }
-    document.body.appendChild(overlay);
-  } else {
-    document.getElementById('loading-overlay-msg').textContent = message;
-    overlay.style.display = 'flex';
-  }
 }
 
 function updateLoadingOverlay(message) {
-  const msg = document.getElementById('loading-overlay-msg');
-  if (msg) msg.textContent = message;
+    const msg = document.getElementById('loading-overlay-msg');
+    if (msg) msg.textContent = message;
 }
 
 function hideLoadingOverlay() {
-  const overlay = document.getElementById('loading-overlay');
-  if (overlay) overlay.style.display = 'none';
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.style.display = 'none';
 }
 
 // ===== AUTH =====
 function checkAuth() {
-  const userStr = localStorage.getItem('user');
-  if (userStr) {
-    currentUser = JSON.parse(userStr);
-    return true;
-  }
-  return false;
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+        currentUser = JSON.parse(userStr);
+        return true;
+    }
+    return false;
 }
 
 async function refreshUserFromDB() {
-  if (!currentUser || !currentUser.id) return false;
-  try {
-    const response = await axios.get(`/api/users/${currentUser.id}`);
-    if (response.data && response.data.user) {
-      const fresh = response.data.user;
-      const merged = { ...currentUser, ...fresh };
-      currentUser = merged;
-      localStorage.setItem('user', JSON.stringify(merged));
-      return true;
+    if (!currentUser || !currentUser.id) return false;
+    try {
+        const response = await axios.get(`/api/users/${currentUser.id}`);
+        if (response.data && response.data.user) {
+            const fresh = response.data.user;
+            const merged = {...currentUser, ...fresh};
+            currentUser = merged;
+            localStorage.setItem('user', JSON.stringify(merged));
+            return true;
+        }
+    } catch (error) {
+        if (error.response && error.response.status === 404) {
+            localStorage.removeItem('user');
+            currentUser = null;
+            return false;
+        }
+        console.warn(error.message);
     }
-  } catch (error) {
-    if (error.response && error.response.status === 404) {
-      localStorage.removeItem('user');
-      currentUser = null;
-      return false;
-    }
-    console.warn(error.message);
-  }
-  return true;
+    return true;
 }
 
 function logout() {
-  if (!confirm('Bạn có chắc muốn đăng xuất không?')) return;
-  localStorage.removeItem('user');
-  currentUser = null;
-  renderApp();
+    if (!confirm('Bạn có chắc muốn đăng xuất không?')) return;
+    localStorage.removeItem('user');
+    currentUser = null;
+    renderApp();
 }
 
 // ===== MAIN APP =====
 async function renderApp() {
-  const app = document.getElementById('app');
-  if (!checkAuth()) {
-    app.innerHTML = renderLoginPage();
-    setupLoginListeners();
-    return;
-  }
-  const stillValid = await refreshUserFromDB();
-  if (!stillValid) {
-    app.innerHTML = renderLoginPage();
-    setupLoginListeners();
-    return;
-  }
-  app.innerHTML = renderMainPage();
-  setupMainPageListeners();
+    const app = document.getElementById('app');
+    if (!checkAuth()) {
+        app.innerHTML = renderLoginPage();
+        setupLoginListeners();
+        return;
+    }
+    const stillValid = await refreshUserFromDB();
+    if (!stillValid) {
+        app.innerHTML = renderLoginPage();
+        setupLoginListeners();
+        return;
+    }
+    app.innerHTML = renderMainPage();
+    setupMainPageListeners();
 }
 
 // ===== LOGIN PAGE =====
 function renderLoginPage() {
-  return `
+    return `
     <div class="min-h-screen flex items-center justify-center relative overflow-hidden">
       <div class="absolute inset-0 bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500"></div>
       <div class="absolute inset-0 overflow-hidden">
@@ -204,35 +204,35 @@ function renderLoginPage() {
 }
 
 function setupLoginListeners() {
-  document.getElementById('login-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const username = document.getElementById('username').value;
-    const password = document.getElementById('password').value;
-    const errorDiv = document.getElementById('login-error');
-    const errorMsg = document.getElementById('error-message');
-    
-    try {
-      const response = await axios.post('/api/login', { username, password });
-      if (response.data.success) {
-        localStorage.setItem('user', JSON.stringify(response.data.user));
-        if (response.data.adminRegions && response.data.adminRegions.length > 0) {
-          localStorage.setItem('adminRegions', JSON.stringify(response.data.adminRegions));
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const errorDiv = document.getElementById('login-error');
+        const errorMsg = document.getElementById('error-message');
+
+        try {
+            const response = await axios.post('/api/login', {username, password});
+            if (response.data.success) {
+                localStorage.setItem('user', JSON.stringify(response.data.user));
+                if (response.data.adminRegions && response.data.adminRegions.length > 0) {
+                    localStorage.setItem('adminRegions', JSON.stringify(response.data.adminRegions));
+                }
+                currentUser = response.data.user;
+                renderApp();
+            }
+        } catch (error) {
+            errorDiv.classList.remove('hidden');
+            errorMsg.textContent = error.response?.data?.error || 'Đã xảy ra lỗi';
         }
-        currentUser = response.data.user;
-        renderApp();
-      }
-    } catch (error) {
-      errorDiv.classList.remove('hidden');
-      errorMsg.textContent = error.response?.data?.error || 'Đã xảy ra lỗi';
-    }
-  });
+    });
 }
 
 // ===== MAIN PAGE =====
 function renderMainPage() {
-  const isAdmin = currentUser.username === 'admin';
-  
-  return `
+    const isAdmin = currentUser.username === 'admin';
+
+    return `
     <div class="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       <header class="bg-white shadow-lg sticky top-0 z-50">
         <div class="container mx-auto px-6 py-4">
@@ -382,63 +382,63 @@ function renderMainPage() {
 }
 
 function setupMainPageListeners() {
-  const isAdmin = currentUser.username === 'admin';
-  if (isAdmin) {
-    switchTab('admin');
-  } else {
-    switchTab('kpi');
-  }
+    const isAdmin = currentUser.username === 'admin';
+    if (isAdmin) {
+        switchTab('admin');
+    } else {
+        switchTab('kpi');
+    }
 }
 
 function switchTab(tab) {
-  currentTab = tab;
-  
-  // Update desktop tab styling
-  document.querySelectorAll('[id^="tab-"]').forEach(btn => {
-    btn.classList.remove('bg-gradient-to-r', 'from-blue-500', 'to-purple-600', 'text-white', 'shadow-lg');
-    btn.classList.add('text-gray-600', 'hover:text-gray-800');
-  });
-  
-  const activeTab = document.getElementById(`tab-${tab}`);
-  if (activeTab) {
-    activeTab.classList.add('bg-gradient-to-r', 'from-blue-500', 'to-purple-600', 'text-white', 'shadow-lg');
-    activeTab.classList.remove('text-gray-600', 'hover:text-gray-800');
-  }
-  
-  // Update mobile tab styling
-  document.querySelectorAll('[id^="mobile-tab-"]').forEach(btn => {
-    btn.classList.remove('bg-gradient-to-t', 'from-blue-500', 'to-purple-600', 'text-white');
-    btn.classList.add('text-gray-500');
-  });
-  
-  const activeMobileTab = document.getElementById(`mobile-tab-${tab}`);
-  if (activeMobileTab) {
-    activeMobileTab.classList.add('bg-gradient-to-t', 'from-blue-500', 'to-purple-600', 'text-white');
-    activeMobileTab.classList.remove('text-gray-500');
-  }
-  
-  // Render content
-  const content = document.getElementById('tab-content');
-  if (tab === 'kpi') {
-    renderKpiTab(content);
-  } else if (tab === 'level') {
-    renderLevelTab(content);
-  } else if (tab === 'tracking') {
-    renderTrackingTab(content);
-  } else if (tab === 'dashboard') {
-    renderDashboardTab(content);
-  } else if (tab === 'commitment') {
-    renderCommitmentTab(content);
-  } else if (tab === 'recruitment') {
-    renderRecruitmentTab(content);
-  } else if (tab === 'admin') {
-    renderAdminTab(content);
-  }
+    currentTab = tab;
+
+    // Update desktop tab styling
+    document.querySelectorAll('[id^="tab-"]').forEach(btn => {
+        btn.classList.remove('bg-gradient-to-r', 'from-blue-500', 'to-purple-600', 'text-white', 'shadow-lg');
+        btn.classList.add('text-gray-600', 'hover:text-gray-800');
+    });
+
+    const activeTab = document.getElementById(`tab-${tab}`);
+    if (activeTab) {
+        activeTab.classList.add('bg-gradient-to-r', 'from-blue-500', 'to-purple-600', 'text-white', 'shadow-lg');
+        activeTab.classList.remove('text-gray-600', 'hover:text-gray-800');
+    }
+
+    // Update mobile tab styling
+    document.querySelectorAll('[id^="mobile-tab-"]').forEach(btn => {
+        btn.classList.remove('bg-gradient-to-t', 'from-blue-500', 'to-purple-600', 'text-white');
+        btn.classList.add('text-gray-500');
+    });
+
+    const activeMobileTab = document.getElementById(`mobile-tab-${tab}`);
+    if (activeMobileTab) {
+        activeMobileTab.classList.add('bg-gradient-to-t', 'from-blue-500', 'to-purple-600', 'text-white');
+        activeMobileTab.classList.remove('text-gray-500');
+    }
+
+    // Render content
+    const content = document.getElementById('tab-content');
+    if (tab === 'kpi') {
+        renderKpiTab(content);
+    } else if (tab === 'level') {
+        renderLevelTab(content);
+    } else if (tab === 'tracking') {
+        renderTrackingTab(content);
+    } else if (tab === 'dashboard') {
+        renderDashboardTab(content);
+    } else if (tab === 'commitment') {
+        renderCommitmentTab(content);
+    } else if (tab === 'recruitment') {
+        renderRecruitmentTab(content);
+    } else if (tab === 'admin') {
+        renderAdminTab(content);
+    }
 }
 
 // ===== KPI TAB =====
 function renderKpiTab(container) {
-  container.innerHTML = `
+    container.innerHTML = `
     <div class="bg-white rounded-xl lg:rounded-2xl shadow-lg lg:shadow-xl p-4 lg:p-8">
       <!-- Header Section -->
       <div class="mb-4 lg:mb-6">
@@ -452,9 +452,9 @@ function renderKpiTab(container) {
             <div>
               <label class="block text-xs font-semibold text-gray-700 mb-1.5">Tháng</label>
               <select id="kpi-month" class="w-full px-3 py-2.5 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                ${Array.from({length: 12}, (_, i) => i + 1).map(m => 
-                  `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`
-                ).join('')}
+                ${Array.from({length: 12}, (_, i) => i + 1).map(m =>
+        `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`
+    ).join('')}
               </select>
             </div>
             <div>
@@ -474,9 +474,9 @@ function renderKpiTab(container) {
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1">Tháng</label>
             <select id="kpi-month-desktop" class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-              ${Array.from({length: 12}, (_, i) => i + 1).map(m => 
-                `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`
-              ).join('')}
+              ${Array.from({length: 12}, (_, i) => i + 1).map(m =>
+        `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`
+    ).join('')}
             </select>
           </div>
           <div>
@@ -527,91 +527,91 @@ function renderKpiTab(container) {
       </div>
     </div>
   `;
-  
-  loadKpiData();
-  
-  // Setup mobile listeners
-  document.getElementById('load-kpi-btn').addEventListener('click', loadKpiData);
-  document.getElementById('save-kpi-btn').addEventListener('click', saveKpiData);
-  document.getElementById('kpi-month').addEventListener('change', () => {
-    const month = document.getElementById('kpi-month').value;
-    const desktopMonth = document.getElementById('kpi-month-desktop');
-    if (desktopMonth) desktopMonth.value = month;
+
     loadKpiData();
-    if (currentTab === 'level') {
-      loadLevelData();
-    }
-  });
-  document.getElementById('kpi-year').addEventListener('change', () => {
-    const year = document.getElementById('kpi-year').value;
-    const desktopYear = document.getElementById('kpi-year-desktop');
-    if (desktopYear) desktopYear.value = year;
-    loadKpiData();
-    if (currentTab === 'level') {
-      loadLevelData();
-    }
-  });
-  
-  // Setup desktop listeners (if exists)
-  const desktopLoadBtn = document.getElementById('load-kpi-btn-desktop');
-  if (desktopLoadBtn) {
-    desktopLoadBtn.addEventListener('click', loadKpiData);
-    document.getElementById('kpi-month-desktop').addEventListener('change', () => {
-      const month = document.getElementById('kpi-month-desktop').value;
-      document.getElementById('kpi-month').value = month;
-      loadKpiData();
-      if (currentTab === 'level') {
-        loadLevelData();
-      }
+
+    // Setup mobile listeners
+    document.getElementById('load-kpi-btn').addEventListener('click', loadKpiData);
+    document.getElementById('save-kpi-btn').addEventListener('click', saveKpiData);
+    document.getElementById('kpi-month').addEventListener('change', () => {
+        const month = document.getElementById('kpi-month').value;
+        const desktopMonth = document.getElementById('kpi-month-desktop');
+        if (desktopMonth) desktopMonth.value = month;
+        loadKpiData();
+        if (currentTab === 'level') {
+            loadLevelData();
+        }
     });
-    document.getElementById('kpi-year-desktop').addEventListener('change', () => {
-      const year = document.getElementById('kpi-year-desktop').value;
-      document.getElementById('kpi-year').value = year;
-      loadKpiData();
-      if (currentTab === 'level') {
-        loadLevelData();
-      }
+    document.getElementById('kpi-year').addEventListener('change', () => {
+        const year = document.getElementById('kpi-year').value;
+        const desktopYear = document.getElementById('kpi-year-desktop');
+        if (desktopYear) desktopYear.value = year;
+        loadKpiData();
+        if (currentTab === 'level') {
+            loadLevelData();
+        }
     });
-  }
+
+    // Setup desktop listeners (if exists)
+    const desktopLoadBtn = document.getElementById('load-kpi-btn-desktop');
+    if (desktopLoadBtn) {
+        desktopLoadBtn.addEventListener('click', loadKpiData);
+        document.getElementById('kpi-month-desktop').addEventListener('change', () => {
+            const month = document.getElementById('kpi-month-desktop').value;
+            document.getElementById('kpi-month').value = month;
+            loadKpiData();
+            if (currentTab === 'level') {
+                loadLevelData();
+            }
+        });
+        document.getElementById('kpi-year-desktop').addEventListener('change', () => {
+            const year = document.getElementById('kpi-year-desktop').value;
+            document.getElementById('kpi-year').value = year;
+            loadKpiData();
+            if (currentTab === 'level') {
+                loadLevelData();
+            }
+        });
+    }
 }
 
 async function loadKpiData() {
-  const month = document.getElementById('kpi-month').value;
-  const year = document.getElementById('kpi-year').value;
-  const container = document.getElementById('kpi-form-container');
-  
-  // Store selected month/year for Level tab
-  kpiMonthYear = { month: parseInt(month), year: parseInt(year) };
-  
-  try {
-    // Use new API with revenue plan
-    const response = await axios.get(
-      `/api/kpi-form-data/${currentUser.id}/${currentUser.position_id}/${year}/${month}?type=kpi`
-    );
-    const { templates, revenuePlan, existingData } = response.data;
-    
-    // Create data map
-    const dataMap = {};
-    existingData.forEach(item => {
-      // Convert decimal back to percentage for display (0.7 -> 70)
-      let displayValue = item.actual_value;
-      const isRevenueGrowthKpi = item.kpi_name && item.kpi_name.includes('doanh thu tăng trưởng');
-      const isPercentageKpi = item.kpi_name && item.kpi_name.includes('Tỷ lệ') && !isRevenueGrowthKpi;
-      if (isPercentageKpi && displayValue < 2) {
-        displayValue = item.actual_value * 100;
-      }
-      dataMap[item.kpi_template_id] = displayValue;
-    });
-    
-    // Check if user position has revenue KPIs (PTGĐ=1, GĐKDCC=5, GĐKD=2, TLKD=3)
-    const hasRevenue = [1, 2, 3, 5].includes(currentUser.position_id);
-    
-    // Render form
-    let html = '';
-    
-    // Revenue plan info (if applicable)
-    if (hasRevenue && revenuePlan) {
-      html += `
+    const month = document.getElementById('kpi-month').value;
+    const year = document.getElementById('kpi-year').value;
+    const container = document.getElementById('kpi-form-container');
+
+    // Store selected month/year for Level tab
+    kpiMonthYear = {month: parseInt(month), year: parseInt(year)};
+
+    try {
+        // Use new API with revenue plan
+        const response = await axios.get(
+            `/api/kpi-form-data/${currentUser.id}/${currentUser.position_id}/${year}/${month}?type=kpi`
+        );
+        const {templates, revenuePlan, existingData} = response.data;
+
+        // Create data map
+        const dataMap = {};
+        existingData.forEach(item => {
+            // Convert decimal back to percentage for display (0.7 -> 70)
+            let displayValue = item.actual_value;
+            const isRevenueGrowthKpi = item.kpi_name && item.kpi_name.includes('doanh thu tăng trưởng');
+            const isPercentageKpi = item.kpi_name && item.kpi_name.includes('Tỷ lệ') && !isRevenueGrowthKpi;
+            if (isPercentageKpi && displayValue < 2) {
+                displayValue = item.actual_value * 100;
+            }
+            dataMap[item.kpi_template_id] = displayValue;
+        });
+
+        // Check if user position has revenue KPIs (PTGĐ=1, GĐKDCC=5, GĐKD=2, TLKD=3)
+        const hasRevenue = [1, 2, 3, 5].includes(currentUser.position_id);
+
+        // Render form
+        let html = '';
+
+        // Revenue plan info (if applicable)
+        if (hasRevenue && revenuePlan) {
+            html += `
         <div class="bg-gradient-to-r from-green-50 to-emerald-50 p-5 rounded-xl mb-6 border-2 border-green-200">
           <div class="flex items-center space-x-3">
             <i class="fas fa-chart-line text-2xl text-green-600"></i>
@@ -619,61 +619,61 @@ async function loadKpiData() {
           </div>
         </div>
       `;
-    } else if (hasRevenue && !revenuePlan) {
-      html += `
+        } else if (hasRevenue && !revenuePlan) {
+            html += `
         <div class="bg-yellow-50 p-4 rounded-lg mb-6 border border-yellow-300">
           <i class="fas fa-exclamation-triangle text-yellow-600 mr-2"></i>
           <span class="text-yellow-800">Chưa có kế hoạch doanh thu cho tháng ${month}. Vui lòng liên hệ Admin.</span>
         </div>
       `;
+        }
+
+        // Render KPI inputs
+        html += '<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">';
+
+        const half = Math.ceil(templates.length / 2);
+        const leftTemplates = templates.slice(0, half);
+        const rightTemplates = templates.slice(half);
+
+        // Left column
+        html += '<div>';
+        leftTemplates.forEach((template, idx) => {
+            html += renderKpiInput(template, idx + 1, dataMap[template.id] || '', revenuePlan, hasRevenue, month);
+        });
+        html += '</div>';
+
+        // Right column
+        html += '<div>';
+        rightTemplates.forEach((template, idx) => {
+            html += renderKpiInput(template, half + idx + 1, dataMap[template.id] || '', revenuePlan, hasRevenue, month);
+        });
+        html += '</div>';
+
+        html += '</div>';
+
+        container.innerHTML = html;
+        document.getElementById('kpi-save-section').classList.remove('hidden');
+
+        // Load history for the year
+        await loadKpiHistory(year);
+
+    } catch (error) {
+        console.error('Error loading KPI:', error);
+        container.innerHTML = `<div class="text-center py-12 text-red-500"><i class="fas fa-exclamation-triangle mr-2"></i>Lỗi tải dữ liệu</div>`;
     }
-    
-    // Render KPI inputs
-    html += '<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">';
-    
-    const half = Math.ceil(templates.length / 2);
-    const leftTemplates = templates.slice(0, half);
-    const rightTemplates = templates.slice(half);
-    
-    // Left column
-    html += '<div>';
-    leftTemplates.forEach((template, idx) => {
-      html += renderKpiInput(template, idx + 1, dataMap[template.id] || '', revenuePlan, hasRevenue, month);
-    });
-    html += '</div>';
-    
-    // Right column  
-    html += '<div>';
-    rightTemplates.forEach((template, idx) => {
-      html += renderKpiInput(template, half + idx + 1, dataMap[template.id] || '', revenuePlan, hasRevenue, month);
-    });
-    html += '</div>';
-    
-    html += '</div>';
-    
-    container.innerHTML = html;
-    document.getElementById('kpi-save-section').classList.remove('hidden');
-    
-    // Load history for the year
-    await loadKpiHistory(year);
-    
-  } catch (error) {
-    console.error('Error loading KPI:', error);
-    container.innerHTML = `<div class="text-center py-12 text-red-500"><i class="fas fa-exclamation-triangle mr-2"></i>Lỗi tải dữ liệu</div>`;
-  }
 }
 
 function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) {
-  const isRevenueKpi = template.kpi_name && template.kpi_name.includes('doanh thu tăng trưởng');
-  
-  let inputHtml = '';
-  let infoHtml = '';
-  
-  if (isRevenueKpi && hasRevenue) {
-    // Revenue KPI - show special input with or without plan
-    if (revenuePlan) {
-      // Has plan - show calculator
-      inputHtml = `
+    const isRevenueKpi = template.kpi_name && template.kpi_name.includes('doanh thu tăng trưởng');
+
+    let inputHtml = '';
+    let infoHtml = '';
+
+    if (isRevenueKpi && hasRevenue) {
+        // Revenue KPI - show special input with or without plan
+        if (revenuePlan) {
+            // Has plan - show calculator
+            inputHtml = `
         <div class="space-y-3">
           <div>
             <label class="text-sm font-bold text-gray-700 mb-2 block bg-yellow-50 px-3 py-2 rounded-lg border border-yellow-200">
@@ -700,9 +700,9 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) 
           </div>
         </div>
       `;
-    } else {
-      // No plan - just show input with warning
-      inputHtml = `
+        } else {
+            // No plan - just show input with warning
+            inputHtml = `
         <div class="space-y-3">
           <div class="bg-orange-50 p-3 rounded-lg border border-orange-300 mb-3">
             <i class="fas fa-exclamation-triangle text-orange-600 mr-2"></i>
@@ -727,17 +727,17 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) 
           </div>
         </div>
       `;
-    }
-    
-    // No instructions needed - removed per user request
-    infoHtml = '';
-  } else {
-    // Normal input with auto-calculate
-    const isRevenueGrowthKpi = template.kpi_name && template.kpi_name.includes('doanh thu tăng trưởng');
-    const isPercentageKpi = template.kpi_name && template.kpi_name.includes('Tỷ lệ') && !isRevenueGrowthKpi;
-    const placeholder = isPercentageKpi ? 'Nhập số % (ví dụ: 70 cho 70%)' : 'Nhập giá trị thực tế đạt được';
-    
-    inputHtml = `
+        }
+
+        // No instructions needed - removed per user request
+        infoHtml = '';
+    } else {
+        // Normal input with auto-calculate
+        const isRevenueGrowthKpi = template.kpi_name && template.kpi_name.includes('doanh thu tăng trưởng');
+        const isPercentageKpi = template.kpi_name && template.kpi_name.includes('Tỷ lệ') && !isRevenueGrowthKpi;
+        const placeholder = isPercentageKpi ? 'Nhập số % (ví dụ: 70 cho 70%)' : 'Nhập giá trị thực tế đạt được';
+
+        inputHtml = `
       <input 
         type="number" 
         step="0.01"
@@ -756,9 +756,9 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) 
         </span>
       </div>
     `;
-  }
-  
-  return `
+    }
+
+    return `
     <div class="bg-gradient-to-r from-blue-50 to-purple-50 p-3 lg:p-6 rounded-lg lg:rounded-xl mb-3 lg:mb-4 hover:shadow-lg transition-all border-2 border-blue-100">
       <div class="flex items-start space-x-2 lg:space-x-4">
         <div class="flex-shrink-0 w-8 h-8 lg:w-10 lg:h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-sm lg:text-base shadow-md">
@@ -783,134 +783,134 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) 
 }
 
 function calculateRevenuePercent(input) {
-  const templateId = input.dataset.templateId;
-  const revenuePlan = parseFloat(input.dataset.revenuePlan);
-  const actualRevenue = parseFloat(input.value) || 0;
-  
-  const percent = Math.min((actualRevenue / revenuePlan) * 100, 150);
-  
-  const resultDiv = document.getElementById(`revenue-result-${templateId}`);
-  const percentSpan = document.getElementById(`revenue-percent-${templateId}`);
-  
-  if (actualRevenue > 0) {
-    resultDiv.classList.remove('hidden');
-    percentSpan.textContent = percent.toFixed(1) + '%';
-    percentSpan.className = percent >= 100 ? 'text-lg font-bold text-green-600' : 'text-lg font-bold text-orange-600';
-  } else {
-    resultDiv.classList.add('hidden');
-  }
+    const templateId = input.dataset.templateId;
+    const revenuePlan = parseFloat(input.dataset.revenuePlan);
+    const actualRevenue = parseFloat(input.value) || 0;
+
+    const percent = Math.min((actualRevenue / revenuePlan) * 100, 150);
+
+    const resultDiv = document.getElementById(`revenue-result-${templateId}`);
+    const percentSpan = document.getElementById(`revenue-percent-${templateId}`);
+
+    if (actualRevenue > 0) {
+        resultDiv.classList.remove('hidden');
+        percentSpan.textContent = percent.toFixed(1) + '%';
+        percentSpan.className = percent >= 100 ? 'text-lg font-bold text-green-600' : 'text-lg font-bold text-orange-600';
+    } else {
+        resultDiv.classList.add('hidden');
+    }
 }
 
 function calculateKpiPercent(input) {
-  const templateId = input.dataset.templateId;
-  const standardValue = parseFloat(input.dataset.standard);
-  const actualValue = parseFloat(input.value) || 0;
-  const isPercentage = input.dataset.isPercentage === 'true';
-  
-  if (!standardValue || standardValue === 0) return;
-  
-  // If it's a percentage KPI, convert input (70) to decimal (0.7)
-  const adjustedValue = isPercentage ? actualValue / 100 : actualValue;
-  
-  const percent = Math.min((adjustedValue / standardValue) * 100, 150);
-  
-  const resultDiv = document.getElementById(`kpi-result-${templateId}`);
-  const percentSpan = document.getElementById(`kpi-percent-${templateId}`);
-  
-  if (actualValue > 0) {
-    resultDiv.classList.remove('hidden');
-    percentSpan.textContent = percent.toFixed(1) + '%';
-    percentSpan.className = percent >= 100 ? 'text-lg font-bold text-green-600' : 'text-lg font-bold text-orange-600';
-  } else {
-    resultDiv.classList.add('hidden');
-  }
+    const templateId = input.dataset.templateId;
+    const standardValue = parseFloat(input.dataset.standard);
+    const actualValue = parseFloat(input.value) || 0;
+    const isPercentage = input.dataset.isPercentage === 'true';
+
+    if (!standardValue || standardValue === 0) return;
+
+    // If it's a percentage KPI, convert input (70) to decimal (0.7)
+    const adjustedValue = isPercentage ? actualValue / 100 : actualValue;
+
+    const percent = Math.min((adjustedValue / standardValue) * 100, 150);
+
+    const resultDiv = document.getElementById(`kpi-result-${templateId}`);
+    const percentSpan = document.getElementById(`kpi-percent-${templateId}`);
+
+    if (actualValue > 0) {
+        resultDiv.classList.remove('hidden');
+        percentSpan.textContent = percent.toFixed(1) + '%';
+        percentSpan.className = percent >= 100 ? 'text-lg font-bold text-green-600' : 'text-lg font-bold text-orange-600';
+    } else {
+        resultDiv.classList.add('hidden');
+    }
 }
 
 async function saveKpiData() {
-  const month = document.getElementById('kpi-month').value;
-  const year = document.getElementById('kpi-year').value;
-  const messageDiv = document.getElementById('kpi-save-message');
-  
-  messageDiv.innerHTML = '<div class="text-center text-blue-600"><i class="fas fa-spinner fa-spin mr-2"></i>Đang lưu...</div>';
-  
-  const inputs = document.querySelectorAll('.kpi-input');
-  const kpiData = [];
-  
-  inputs.forEach(input => {
-    const value = parseFloat(input.value);
-    if (!isNaN(value)) {
-      kpiData.push({
-        templateId: parseInt(input.dataset.templateId),
-        actualValue: value
-      });
-    }
-  });
-  
-  try {
-    await axios.post('/api/kpi-data', {
-      userId: currentUser.id,
-      year: parseInt(year),
-      month: parseInt(month),
-      kpiData
+    const month = document.getElementById('kpi-month').value;
+    const year = document.getElementById('kpi-year').value;
+    const messageDiv = document.getElementById('kpi-save-message');
+
+    messageDiv.innerHTML = '<div class="text-center text-blue-600"><i class="fas fa-spinner fa-spin mr-2"></i>Đang lưu...</div>';
+
+    const inputs = document.querySelectorAll('.kpi-input');
+    const kpiData = [];
+
+    inputs.forEach(input => {
+        const value = parseFloat(input.value);
+        if (!isNaN(value)) {
+            kpiData.push({
+                templateId: parseInt(input.dataset.templateId),
+                actualValue: value
+            });
+        }
     });
-    
-    messageDiv.innerHTML = `
+
+    try {
+        await axios.post('/api/kpi-data', {
+            userId: currentUser.id,
+            year: parseInt(year),
+            month: parseInt(month),
+            kpiData
+        });
+
+        messageDiv.innerHTML = `
       <div class="p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded-lg">
         <i class="fas fa-check-circle mr-2"></i>
         Lưu dữ liệu thành công! Dữ liệu Level đã được tự động điền.
       </div>
     `;
-    
-    // Load and show KPI summary
-    await loadKpiSummary(year, month);
-    
-    // Load and show KPI history
-    await loadKpiHistory(year);
-    
-    setTimeout(() => {
-      messageDiv.innerHTML = '';
-    }, 3000);
-    
-  } catch (error) {
-    messageDiv.innerHTML = `
+
+        // Load and show KPI summary
+        await loadKpiSummary(year, month);
+
+        // Load and show KPI history
+        await loadKpiHistory(year);
+
+        setTimeout(() => {
+            messageDiv.innerHTML = '';
+        }, 3000);
+
+    } catch (error) {
+        messageDiv.innerHTML = `
       <div class="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
         <i class="fas fa-exclamation-circle mr-2"></i>
         Lỗi lưu dữ liệu
       </div>
     `;
-  }
+    }
 }
 
 async function loadKpiSummary(year, month) {
-  try {
-    const response = await axios.get(`/api/summary/${currentUser.id}/${year}/${month}`);
-    const summary = response.data.summary;
-    
-    if (summary) {
-      const summaryBox = document.getElementById('kpi-summary');
-      const percentDiv = document.getElementById('kpi-total-percent');
-      
-      const kpiPercent = ((summary.total_kpi_score || 0) * 100).toFixed(1);
-      percentDiv.textContent = kpiPercent + '%';
-      percentDiv.className = `text-4xl font-bold ${kpiPercent >= 100 ? 'text-green-600' : 'text-orange-600'}`;
-      
-      summaryBox.classList.remove('hidden');
+    try {
+        const response = await axios.get(`/api/summary/${currentUser.id}/${year}/${month}`);
+        const summary = response.data.summary;
+
+        if (summary) {
+            const summaryBox = document.getElementById('kpi-summary');
+            const percentDiv = document.getElementById('kpi-total-percent');
+
+            const kpiPercent = ((summary.total_kpi_score || 0) * 100).toFixed(1);
+            percentDiv.textContent = kpiPercent + '%';
+            percentDiv.className = `text-4xl font-bold ${kpiPercent >= 100 ? 'text-green-600' : 'text-orange-600'}`;
+
+            summaryBox.classList.remove('hidden');
+        }
+    } catch (error) {
+        console.error('Error loading KPI summary:', error);
     }
-  } catch (error) {
-    console.error('Error loading KPI summary:', error);
-  }
 }
 
 async function loadKpiHistory(year) {
-  try {
-    const response = await axios.get(`/api/monthly-summary/${currentUser.id}/${year}`);
-    const summaries = response.data.summaries || [];
-    
-    if (summaries.length > 0) {
-      const historyBox = document.getElementById('kpi-history');
-      const contentDiv = document.getElementById('kpi-history-content');
-      
-      let html = `
+    try {
+        const response = await axios.get(`/api/monthly-summary/${currentUser.id}/${year}`);
+        const summaries = response.data.summaries || [];
+
+        if (summaries.length > 0) {
+            const historyBox = document.getElementById('kpi-history');
+            const contentDiv = document.getElementById('kpi-history-content');
+
+            let html = `
         <div class="bg-gradient-to-r from-blue-50 to-cyan-50 p-6 rounded-xl border-2 border-blue-200">
           <div class="overflow-x-auto">
             <table class="w-full border-collapse">
@@ -923,71 +923,71 @@ async function loadKpiHistory(year) {
               </thead>
               <tbody>
       `;
-      
-      summaries.forEach(summary => {
-        const kpiPercent = ((summary.total_kpi_score || 0) * 100).toFixed(1);
-        const kpiColor = kpiPercent >= 100 ? 'text-green-600' : kpiPercent >= 50 ? 'text-yellow-600' : 'text-red-600';
-        const date = new Date(summary.created_at).toLocaleDateString('vi-VN');
-        
-        html += `
+
+            summaries.forEach(summary => {
+                const kpiPercent = ((summary.total_kpi_score || 0) * 100).toFixed(1);
+                const kpiColor = kpiPercent >= 100 ? 'text-green-600' : kpiPercent >= 50 ? 'text-yellow-600' : 'text-red-600';
+                const date = new Date(summary.created_at).toLocaleDateString('vi-VN');
+
+                html += `
           <tr class="hover:bg-blue-50">
             <td class="border border-blue-200 px-4 py-3 font-semibold">Tháng ${summary.month}</td>
             <td class="border border-blue-200 px-4 py-3 text-center ${kpiColor} font-bold text-lg">${kpiPercent}%</td>
             <td class="border border-blue-200 px-4 py-3 text-center text-gray-600 text-sm">${date}</td>
           </tr>
         `;
-      });
-      
-      html += `
+            });
+
+            html += `
               </tbody>
             </table>
           </div>
         </div>
       `;
-      
-      contentDiv.innerHTML = html;
-      historyBox.classList.remove('hidden');
+
+            contentDiv.innerHTML = html;
+            historyBox.classList.remove('hidden');
+        }
+    } catch (error) {
+        console.error('Error loading KPI history:', error);
     }
-  } catch (error) {
-    console.error('Error loading KPI history:', error);
-  }
 }
 
 async function loadLevelSummary(year, month) {
-  try {
-    const response = await axios.get(`/api/summary/${currentUser.id}/${year}/${month}`);
-    const summary = response.data.summary;
-    
-    if (summary && summary.total_level_score) {
-      const summaryBox = document.getElementById('level-summary');
-      const percentDiv = document.getElementById('level-total-percent');
-      const classDiv = document.getElementById('level-classification');
-      
-      const levelPercent = ((summary.total_level_score || 0) * 100).toFixed(1);
-      percentDiv.textContent = levelPercent + '%';
-      percentDiv.className = `text-4xl font-bold ${levelPercent >= 100 ? 'text-green-600' : 'text-orange-600'}`;
-      
-      classDiv.textContent = summary.performance_level || '-';
-      const levelColor = getLevelColor(summary.performance_level);
-      classDiv.className = `text-2xl font-bold ${levelColor}`;
-      
-      summaryBox.classList.remove('hidden');
+    try {
+        const response = await axios.get(`/api/summary/${currentUser.id}/${year}/${month}`);
+        const summary = response.data.summary;
+
+        if (summary && summary.total_level_score) {
+            const summaryBox = document.getElementById('level-summary');
+            const percentDiv = document.getElementById('level-total-percent');
+            const classDiv = document.getElementById('level-classification');
+
+            const levelPercent = ((summary.total_level_score || 0) * 100).toFixed(1);
+            percentDiv.textContent = levelPercent + '%';
+            percentDiv.className = `text-4xl font-bold ${levelPercent >= 100 ? 'text-green-600' : 'text-orange-600'}`;
+
+            classDiv.textContent = summary.performance_level || '-';
+            const levelColor = getLevelColor(summary.performance_level);
+            classDiv.className = `text-2xl font-bold ${levelColor}`;
+
+            summaryBox.classList.remove('hidden');
+        }
+    } catch (error) {
+        console.error('Error loading Level summary:', error);
     }
-  } catch (error) {
-    console.error('Error loading Level summary:', error);
-  }
 }
 
 async function loadLevelHistory(year) {
-  try {
-    const response = await axios.get(`/api/monthly-summary/${currentUser.id}/${year}`);
-    const summaries = response.data.summaries || [];
-    
-    if (summaries.length > 0) {
-      const historyBox = document.getElementById('level-history');
-      const contentDiv = document.getElementById('level-history-content');
-      
-      let html = `
+    try {
+        const response = await axios.get(`/api/monthly-summary/${currentUser.id}/${year}`);
+        const summaries = response.data.summaries || [];
+
+        if (summaries.length > 0) {
+            const historyBox = document.getElementById('level-history');
+            const contentDiv = document.getElementById('level-history-content');
+
+            let html = `
         <div class="bg-gradient-to-r from-purple-50 to-pink-50 p-4 md:p-6 rounded-xl border-2 border-purple-200">
           <div class="overflow-x-auto -mx-4 md:mx-0">
             <table class="w-full border-collapse min-w-[500px]">
@@ -1001,14 +1001,14 @@ async function loadLevelHistory(year) {
               </thead>
               <tbody>
       `;
-      
-      summaries.forEach(summary => {
-        const levelPercent = ((summary.total_level_score || 0) * 100).toFixed(1);
-        const levelColor = levelPercent >= 100 ? 'text-green-600' : levelPercent >= 50 ? 'text-yellow-600' : 'text-red-600';
-        const perfLevelColor = getLevelColor(summary.performance_level);
-        const date = new Date(summary.created_at).toLocaleDateString('vi-VN');
-        
-        html += `
+
+            summaries.forEach(summary => {
+                const levelPercent = ((summary.total_level_score || 0) * 100).toFixed(1);
+                const levelColor = levelPercent >= 100 ? 'text-green-600' : levelPercent >= 50 ? 'text-yellow-600' : 'text-red-600';
+                const perfLevelColor = getLevelColor(summary.performance_level);
+                const date = new Date(summary.created_at).toLocaleDateString('vi-VN');
+
+                html += `
           <tr class="hover:bg-purple-50">
             <td class="border border-purple-200 px-2 md:px-4 py-2 md:py-3 font-semibold text-xs md:text-base">Tháng ${summary.month}</td>
             <td class="border border-purple-200 px-2 md:px-4 py-2 md:py-3 text-center ${levelColor} font-bold text-sm md:text-lg">${levelPercent}%</td>
@@ -1018,26 +1018,26 @@ async function loadLevelHistory(year) {
             <td class="border border-purple-200 px-2 md:px-4 py-2 md:py-3 text-center text-gray-600 text-[10px] md:text-sm">${date}</td>
           </tr>
         `;
-      });
-      
-      html += `
+            });
+
+            html += `
               </tbody>
             </table>
           </div>
         </div>
       `;
-      
-      contentDiv.innerHTML = html;
-      historyBox.classList.remove('hidden');
+
+            contentDiv.innerHTML = html;
+            historyBox.classList.remove('hidden');
+        }
+    } catch (error) {
+        console.error('Error loading Level history:', error);
     }
-  } catch (error) {
-    console.error('Error loading Level history:', error);
-  }
 }
 
 // ===== LEVEL TAB =====
 function renderLevelTab(container) {
-  container.innerHTML = `
+    container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-4 md:p-8">
       <!-- Header Section -->
       <div class="mb-6">
@@ -1054,9 +1054,9 @@ function renderLevelTab(container) {
             <div class="flex-1">
               <label class="block text-xs md:text-sm font-semibold text-gray-700 mb-1">Tháng</label>
               <select id="level-month" class="w-full px-3 py-2 text-sm md:text-base border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
-                ${Array.from({length: 12}, (_, i) => i + 1).map(m => 
-                  `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`
-                ).join('')}
+                ${Array.from({length: 12}, (_, i) => i + 1).map(m =>
+        `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`
+    ).join('')}
               </select>
             </div>
             <div class="flex-1">
@@ -1106,48 +1106,48 @@ function renderLevelTab(container) {
       </div>
     </div>
   `;
-  
-  document.getElementById('load-level-btn').addEventListener('click', loadLevelDataNew);
+
+    document.getElementById('load-level-btn').addEventListener('click', loadLevelDataNew);
 }
 
 async function loadLevelDataNew() {
-  const month = parseInt(document.getElementById('level-month').value);
-  const year = parseInt(document.getElementById('level-year').value);
-  const container = document.getElementById('level-data-container');
-  
-  container.innerHTML = '<div class="text-center py-12"><i class="fas fa-spinner fa-spin text-4xl text-purple-500"></i><p class="mt-4 text-gray-600">Đang tải dữ liệu Level...</p></div>';
-  
-  try {
-    // Load Level templates
-    const templatesRes = await axios.get(`/api/kpi-templates/${currentUser.position_id}?type=level`);
-    const templates = templatesRes.data.templates;
-    
-    // Load Level data (auto-filled from KPI by backend)
-    const dataRes = await axios.get(`/api/kpi-data/${currentUser.id}/${year}/${month}`);
-    const allData = dataRes.data.data || [];
-    
-    // Filter Level data only
-    const levelTemplateIds = new Set(templates.map(t => t.id));
-    const levelData = allData.filter(item => levelTemplateIds.has(item.kpi_template_id));
-    
-    // Create data map
-    const dataMap = {};
-    levelData.forEach(item => {
-      dataMap[item.kpi_template_id] = {
-        value: item.actual_value,
-        percent: item.completion_percent,
-        score: item.weighted_score
-      };
-    });
-    
-    // Render Level cards - Responsive design
-    let html = '<div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">';
-    
-    templates.forEach((template, idx) => {
-      const data = dataMap[template.id];
-      const hasData = !!data;
-      
-      html += `
+    const month = parseInt(document.getElementById('level-month').value);
+    const year = parseInt(document.getElementById('level-year').value);
+    const container = document.getElementById('level-data-container');
+
+    container.innerHTML = '<div class="text-center py-12"><i class="fas fa-spinner fa-spin text-4xl text-purple-500"></i><p class="mt-4 text-gray-600">Đang tải dữ liệu Level...</p></div>';
+
+    try {
+        // Load Level templates
+        const templatesRes = await axios.get(`/api/kpi-templates/${currentUser.position_id}?type=level`);
+        const templates = templatesRes.data.templates;
+
+        // Load Level data (auto-filled from KPI by backend)
+        const dataRes = await axios.get(`/api/kpi-data/${currentUser.id}/${year}/${month}`);
+        const allData = dataRes.data.data || [];
+
+        // Filter Level data only
+        const levelTemplateIds = new Set(templates.map(t => t.id));
+        const levelData = allData.filter(item => levelTemplateIds.has(item.kpi_template_id));
+
+        // Create data map
+        const dataMap = {};
+        levelData.forEach(item => {
+            dataMap[item.kpi_template_id] = {
+                value: item.actual_value,
+                percent: item.completion_percent,
+                score: item.weighted_score
+            };
+        });
+
+        // Render Level cards - Responsive design
+        let html = '<div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">';
+
+        templates.forEach((template, idx) => {
+            const data = dataMap[template.id];
+            const hasData = !!data;
+
+            html += `
         <div class="bg-gradient-to-r from-purple-50 to-pink-50 p-4 md:p-6 rounded-xl hover:shadow-lg transition-all border-2 ${hasData ? 'border-green-300' : 'border-gray-200'}">
           <div class="flex items-start space-x-3 md:space-x-4">
             <!-- Number Badge -->
@@ -1200,91 +1200,91 @@ async function loadLevelDataNew() {
           </div>
         </div>
       `;
-    });
-    
-    html += '</div>';
-    container.innerHTML = html;
-    
-    // Load Level summary and history
-    await loadLevelSummary(year, month);
-    await loadLevelHistory(year);
-    
-  } catch (error) {
-    console.error('Error loading Level data:', error);
-    container.innerHTML = `
+        });
+
+        html += '</div>';
+        container.innerHTML = html;
+
+        // Load Level summary and history
+        await loadLevelSummary(year, month);
+        await loadLevelHistory(year);
+
+    } catch (error) {
+        console.error('Error loading Level data:', error);
+        container.innerHTML = `
       <div class="text-center py-12 text-red-500">
         <i class="fas fa-exclamation-circle text-4xl mb-4"></i>
         <p class="text-lg font-semibold">Lỗi tải dữ liệu Level</p>
         <p class="text-sm mt-2">${error.message}</p>
       </div>
     `;
-  }
+    }
 }
 
 async function loadLevelData() {
-  const container = document.getElementById('level-form-container');
-  const periodDisplay = document.getElementById('level-current-period');
-  
-  // Check if KPI month/year has been selected
-  if (!kpiMonthYear) {
-    if (periodDisplay) {
-      periodDisplay.textContent = '-';
-    }
-    
-    if (!container) return;
-    
-    container.innerHTML = `
+    const container = document.getElementById('level-form-container');
+    const periodDisplay = document.getElementById('level-current-period');
+
+    // Check if KPI month/year has been selected
+    if (!kpiMonthYear) {
+        if (periodDisplay) {
+            periodDisplay.textContent = '-';
+        }
+
+        if (!container) return;
+
+        container.innerHTML = `
       <div class="text-center py-12 text-gray-500">
         <i class="fas fa-info-circle text-4xl mb-4 text-purple-400"></i>
         <p class="text-lg mb-2">Vui lòng vào tab <strong>KPI</strong> trước để chọn tháng/năm</p>
         <p class="text-sm text-gray-400">Sau đó quay lại tab Level để xem dữ liệu</p>
       </div>
     `;
-    return;
-  }
-  
-  const month = kpiMonthYear.month;
-  const year = kpiMonthYear.year;
-  
-  // Update period display
-  if (periodDisplay) {
-    periodDisplay.textContent = `Tháng ${month}/${year}`;
-  }
-  
-  if (!container) return;
-  
-  container.innerHTML = '<div class="text-center py-12"><i class="fas fa-spinner fa-spin text-4xl text-purple-500"></i><p class="mt-4 text-gray-600">Đang tải dữ liệu Level...</p></div>';
-  
-  try {
-    // Load Level templates
-    const response = await axios.get(`/api/kpi-templates/${currentUser.position_id}?type=level`);
-    const templates = response.data.templates;
-    
-    // Load existing Level data (auto-filled from KPI)
-    const dataRes = await axios.get(`/api/kpi-data/${currentUser.id}/${year}/${month}`);
-    const existingData = dataRes.data.data || [];
-    
-    // Create set of Level template IDs
-    const levelTemplateIds = new Set(templates.map(t => t.id));
-    
-    // Create data map for Level data only (match by template ID)
-    const dataMap = {};
-    existingData.forEach(item => {
-      if (levelTemplateIds.has(item.kpi_template_id)) { // Level data
-        dataMap[item.kpi_template_id] = {
-          value: item.actual_value,
-          percent: item.completion_percent,
-          score: item.weighted_score
-        };
-      }
-    });
-    
-    // Render Level indicators in 2 columns
-    const leftColumn = templates.slice(0, 2).map((template, idx) => {
-      const data = dataMap[template.id];
-      const hasData = !!data;
-      
-      return `
+        return;
+    }
+
+    const month = kpiMonthYear.month;
+    const year = kpiMonthYear.year;
+
+    // Update period display
+    if (periodDisplay) {
+        periodDisplay.textContent = `Tháng ${month}/${year}`;
+    }
+
+    if (!container) return;
+
+    container.innerHTML = '<div class="text-center py-12"><i class="fas fa-spinner fa-spin text-4xl text-purple-500"></i><p class="mt-4 text-gray-600">Đang tải dữ liệu Level...</p></div>';
+
+    try {
+        // Load Level templates
+        const response = await axios.get(`/api/kpi-templates/${currentUser.position_id}?type=level`);
+        const templates = response.data.templates;
+
+        // Load existing Level data (auto-filled from KPI)
+        const dataRes = await axios.get(`/api/kpi-data/${currentUser.id}/${year}/${month}`);
+        const existingData = dataRes.data.data || [];
+
+        // Create set of Level template IDs
+        const levelTemplateIds = new Set(templates.map(t => t.id));
+
+        // Create data map for Level data only (match by template ID)
+        const dataMap = {};
+        existingData.forEach(item => {
+            if (levelTemplateIds.has(item.kpi_template_id)) { // Level data
+                dataMap[item.kpi_template_id] = {
+                    value: item.actual_value,
+                    percent: item.completion_percent,
+                    score: item.weighted_score
+                };
+            }
+        });
+
+        // Render Level indicators in 2 columns
+        const leftColumn = templates.slice(0, 2).map((template, idx) => {
+            const data = dataMap[template.id];
+            const hasData = !!data;
+
+            return `
         <div class="bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-xl hover:shadow-lg transition-all border-2 ${hasData ? 'border-green-300' : 'border-purple-100'}">
           <div class="flex items-start space-x-4">
             <div class="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg">
@@ -1329,13 +1329,13 @@ async function loadLevelData() {
           </div>
         </div>
       `;
-    }).join('');
-    
-    const rightColumn = templates.slice(2, 4).map((template, idx) => {
-      const data = dataMap[template.id];
-      const hasData = !!data;
-      
-      return `
+        }).join('');
+
+        const rightColumn = templates.slice(2, 4).map((template, idx) => {
+            const data = dataMap[template.id];
+            const hasData = !!data;
+
+            return `
         <div class="bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-xl hover:shadow-lg transition-all border-2 ${hasData ? 'border-green-300' : 'border-purple-100'}">
           <div class="flex items-start space-x-4">
             <div class="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg">
@@ -1380,37 +1380,38 @@ async function loadLevelData() {
           </div>
         </div>
       `;
-    }).join('');
-    
-    const html = `
+        }).join('');
+
+        const html = `
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="space-y-6">${leftColumn}</div>
         <div class="space-y-6">${rightColumn}</div>
       </div>
     `;
-    
-    container.innerHTML = html;
-    
-    // Load Level summary and history
-    loadLevelSummary(year, month);
-    loadLevelHistory(year);
-    
-  } catch (error) {
-    console.error('Error loading Level data:', error);
-    container.innerHTML = `
+
+        container.innerHTML = html;
+
+        // Load Level summary and history
+        loadLevelSummary(year, month);
+        loadLevelHistory(year);
+
+    } catch (error) {
+        console.error('Error loading Level data:', error);
+        container.innerHTML = `
       <div class="text-center py-12 text-red-500">
         <i class="fas fa-exclamation-circle text-4xl mb-4"></i>
         <p>Lỗi tải dữ liệu Level. Vui lòng thử lại.</p>
       </div>
     `;
-  }
+    }
 }
+
 // ===== TRACKING TAB =====
 function renderTrackingTab(container) {
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  
-  container.innerHTML = `
+    const now = new Date();
+    const currentYear = now.getFullYear();
+
+    container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-8">
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
@@ -1439,25 +1440,25 @@ function renderTrackingTab(container) {
       </div>
     </div>
   `;
-  
-  loadTrackingData();
-  
-  document.getElementById('load-tracking-btn').addEventListener('click', loadTrackingData);
+
+    loadTrackingData();
+
+    document.getElementById('load-tracking-btn').addEventListener('click', loadTrackingData);
 }
 
 async function loadTrackingData() {
-  const year = document.getElementById('tracking-year').value;
-  const container = document.getElementById('tracking-container');
-  
-  container.innerHTML = '<div class="text-center py-12"><i class="fas fa-spinner fa-spin text-4xl text-indigo-500"></i></div>';
-  
-  try {
-    // Load all monthly data for the year
-    const response = await axios.get(`/api/tracking/${currentUser.id}/${year}`);
-    const { kpiData, levelData, templates } = response.data;
-    
-    // Render KPI tracking section
-    let html = `
+    const year = document.getElementById('tracking-year').value;
+    const container = document.getElementById('tracking-container');
+
+    container.innerHTML = '<div class="text-center py-12"><i class="fas fa-spinner fa-spin text-4xl text-indigo-500"></i></div>';
+
+    try {
+        // Load all monthly data for the year
+        const response = await axios.get(`/api/tracking/${currentUser.id}/${year}`);
+        const {kpiData, levelData, templates} = response.data;
+
+        // Render KPI tracking section
+        let html = `
       <div class="bg-gradient-to-r from-blue-50 to-cyan-50 p-6 rounded-xl border-2 border-blue-200">
         <h3 class="text-xl font-bold text-blue-800 mb-4 flex items-center">
           <i class="fas fa-chart-line mr-2"></i>Theo dõi KPI
@@ -1472,76 +1473,76 @@ async function loadTrackingData() {
             </thead>
             <tbody>
     `;
-    
-    // Render each KPI indicator
-    templates.kpi.forEach((template) => {
-      html += `
+
+        // Render each KPI indicator
+        templates.kpi.forEach((template) => {
+            html += `
         <tr class="hover:bg-blue-50">
           <td class="border border-blue-200 px-4 py-2 font-semibold">${template.kpi_name}</td>
       `;
-      
-      for (let month = 1; month <= 12; month++) {
-        const data = kpiData.find(d => d.month === month && d.kpi_template_id === template.id);
-        if (data) {
-          // For percentage KPIs, multiply by 100 to show the original input value
-          const isPercentKpi = template.kpi_name.includes('Tỷ lệ %');
-          let displayValue = data.actual_value;
-          if (isPercentKpi && displayValue < 2) {
-            displayValue = displayValue * 100; // Convert 0.7 → 70
-          }
-          const percent = data.completion_percent * 100;
-          const color = percent >= 100 ? 'text-green-600' : percent >= 50 ? 'text-yellow-600' : 'text-red-600';
-          html += `<td class="border border-blue-200 px-2 py-2 text-center ${color} font-semibold">${formatLargeNumber(displayValue, template.kpi_name)}</td>`;
-        } else {
-          html += `<td class="border border-blue-200 px-2 py-2 text-center text-gray-400">-</td>`;
-        }
-      }
-      
-      html += `</tr>`;
-    });
-    
-    // Add total %KPI row
-    html += `
+
+            for (let month = 1; month <= 12; month++) {
+                const data = kpiData.find(d => d.month === month && d.kpi_template_id === template.id);
+                if (data) {
+                    // For percentage KPIs, multiply by 100 to show the original input value
+                    const isPercentKpi = template.kpi_name.includes('Tỷ lệ %');
+                    let displayValue = data.actual_value;
+                    if (isPercentKpi && displayValue < 2) {
+                        displayValue = displayValue * 100; // Convert 0.7 → 70
+                    }
+                    const percent = data.completion_percent * 100;
+                    const color = percent >= 100 ? 'text-green-600' : percent >= 50 ? 'text-yellow-600' : 'text-red-600';
+                    html += `<td class="border border-blue-200 px-2 py-2 text-center ${color} font-semibold">${formatLargeNumber(displayValue, template.kpi_name)}</td>`;
+                } else {
+                    html += `<td class="border border-blue-200 px-2 py-2 text-center text-gray-400">-</td>`;
+                }
+            }
+
+            html += `</tr>`;
+        });
+
+        // Add total %KPI row
+        html += `
       <tr class="bg-blue-100 font-bold">
         <td class="border border-blue-300 px-4 py-2">% KPI tổng</td>
     `;
-    
-    for (let month = 1; month <= 12; month++) {
-      const monthData = kpiData.filter(d => d.month === month);
-      if (monthData.length > 0) {
-        const totalScore = monthData.reduce((sum, d) => sum + d.weighted_score, 0);
-        const percent = totalScore * 100;
-        const color = percent >= 100 ? 'text-green-700' : percent >= 50 ? 'text-yellow-700' : 'text-red-700';
-        html += `<td class="border border-blue-300 px-2 py-2 text-center ${color}">${percent.toFixed(1)}%</td>`;
-      } else {
-        html += `<td class="border border-blue-300 px-2 py-2 text-center text-gray-400">-</td>`;
-      }
-    }
-    
-    html += `
+
+        for (let month = 1; month <= 12; month++) {
+            const monthData = kpiData.filter(d => d.month === month);
+            if (monthData.length > 0) {
+                const totalScore = monthData.reduce((sum, d) => sum + d.weighted_score, 0);
+                const percent = totalScore * 100;
+                const color = percent >= 100 ? 'text-green-700' : percent >= 50 ? 'text-yellow-700' : 'text-red-700';
+                html += `<td class="border border-blue-300 px-2 py-2 text-center ${color}">${percent.toFixed(1)}%</td>`;
+            } else {
+                html += `<td class="border border-blue-300 px-2 py-2 text-center text-gray-400">-</td>`;
+            }
+        }
+
+        html += `
       </tr>
     `;
-    
-    // Add KPI Classification row
-    html += `
+
+        // Add KPI Classification row
+        html += `
       <tr class="bg-blue-50 font-semibold">
         <td class="border border-blue-300 px-4 py-2">Xếp loại KPI</td>
     `;
-    
-    for (let month = 1; month <= 12; month++) {
-      const monthData = kpiData.filter(d => d.month === month);
-      if (monthData.length > 0) {
-        const totalScore = monthData.reduce((sum, d) => sum + d.weighted_score, 0);
-        const percent = totalScore * 100;
-        const classification = getKpiClassification(percent);
-        const color = percent >= 120 ? 'text-green-700' : percent >= 90 ? 'text-blue-700' : percent >= 70 ? 'text-yellow-700' : percent >= 50 ? 'text-orange-700' : 'text-red-700';
-        html += `<td class="border border-blue-300 px-2 py-2 text-center ${color} font-semibold">${classification}</td>`;
-      } else {
-        html += `<td class="border border-blue-300 px-2 py-2 text-center text-gray-400">-</td>`;
-      }
-    }
-    
-    html += `
+
+        for (let month = 1; month <= 12; month++) {
+            const monthData = kpiData.filter(d => d.month === month);
+            if (monthData.length > 0) {
+                const totalScore = monthData.reduce((sum, d) => sum + d.weighted_score, 0);
+                const percent = totalScore * 100;
+                const classification = getKpiClassification(percent);
+                const color = percent >= 120 ? 'text-green-700' : percent >= 90 ? 'text-blue-700' : percent >= 70 ? 'text-yellow-700' : percent >= 50 ? 'text-orange-700' : 'text-red-700';
+                html += `<td class="border border-blue-300 px-2 py-2 text-center ${color} font-semibold">${classification}</td>`;
+            } else {
+                html += `<td class="border border-blue-300 px-2 py-2 text-center text-gray-400">-</td>`;
+            }
+        }
+
+        html += `
       </tr>
             </tbody>
           </table>
@@ -1562,94 +1563,94 @@ async function loadTrackingData() {
             </thead>
             <tbody>
     `;
-    
-    // Render each Level indicator
-    templates.level.forEach((template) => {
-      html += `
+
+        // Render each Level indicator
+        templates.level.forEach((template) => {
+            html += `
         <tr class="hover:bg-purple-50">
           <td class="border border-purple-200 px-4 py-2 font-semibold">${template.name}</td>
       `;
-      
-      for (let month = 1; month <= 12; month++) {
-        const data = levelData.find(d => d.month === month && d.kpi_template_id === template.id);
-        if (data) {
-          // For percentage KPIs, multiply by 100 to show the original input value
-          const isPercentKpi = template.name.includes('Tỷ lệ %');
-          let displayValue = data.actual_value;
-          if (isPercentKpi && displayValue < 2) {
-            displayValue = displayValue * 100; // Convert 0.7 → 70
-          }
-          const percent = data.completion_percent * 100;
-          const color = percent >= 100 ? 'text-green-600' : percent >= 50 ? 'text-yellow-600' : 'text-red-600';
-          html += `<td class="border border-purple-200 px-2 py-2 text-center ${color} font-semibold">${formatLargeNumber(displayValue, template.name)}</td>`;
-        } else {
-          html += `<td class="border border-purple-200 px-2 py-2 text-center text-gray-400">-</td>`;
-        }
-      }
-      
-      html += `</tr>`;
-    });
-    
-    // Add total %Level row
-    html += `
+
+            for (let month = 1; month <= 12; month++) {
+                const data = levelData.find(d => d.month === month && d.kpi_template_id === template.id);
+                if (data) {
+                    // For percentage KPIs, multiply by 100 to show the original input value
+                    const isPercentKpi = template.name.includes('Tỷ lệ %');
+                    let displayValue = data.actual_value;
+                    if (isPercentKpi && displayValue < 2) {
+                        displayValue = displayValue * 100; // Convert 0.7 → 70
+                    }
+                    const percent = data.completion_percent * 100;
+                    const color = percent >= 100 ? 'text-green-600' : percent >= 50 ? 'text-yellow-600' : 'text-red-600';
+                    html += `<td class="border border-purple-200 px-2 py-2 text-center ${color} font-semibold">${formatLargeNumber(displayValue, template.name)}</td>`;
+                } else {
+                    html += `<td class="border border-purple-200 px-2 py-2 text-center text-gray-400">-</td>`;
+                }
+            }
+
+            html += `</tr>`;
+        });
+
+        // Add total %Level row
+        html += `
       <tr class="bg-purple-100 font-bold">
         <td class="border border-purple-300 px-4 py-2">% Level tổng</td>
     `;
-    
-    for (let month = 1; month <= 12; month++) {
-      const monthData = levelData.filter(d => d.month === month);
-      if (monthData.length > 0) {
-        const totalScore = monthData.reduce((sum, d) => sum + d.weighted_score, 0);
-        const percent = totalScore * 100;
-        const color = percent >= 100 ? 'text-green-700' : percent >= 50 ? 'text-yellow-700' : 'text-red-700';
-        html += `<td class="border border-purple-300 px-2 py-2 text-center ${color}">${percent.toFixed(1)}%</td>`;
-      } else {
-        html += `<td class="border border-purple-300 px-2 py-2 text-center text-gray-400">-</td>`;
-      }
-    }
-    
-    html += `
+
+        for (let month = 1; month <= 12; month++) {
+            const monthData = levelData.filter(d => d.month === month);
+            if (monthData.length > 0) {
+                const totalScore = monthData.reduce((sum, d) => sum + d.weighted_score, 0);
+                const percent = totalScore * 100;
+                const color = percent >= 100 ? 'text-green-700' : percent >= 50 ? 'text-yellow-700' : 'text-red-700';
+                html += `<td class="border border-purple-300 px-2 py-2 text-center ${color}">${percent.toFixed(1)}%</td>`;
+            } else {
+                html += `<td class="border border-purple-300 px-2 py-2 text-center text-gray-400">-</td>`;
+            }
+        }
+
+        html += `
       </tr>
     `;
-    
-    // Add Level Classification row
-    html += `
+
+        // Add Level Classification row
+        html += `
       <tr class="bg-purple-50 font-semibold">
         <td class="border border-purple-300 px-4 py-2">Xếp loại Level</td>
     `;
-    
-    for (let month = 1; month <= 12; month++) {
-      const monthData = levelData.filter(d => d.month === month);
-      if (monthData.length > 0) {
-        const totalScore = monthData.reduce((sum, d) => sum + d.weighted_score, 0);
-        const percent = totalScore * 100;
-        const classification = getLevelClassification(percent, currentUser.position_id);
-        const color = percent >= 155 ? 'text-green-700' : percent >= 131 ? 'text-blue-700' : percent > 100 ? 'text-yellow-700' : percent >= 50 ? 'text-orange-700' : 'text-red-700';
-        html += `<td class="border border-purple-300 px-2 py-2 text-center ${color} font-semibold">${classification}</td>`;
-      } else {
-        html += `<td class="border border-purple-300 px-2 py-2 text-center text-gray-400">-</td>`;
-      }
-    }
-    
-    html += `
+
+        for (let month = 1; month <= 12; month++) {
+            const monthData = levelData.filter(d => d.month === month);
+            if (monthData.length > 0) {
+                const totalScore = monthData.reduce((sum, d) => sum + d.weighted_score, 0);
+                const percent = totalScore * 100;
+                const classification = getLevelClassification(percent, currentUser.position_id);
+                const color = percent >= 155 ? 'text-green-700' : percent >= 131 ? 'text-blue-700' : percent > 100 ? 'text-yellow-700' : percent >= 50 ? 'text-orange-700' : 'text-red-700';
+                html += `<td class="border border-purple-300 px-2 py-2 text-center ${color} font-semibold">${classification}</td>`;
+            } else {
+                html += `<td class="border border-purple-300 px-2 py-2 text-center text-gray-400">-</td>`;
+            }
+        }
+
+        html += `
       </tr>
             </tbody>
           </table>
         </div>
       </div>
     `;
-    
-    container.innerHTML = html;
-    
-  } catch (error) {
-    console.error('Error loading tracking data:', error);
-    container.innerHTML = `<div class="text-center py-12 text-red-500"><i class="fas fa-exclamation-triangle mr-2"></i>Lỗi tải dữ liệu</div>`;
-  }
+
+        container.innerHTML = html;
+
+    } catch (error) {
+        console.error('Error loading tracking data:', error);
+        container.innerHTML = `<div class="text-center py-12 text-red-500"><i class="fas fa-exclamation-triangle mr-2"></i>Lỗi tải dữ liệu</div>`;
+    }
 }
 
 // ===== DASHBOARD TAB =====
 function renderDashboardTab(container) {
-  container.innerHTML = `
+    container.innerHTML = `
     <div class="bg-white rounded-xl lg:rounded-2xl shadow-lg lg:shadow-xl p-4 lg:p-8">
       <!-- Header Section -->
       <div class="mb-4 lg:mb-6">
@@ -1663,9 +1664,9 @@ function renderDashboardTab(container) {
             <div>
               <label class="block text-xs font-semibold text-gray-700 mb-1.5">Tháng</label>
               <select id="dash-month" class="w-full px-3 py-2.5 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-                ${Array.from({length: 12}, (_, i) => i + 1).map(m => 
-                  `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`
-                ).join('')}
+                ${Array.from({length: 12}, (_, i) => i + 1).map(m =>
+        `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`
+    ).join('')}
               </select>
             </div>
             <div>
@@ -1685,9 +1686,9 @@ function renderDashboardTab(container) {
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1">Tháng</label>
             <select id="dash-month-desktop" class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-              ${Array.from({length: 12}, (_, i) => i + 1).map(m => 
-                `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`
-              ).join('')}
+              ${Array.from({length: 12}, (_, i) => i + 1).map(m =>
+        `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`
+    ).join('')}
             </select>
           </div>
           <div>
@@ -1710,92 +1711,92 @@ function renderDashboardTab(container) {
       </div>
     </div>
   `;
-  
-  loadDashboardData();
-  
-  // Setup mobile listeners
-  document.getElementById('load-dash-btn').addEventListener('click', loadDashboardData);
-  document.getElementById('dash-month').addEventListener('change', () => {
-    const month = document.getElementById('dash-month').value;
-    const desktopMonth = document.getElementById('dash-month-desktop');
-    if (desktopMonth) desktopMonth.value = month;
-  });
-  document.getElementById('dash-year').addEventListener('change', () => {
-    const year = document.getElementById('dash-year').value;
-    const desktopYear = document.getElementById('dash-year-desktop');
-    if (desktopYear) desktopYear.value = year;
-  });
-  
-  // Setup desktop listeners (if exists)
-  const desktopLoadBtn = document.getElementById('load-dash-btn-desktop');
-  if (desktopLoadBtn) {
-    desktopLoadBtn.addEventListener('click', loadDashboardData);
-    document.getElementById('dash-month-desktop').addEventListener('change', () => {
-      const month = document.getElementById('dash-month-desktop').value;
-      document.getElementById('dash-month').value = month;
+
+    loadDashboardData();
+
+    // Setup mobile listeners
+    document.getElementById('load-dash-btn').addEventListener('click', loadDashboardData);
+    document.getElementById('dash-month').addEventListener('change', () => {
+        const month = document.getElementById('dash-month').value;
+        const desktopMonth = document.getElementById('dash-month-desktop');
+        if (desktopMonth) desktopMonth.value = month;
     });
-    document.getElementById('dash-year-desktop').addEventListener('change', () => {
-      const year = document.getElementById('dash-year-desktop').value;
-      document.getElementById('dash-year').value = year;
+    document.getElementById('dash-year').addEventListener('change', () => {
+        const year = document.getElementById('dash-year').value;
+        const desktopYear = document.getElementById('dash-year-desktop');
+        if (desktopYear) desktopYear.value = year;
     });
-  }
+
+    // Setup desktop listeners (if exists)
+    const desktopLoadBtn = document.getElementById('load-dash-btn-desktop');
+    if (desktopLoadBtn) {
+        desktopLoadBtn.addEventListener('click', loadDashboardData);
+        document.getElementById('dash-month-desktop').addEventListener('change', () => {
+            const month = document.getElementById('dash-month-desktop').value;
+            document.getElementById('dash-month').value = month;
+        });
+        document.getElementById('dash-year-desktop').addEventListener('change', () => {
+            const year = document.getElementById('dash-year-desktop').value;
+            document.getElementById('dash-year').value = year;
+        });
+    }
 }
 
 async function loadDashboardData() {
-  const month = document.getElementById('dash-month').value;
-  const year = document.getElementById('dash-year').value;
-  const container = document.getElementById('dashboard-container');
-  
-  container.innerHTML = '<div class="text-center py-12"><i class="fas fa-spinner fa-spin text-4xl text-green-500"></i></div>';
-  
-  try {
-    const response = await axios.get(`/api/dashboard/${currentUser.id}/${year}/${month}`);
-    const data = response.data.dashboard;
-    const isAdmin = response.data.isAdmin;
-    
-    if (!data || data.length === 0) {
-      container.innerHTML = '<p class="text-center text-gray-500 py-12">Chưa có dữ liệu</p>';
-      return;
+    const month = document.getElementById('dash-month').value;
+    const year = document.getElementById('dash-year').value;
+    const container = document.getElementById('dashboard-container');
+
+    container.innerHTML = '<div class="text-center py-12"><i class="fas fa-spinner fa-spin text-4xl text-green-500"></i></div>';
+
+    try {
+        const response = await axios.get(`/api/dashboard/${currentUser.id}/${year}/${month}`);
+        const data = response.data.dashboard;
+        const isAdmin = response.data.isAdmin;
+
+        if (!data || data.length === 0) {
+            container.innerHTML = '<p class="text-center text-gray-500 py-12">Chưa có dữ liệu</p>';
+            return;
+        }
+
+        // If admin: group by region and show 4 tables
+        if (isAdmin) {
+            renderAdminDashboard(data, container);
+        } else {
+            // Normal user: 2-column layout (KPI left, Level right)
+            renderTwoColumnDashboard(data, container);
+        }
+
+    } catch (error) {
+        console.error('Dashboard error:', error);
+        container.innerHTML = `<div class="text-center py-12 text-red-500"><i class="fas fa-exclamation-triangle mr-2"></i>Lỗi tải dữ liệu</div>`;
     }
-    
-    // If admin: group by region and show 4 tables
-    if (isAdmin) {
-      renderAdminDashboard(data, container);
-    } else {
-      // Normal user: 2-column layout (KPI left, Level right)
-      renderTwoColumnDashboard(data, container);
-    }
-    
-  } catch (error) {
-    console.error('Dashboard error:', error);
-    container.innerHTML = `<div class="text-center py-12 text-red-500"><i class="fas fa-exclamation-triangle mr-2"></i>Lỗi tải dữ liệu</div>`;
-  }
 }
 
 function renderAdminDashboard(data, container) {
-  // Group by region
-  const regions = {};
-  data.forEach(user => {
-    if (!regions[user.region_name]) {
-      regions[user.region_name] = [];
-    }
-    regions[user.region_name].push(user);
-  });
-  
-  const regionColors = {
-    'Bình Dương': 'blue',
-    'Hà Nội': 'green',
-    'Miền Trung': 'purple',
-    'Hồ Chí Minh': 'orange'
-  };
-  
-  let html = '<div class="space-y-8">';
-  
-  Object.keys(regions).forEach(regionName => {
-    const color = regionColors[regionName] || 'gray';
-    const regionUsers = regions[regionName];
-    
-    html += `
+    // Group by region
+    const regions = {};
+    data.forEach(user => {
+        if (!regions[user.region_name]) {
+            regions[user.region_name] = [];
+        }
+        regions[user.region_name].push(user);
+    });
+
+    const regionColors = {
+        'Bình Dương': 'blue',
+        'Hà Nội': 'green',
+        'Miền Trung': 'purple',
+        'Hồ Chí Minh': 'orange'
+    };
+
+    let html = '<div class="space-y-8">';
+
+    Object.keys(regions).forEach(regionName => {
+        const color = regionColors[regionName] || 'gray';
+        const regionUsers = regions[regionName];
+
+        html += `
       <div class="border-2 border-${color}-200 rounded-xl p-4 lg:p-6 mb-6 lg:mb-0">
         <h3 class="text-lg lg:text-2xl font-bold mb-3 lg:mb-4 text-${color}-700 flex items-center">
           <i class="fas fa-map-marker-alt mr-2"></i>${regionName}
@@ -1811,8 +1812,8 @@ function renderAdminDashboard(data, container) {
             </h4>
             <div class="space-y-2">
               ${regionUsers
-                .sort((a, b) => (b.total_kpi_score || 0) - (a.total_kpi_score || 0))
-                .map((user, idx) => `
+            .sort((a, b) => (b.total_kpi_score || 0) - (a.total_kpi_score || 0))
+            .map((user, idx) => `
                   <div class="flex items-center justify-between p-2 lg:p-3 rounded-lg ${idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'} border border-gray-200 hover:border-${color}-300 transition-all">
                     <div class="flex items-center space-x-2 lg:space-x-3 min-w-0">
                       <div class="flex-shrink-0 w-7 h-7 lg:w-8 lg:h-8 rounded-full bg-gradient-to-br from-${color}-400 to-${color}-600 flex items-center justify-center text-white font-bold text-sm">
@@ -1841,8 +1842,8 @@ function renderAdminDashboard(data, container) {
             </h4>
             <div class="space-y-2">
               ${regionUsers
-                .sort((a, b) => (b.total_level_score || 0) - (a.total_level_score || 0))
-                .map((user, idx) => `
+            .sort((a, b) => (b.total_level_score || 0) - (a.total_level_score || 0))
+            .map((user, idx) => `
                   <div class="flex items-center justify-between p-2 lg:p-3 rounded-lg ${idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'} border border-gray-200 hover:border-${color}-300 transition-all">
                     <div class="flex items-center space-x-2 lg:space-x-3 min-w-0">
                       <div class="flex-shrink-0 w-7 h-7 lg:w-8 lg:h-8 rounded-full bg-gradient-to-br from-${color}-400 to-${color}-600 flex items-center justify-center text-white font-bold text-sm">
@@ -1866,42 +1867,42 @@ function renderAdminDashboard(data, container) {
         </div>
       </div>
     `;
-  });
-  
-  html += '</div>';
-  container.innerHTML = html;
+    });
+
+    html += '</div>';
+    container.innerHTML = html;
 }
 
 function renderTwoColumnDashboard(data, container) {
-  // Group by position
-  const byPosition = {};
-  const positionNames = {};
-  
-  data.forEach(user => {
-    const posId = user.position_id;
-    if (!byPosition[posId]) {
-      byPosition[posId] = [];
-      positionNames[posId] = user.position_name;
-    }
-    byPosition[posId].push(user);
-  });
-  
-  // Sort positions: 1, 5, 2, 3, 4
-  const sortedPositions = Object.keys(byPosition).map(Number).sort((a, b) => {
-    const order = {1: 1, 5: 2, 2: 3, 3: 4, 4: 5};
-    return order[a] - order[b];
-  });
-  
-  let html = '<div class="space-y-8">';
-  
-  sortedPositions.forEach(posId => {
-    const users = byPosition[posId];
-    const posName = positionNames[posId];
-    
-    const kpiSorted = [...users].sort((a, b) => (b.total_kpi_score || 0) - (a.total_kpi_score || 0));
-    const levelSorted = [...users].sort((a, b) => (b.total_level_score || 0) - (a.total_level_score || 0));
-    
-    html += `
+    // Group by position
+    const byPosition = {};
+    const positionNames = {};
+
+    data.forEach(user => {
+        const posId = user.position_id;
+        if (!byPosition[posId]) {
+            byPosition[posId] = [];
+            positionNames[posId] = user.position_name;
+        }
+        byPosition[posId].push(user);
+    });
+
+    // Sort positions: 1, 5, 2, 3, 4
+    const sortedPositions = Object.keys(byPosition).map(Number).sort((a, b) => {
+        const order = {1: 1, 5: 2, 2: 3, 3: 4, 4: 5};
+        return order[a] - order[b];
+    });
+
+    let html = '<div class="space-y-8">';
+
+    sortedPositions.forEach(posId => {
+        const users = byPosition[posId];
+        const posName = positionNames[posId];
+
+        const kpiSorted = [...users].sort((a, b) => (b.total_kpi_score || 0) - (a.total_kpi_score || 0));
+        const levelSorted = [...users].sort((a, b) => (b.total_level_score || 0) - (a.total_level_score || 0));
+
+        html += `
       <div class="bg-gradient-to-r from-blue-50 to-purple-50 p-4 lg:p-6 rounded-xl lg:rounded-2xl border-2 border-blue-200 mb-6 lg:mb-0">
         <h2 class="text-lg lg:text-2xl font-bold mb-4 lg:mb-6 text-gray-800 flex items-center">
           <i class="fas fa-users mr-2 lg:mr-3 text-blue-600"></i>
@@ -1977,63 +1978,63 @@ function renderTwoColumnDashboard(data, container) {
         </div>
       </div>
     `;
-  });
-  
-  html += '</div>';
-  container.innerHTML = html;
+    });
+
+    html += '</div>';
+    container.innerHTML = html;
 }
 
 // Helper function to get KPI classification based on percentage
 function getKpiClassification(percent) {
-  if (percent >= 120) return 'Xuất sắc';
-  if (percent >= 90) return 'Giỏi';
-  if (percent >= 70) return 'Khá';
-  if (percent >= 50) return 'Trung Bình';
-  return 'Cần Cải Thiện';
+    if (percent >= 120) return 'Xuất sắc';
+    if (percent >= 90) return 'Giỏi';
+    if (percent >= 70) return 'Khá';
+    if (percent >= 50) return 'Trung Bình';
+    return 'Cần Cải Thiện';
 }
 
 // Helper function to get Level classification based on percentage and position
 // positionId: 1=PTGĐ, 2=GĐKD, 3=TLKD, 4=Giám sát, 5=GĐKDCC
 function getLevelClassification(percent, positionId) {
-  if (!positionId || positionId === 1 || positionId === 5) {
-    // PTGĐ & GĐKDCC
-    if (percent >= 155) return 'Level 4';
-    if (percent >= 131) return 'Level 3';
-    if (percent > 100) return 'Level 2';
-    if (percent >= 50) return 'Level 1';
-  } else if (positionId === 2 || positionId === 3) {
-    // GĐKD & Trợ lý KD
-    if (percent >= 140) return 'Level 5';
-    if (percent >= 121) return 'Level 4';
-    if (percent >= 101) return 'Level 3';
-    if (percent >= 81) return 'Level 2';
-    if (percent >= 50) return 'Level 1';
-  } else if (positionId === 4) {
-    // Giám sát
-    if (percent >= 150) return 'Level 5';
-    if (percent >= 131) return 'Level 4';
-    if (percent >= 101) return 'Level 3';
-    if (percent >= 76) return 'Level 2';
-    if (percent >= 50) return 'Level 1';
-  }
-  return 'Xem xét lại';
+    if (!positionId || positionId === 1 || positionId === 5) {
+        // PTGĐ & GĐKDCC
+        if (percent >= 155) return 'Level 4';
+        if (percent >= 131) return 'Level 3';
+        if (percent > 100) return 'Level 2';
+        if (percent >= 50) return 'Level 1';
+    } else if (positionId === 2 || positionId === 3) {
+        // GĐKD & Trợ lý KD
+        if (percent >= 140) return 'Level 5';
+        if (percent >= 121) return 'Level 4';
+        if (percent >= 101) return 'Level 3';
+        if (percent >= 81) return 'Level 2';
+        if (percent >= 50) return 'Level 1';
+    } else if (positionId === 4) {
+        // Giám sát
+        if (percent >= 150) return 'Level 5';
+        if (percent >= 131) return 'Level 4';
+        if (percent >= 101) return 'Level 3';
+        if (percent >= 76) return 'Level 2';
+        if (percent >= 50) return 'Level 1';
+    }
+    return 'Xem xét lại';
 }
 
 function getLevelColor(level) {
-  // Based on xep loai level.xlsx - Different thresholds per position
-  // PTGĐ/GĐKDCC: Level 1-4 only
-  // GĐKD/TLKD/Giám sát: Level 1-5
-  if (level === 'Tốt' || level.includes('Level 5')) return 'bg-purple-500 shadow-lg shadow-purple-300';   // Level 5 - Xuất sắc nhất
-  if (level === 'Tốt' || level.includes('Level 4')) return 'bg-green-500 shadow-lg shadow-green-300';      // Level 4 - Tốt
-  if (level === 'Khá' || level.includes('Level 3')) return 'bg-blue-500 shadow-lg shadow-blue-300';       // Level 3 - Khá
-  if (level === 'Đạt chuẩn' || level.includes('Level 2')) return 'bg-yellow-500 shadow-lg shadow-yellow-300'; // Level 2 - Đạt chuẩn
-  if (level.includes('Level 1')) return 'bg-orange-500 shadow-lg shadow-orange-300';                      // Level 1
-  return 'bg-red-500 shadow-lg shadow-red-300';  // Xem xét lại (<50%)
+    // Based on xep loai level.xlsx - Different thresholds per position
+    // PTGĐ/GĐKDCC: Level 1-4 only
+    // GĐKD/TLKD/Giám sát: Level 1-5
+    if (level === 'Tốt' || level.includes('Level 5')) return 'bg-purple-500 shadow-lg shadow-purple-300';   // Level 5 - Xuất sắc nhất
+    if (level === 'Tốt' || level.includes('Level 4')) return 'bg-green-500 shadow-lg shadow-green-300';      // Level 4 - Tốt
+    if (level === 'Khá' || level.includes('Level 3')) return 'bg-blue-500 shadow-lg shadow-blue-300';       // Level 3 - Khá
+    if (level === 'Đạt chuẩn' || level.includes('Level 2')) return 'bg-yellow-500 shadow-lg shadow-yellow-300'; // Level 2 - Đạt chuẩn
+    if (level.includes('Level 1')) return 'bg-orange-500 shadow-lg shadow-orange-300';                      // Level 1
+    return 'bg-red-500 shadow-lg shadow-red-300';  // Xem xét lại (<50%)
 }
 
 // ===== ADMIN TAB - COMPLETE REWRITE =====
 function renderAdminTab(container) {
-  container.innerHTML = `
+    container.innerHTML = `
     <div class="space-y-6">
       <!-- Sub-tabs for Admin -->
       <div class="bg-white rounded-2xl shadow-xl p-4">
@@ -2090,55 +2091,55 @@ function renderAdminTab(container) {
       <div id="admin-subtab-content"></div>
     </div>
   `;
-  
-  // Show overview by default
-  showAdminSubTab('overview');
+
+    // Show overview by default
+    showAdminSubTab('overview');
 }
 
 // Handle sub-tab switching
 function showAdminSubTab(tabName) {
-  // Update tab styles
-  document.querySelectorAll('.admin-subtab').forEach(btn => {
-    if (btn.dataset.tab === tabName) {
-      btn.className = 'admin-subtab px-6 py-3 rounded-lg font-semibold transition-all bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg';
-    } else {
-      btn.className = 'admin-subtab px-6 py-3 rounded-lg font-semibold transition-all bg-gray-100 text-gray-700 hover:bg-gray-200';
+    // Update tab styles
+    document.querySelectorAll('.admin-subtab').forEach(btn => {
+        if (btn.dataset.tab === tabName) {
+            btn.className = 'admin-subtab px-6 py-3 rounded-lg font-semibold transition-all bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg';
+        } else {
+            btn.className = 'admin-subtab px-6 py-3 rounded-lg font-semibold transition-all bg-gray-100 text-gray-700 hover:bg-gray-200';
+        }
+    });
+
+    const content = document.getElementById('admin-subtab-content');
+
+    if (tabName === 'overview') {
+        renderAdminOverview(content);
+    } else if (tabName === 'users') {
+        renderAdminUsers(content);
+    } else if (tabName === 'ptgd') {
+        renderPositionDashboard(content, '1,5', 'PTGĐ/GĐKDCC'); // position 1 and 5
+    } else if (tabName === 'gdkd') {
+        renderPositionDashboard(content, '2', 'GĐKD');
+    } else if (tabName === 'tlkd') {
+        renderPositionDashboard(content, '3', 'Trợ lý kinh doanh');
+    } else if (tabName === 'gs') {
+        renderPositionDashboard(content, '4', 'Giám sát');
+    } else if (tabName === 'revenue-plan') {
+        renderRevenuePlan(content);
+    } else if (tabName === 'revenue-actual') {
+        renderActualRevenueUpload(content);
+    } else if (tabName === 'ptgd-kpi') {
+        renderKpiDetail(content, '1,5', 'PTGĐ/GĐKDCC - Doanh thu', [7]); // KPI ID 7: Doanh thu
+    } else if (tabName === 'gdkd-kpi') {
+        renderKpiDetail(content, '2', 'GĐKD - Doanh thu', [17]); // KPI ID 17: Doanh thu
+    } else if (tabName === 'tlkd-kpi') {
+        renderKpiDetail(content, '3', 'Trợ lý kinh doanh - Doanh thu và Zalo', [27, 29]); // KPI ID 27: Doanh thu, 29: Zalo
+    } else if (tabName === 'gs-kpi') {
+        renderKpiDetail(content, '4', 'Giám sát', [38]); // KPI ID 38: Tuyển dụng
+    } else if (tabName === 'lock-month') {
+        renderLockMonthTab(content);
     }
-  });
-  
-  const content = document.getElementById('admin-subtab-content');
-  
-  if (tabName === 'overview') {
-    renderAdminOverview(content);
-  } else if (tabName === 'users') {
-    renderAdminUsers(content);
-  } else if (tabName === 'ptgd') {
-    renderPositionDashboard(content, '1,5', 'PTGĐ/GĐKDCC'); // position 1 and 5
-  } else if (tabName === 'gdkd') {
-    renderPositionDashboard(content, '2', 'GĐKD');
-  } else if (tabName === 'tlkd') {
-    renderPositionDashboard(content, '3', 'Trợ lý kinh doanh');
-  } else if (tabName === 'gs') {
-    renderPositionDashboard(content, '4', 'Giám sát');
-  } else if (tabName === 'revenue-plan') {
-    renderRevenuePlan(content);
-  } else if (tabName === 'revenue-actual') {
-    renderActualRevenueUpload(content);
-  } else if (tabName === 'ptgd-kpi') {
-    renderKpiDetail(content, '1,5', 'PTGĐ/GĐKDCC - Doanh thu', [7]); // KPI ID 7: Doanh thu
-  } else if (tabName === 'gdkd-kpi') {
-    renderKpiDetail(content, '2', 'GĐKD - Doanh thu', [17]); // KPI ID 17: Doanh thu
-  } else if (tabName === 'tlkd-kpi') {
-    renderKpiDetail(content, '3', 'Trợ lý kinh doanh - Doanh thu và Zalo', [27, 29]); // KPI ID 27: Doanh thu, 29: Zalo
-  } else if (tabName === 'gs-kpi') {
-    renderKpiDetail(content, '4', 'Giám sát', [38]); // KPI ID 38: Tuyển dụng
-  } else if (tabName === 'lock-month') {
-    renderLockMonthTab(content);
-  }
 }
 
 function renderAdminOverview(container) {
-  container.innerHTML = `
+    container.innerHTML = `
     <div class="space-y-6">
       <!-- Statistics Cards -->
       <div class="bg-white rounded-2xl shadow-xl p-6">
@@ -2165,13 +2166,13 @@ function renderAdminOverview(container) {
       </div>
     </div>
   `;
-  
-  loadAdminStatistics();
-  loadKpiTemplates();
+
+    loadAdminStatistics();
+    loadKpiTemplates();
 }
 
 function renderAdminUsers(container) {
-  container.innerHTML = `
+    container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-8">
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-2xl font-bold bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent">
@@ -2486,65 +2487,65 @@ function renderAdminUsers(container) {
       </div>
     </div> <!-- end bg-white -->
   `;
-  
-  // Only load user-related data, NOT statistics or templates
-  loadAdminMetadata();
-  loadAdminUsers();
+
+    // Only load user-related data, NOT statistics or templates
+    loadAdminMetadata();
+    loadAdminUsers();
 }
 
-let adminMetadata = { regions: [], positions: [] };
+let adminMetadata = {regions: [], positions: []};
 
 
 async function loadAdminStatistics() {
-  try {
-    const response = await axios.get('/api/admin/statistics', {
-      params: {
-        userId: currentUser?.id,
-        username: currentUser?.username
-      }
-    });
-    
-    const stats = response.data.positionCounts;
-    const container = document.getElementById('admin-statistics');
-    
-    const colors = [
-      { bg: 'bg-blue-50', text: 'text-blue-600', icon: 'fa-user-tie' },
-      { bg: 'bg-purple-50', text: 'text-purple-600', icon: 'fa-user-shield' },
-      { bg: 'bg-green-50', text: 'text-green-600', icon: 'fa-user-check' },
-      { bg: 'bg-orange-50', text: 'text-orange-600', icon: 'fa-user' },
-      { bg: 'bg-pink-50', text: 'text-pink-600', icon: 'fa-user-graduate' }
-    ];
-    
-    container.innerHTML = stats.map((stat, idx) => `
+    try {
+        const response = await axios.get('/api/admin/statistics', {
+            params: {
+                userId: currentUser?.id,
+                username: currentUser?.username
+            }
+        });
+
+        const stats = response.data.positionCounts;
+        const container = document.getElementById('admin-statistics');
+
+        const colors = [
+            {bg: 'bg-blue-50', text: 'text-blue-600', icon: 'fa-user-tie'},
+            {bg: 'bg-purple-50', text: 'text-purple-600', icon: 'fa-user-shield'},
+            {bg: 'bg-green-50', text: 'text-green-600', icon: 'fa-user-check'},
+            {bg: 'bg-orange-50', text: 'text-orange-600', icon: 'fa-user'},
+            {bg: 'bg-pink-50', text: 'text-pink-600', icon: 'fa-user-graduate'}
+        ];
+
+        container.innerHTML = stats.map((stat, idx) => `
       <div class="${colors[idx]?.bg || 'bg-gray-50'} rounded-lg p-4 text-center">
         <i class="fas ${colors[idx]?.icon || 'fa-user'} text-3xl ${colors[idx]?.text || 'text-gray-600'} mb-2"></i>
         <div class="text-2xl font-bold ${colors[idx]?.text || 'text-gray-600'}">${stat.count}</div>
         <div class="text-sm text-gray-600 mt-1">${stat.display_name}</div>
       </div>
     `).join('');
-  } catch (error) {
-    console.error('Error loading statistics:', error);
-  }
+    } catch (error) {
+        console.error('Error loading statistics:', error);
+    }
 }
 
 async function loadKpiTemplates() {
-  try {
-    const response = await axios.get('/api/admin/kpi-templates');
-    const templates = response.data.templates;
-    const container = document.getElementById('kpi-templates-table');
-    
-    // Group by position
-    const grouped = {};
-    templates.forEach(t => {
-      if (!grouped[t.position_name]) grouped[t.position_name] = { kpi: [], level: [] };
-      if (t.is_for_kpi) grouped[t.position_name].kpi.push(t);
-      else grouped[t.position_name].level.push(t);
-    });
-    
-    let html = '<div class="space-y-6">';
-    
-    Object.keys(grouped).forEach(posName => {
-      html += `
+    try {
+        const response = await axios.get('/api/admin/kpi-templates');
+        const templates = response.data.templates;
+        const container = document.getElementById('kpi-templates-table');
+
+        // Group by position
+        const grouped = {};
+        templates.forEach(t => {
+            if (!grouped[t.position_name]) grouped[t.position_name] = {kpi: [], level: []};
+            if (t.is_for_kpi) grouped[t.position_name].kpi.push(t);
+            else grouped[t.position_name].level.push(t);
+        });
+
+        let html = '<div class="space-y-6">';
+
+        Object.keys(grouped).forEach(posName => {
+            html += `
         <div>
           <h4 class="font-bold text-lg text-gray-800 mb-3 bg-gray-100 px-4 py-2 rounded-lg">
             ${posName}
@@ -2597,202 +2598,202 @@ async function loadKpiTemplates() {
           </div>
         </div>
       `;
-    });
-    
-    html += '</div>';
-    container.innerHTML = html;
-  } catch (error) {
-    console.error('Error loading KPI templates:', error);
-  }
+        });
+
+        html += '</div>';
+        container.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading KPI templates:', error);
+    }
 }
 
 async function loadAdminMetadata() {
-  try {
-    const response = await axios.get('/api/admin/metadata');
-    adminMetadata = response.data;
-    
-    // Populate region dropdown (for create form)
-    const regionSelect = document.getElementById('new-region');
-    if (regionSelect) {
-      regionSelect.innerHTML = '<option value="">Chọn khối</option>' +
-        adminMetadata.regions.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+    try {
+        const response = await axios.get('/api/admin/metadata');
+        adminMetadata = response.data;
+
+        // Populate region dropdown (for create form)
+        const regionSelect = document.getElementById('new-region');
+        if (regionSelect) {
+            regionSelect.innerHTML = '<option value="">Chọn khối</option>' +
+                adminMetadata.regions.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+        }
+
+        // Populate position dropdown (for create form)
+        const positionSelect = document.getElementById('new-position');
+        if (positionSelect) {
+            positionSelect.innerHTML = '<option value="">Chọn vị trí</option>' +
+                adminMetadata.positions.map(p => `<option value="${p.id}">${p.display_name}</option>`).join('');
+        }
+
+        // Populate filter dropdowns
+        const filterRegion = document.getElementById('filter-region');
+        if (filterRegion) {
+            filterRegion.innerHTML = '<option value="">Tất cả khối</option>' +
+                adminMetadata.regions.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+        }
+
+        const filterPosition = document.getElementById('filter-position');
+        if (filterPosition) {
+            filterPosition.innerHTML = '<option value="">Tất cả vị trí</option>' +
+                adminMetadata.positions.map(p => `<option value="${p.id}">${p.display_name}</option>`).join('');
+        }
+    } catch (error) {
+        console.error('Error loading metadata:', error);
     }
-    
-    // Populate position dropdown (for create form)
-    const positionSelect = document.getElementById('new-position');
-    if (positionSelect) {
-      positionSelect.innerHTML = '<option value="">Chọn vị trí</option>' +
-        adminMetadata.positions.map(p => `<option value="${p.id}">${p.display_name}</option>`).join('');
-    }
-    
-    // Populate filter dropdowns
-    const filterRegion = document.getElementById('filter-region');
-    if (filterRegion) {
-      filterRegion.innerHTML = '<option value="">Tất cả khối</option>' +
-        adminMetadata.regions.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
-    }
-    
-    const filterPosition = document.getElementById('filter-position');
-    if (filterPosition) {
-      filterPosition.innerHTML = '<option value="">Tất cả vị trí</option>' +
-        adminMetadata.positions.map(p => `<option value="${p.id}">${p.display_name}</option>`).join('');
-    }
-  } catch (error) {
-    console.error('Error loading metadata:', error);
-  }
 }
 
 async function loadPotentialManagers() {
-  const regionId = document.getElementById('new-region').value;
-  const positionId = document.getElementById('new-position').value;
-  const managerSelect = document.getElementById('new-manager');
-  
-  if (!regionId || !positionId) {
-    managerSelect.innerHTML = '<option value="">Chọn quản lý (nếu có)</option>';
-    return;
-  }
-  
-  try {
-    const response = await axios.get(`/api/admin/potential-managers/${regionId}/${positionId}`);
-    const managers = response.data.managers;
-    
-    if (managers.length === 0) {
-      managerSelect.innerHTML = '<option value="">Không có quản lý cấp trên (Phó Tổng)</option>';
-    } else {
-      managerSelect.innerHTML = '<option value="">Chọn quản lý</option>' +
-        managers.map(m => `<option value="${m.id}">${m.full_name} (${m.username})</option>`).join('');
+    const regionId = document.getElementById('new-region').value;
+    const positionId = document.getElementById('new-position').value;
+    const managerSelect = document.getElementById('new-manager');
+
+    if (!regionId || !positionId) {
+        managerSelect.innerHTML = '<option value="">Chọn quản lý (nếu có)</option>';
+        return;
     }
-  } catch (error) {
-    console.error('Error loading managers:', error);
-  }
+
+    try {
+        const response = await axios.get(`/api/admin/potential-managers/${regionId}/${positionId}`);
+        const managers = response.data.managers;
+
+        if (managers.length === 0) {
+            managerSelect.innerHTML = '<option value="">Không có quản lý cấp trên (Phó Tổng)</option>';
+        } else {
+            managerSelect.innerHTML = '<option value="">Chọn quản lý</option>' +
+                managers.map(m => `<option value="${m.id}">${m.full_name} (${m.username})</option>`).join('');
+        }
+    } catch (error) {
+        console.error('Error loading managers:', error);
+    }
 }
 
 function showCreateUserForm() {
-  document.getElementById('create-user-form').classList.remove('hidden');
+    document.getElementById('create-user-form').classList.remove('hidden');
 }
 
 function hideCreateUserForm() {
-  document.getElementById('create-user-form').classList.add('hidden');
+    document.getElementById('create-user-form').classList.add('hidden');
 
-  const fields = [
-    'new-username', 'new-password', 'new-fullname', 'new-region',
-    'new-position', 'new-team', 'new-manager', 'new-startdate'
-  ];
-  fields.forEach(id => {
-    const element = document.getElementById(id);
-    if (element) {
-      element.value = '';
-    }
-  });
+    const fields = [
+        'new-username', 'new-password', 'new-fullname', 'new-region',
+        'new-position', 'new-team', 'new-manager', 'new-startdate'
+    ];
+    fields.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.value = '';
+        }
+    });
 
-  document.getElementById('create-new-user-message').innerHTML = '';
+    document.getElementById('create-new-user-message').innerHTML = '';
 }
 
 async function createNewUser() {
-  const username = document.getElementById('new-username').value.trim();
-  const password = document.getElementById('new-password').value;
-  const fullName = document.getElementById('new-fullname').value.trim();
-  const regionId = document.getElementById('new-region').value;
-  const positionId = document.getElementById('new-position').value;
-  const team = document.getElementById('new-team').value.trim();
-  const manager = document.getElementById('new-manager').value.trim();
-  const startDate = document.getElementById('new-startdate').value;
-  const messageDiv = document.getElementById('create-new-user-message');
-  // Validation
-  if (!username || !password || !fullName || !regionId || !positionId || !manager || !startDate) {
-    messageDiv.innerHTML = `
+    const username = document.getElementById('new-username').value.trim();
+    const password = document.getElementById('new-password').value;
+    const fullName = document.getElementById('new-fullname').value.trim();
+    const regionId = document.getElementById('new-region').value;
+    const positionId = document.getElementById('new-position').value;
+    const team = document.getElementById('new-team').value.trim();
+    const manager = document.getElementById('new-manager').value.trim();
+    const startDate = document.getElementById('new-startdate').value;
+    const messageDiv = document.getElementById('create-new-user-message');
+    // Validation
+    if (!username || !password || !fullName || !regionId || !positionId || !manager || !startDate) {
+        messageDiv.innerHTML = `
       <div class="p-4 bg-yellow-50 border-l-4 border-yellow-500 text-yellow-700 rounded-lg">
         <i class="fas fa-exclamation-triangle mr-2"></i>Vui lòng điền đầy đủ thông tin bắt buộc (*)
       </div>
     `;
-    return;
-  }
+        return;
+    }
 
-  if (password.length < 6) {
-    messageDiv.innerHTML = `
+    if (password.length < 6) {
+        messageDiv.innerHTML = `
       <div class="p-4 bg-yellow-50 border-l-4 border-yellow-500 text-yellow-700 rounded-lg">
         <i class="fas fa-exclamation-triangle mr-2"></i>Mật khẩu phải có ít nhất 6 ký tự
       </div>
     `;
-    return;
-  }
+        return;
+    }
 
-  try {
-    const response = await axios.post('/api/admin/users', {
-      username,
-      password,
-      full_name: fullName,
-      region_id: parseInt(regionId),
-      position_id: parseInt(positionId),
-      start_date: startDate,
-      team: team || null,
-      manager: manager,
-    });
+    try {
+        const response = await axios.post('/api/admin/users', {
+            username,
+            password,
+            full_name: fullName,
+            region_id: parseInt(regionId),
+            position_id: parseInt(positionId),
+            start_date: startDate,
+            team: team || null,
+            manager: manager,
+        });
 
-    if (response.data.success) {
-      messageDiv.innerHTML = `
+        if (response.data.success) {
+            messageDiv.innerHTML = `
         <div class="p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded-lg">
           <i class="fas fa-check-circle mr-2"></i>${response.data.message}
         </div>
       `;
-      hideCreateUserForm();
-      await loadAdminUsers();
-    }
-  } catch (error) {
-    messageDiv.innerHTML = `
+            hideCreateUserForm();
+            await loadAdminUsers();
+        }
+    } catch (error) {
+        messageDiv.innerHTML = `
       <div class="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
         <i class="fas fa-exclamation-circle mr-2"></i>${error.response?.data?.error || 'Lỗi tạo tài khoản'}
       </div>
     `;
-  }
+    }
 }
 
 async function loadAdminUsers() {
-  const container = document.getElementById('admin-users-container');
-  
-  try {
-    const response = await axios.get('/api/admin/users', {
-      params: {
-        userId: currentUser?.id,
-        username: currentUser?.username
-      }
-    });
-    allUsers = response.data.users; // Store for filtering
-    
-    renderUserTable(allUsers); // Render with all users initially
-  } catch (error) {
-    console.error('Error loading users:', error);
-    container.innerHTML = '<div class="text-center py-8 text-red-500">Lỗi tải danh sách người dùng</div>';
-  }
+    const container = document.getElementById('admin-users-container');
+
+    try {
+        const response = await axios.get('/api/admin/users', {
+            params: {
+                userId: currentUser?.id,
+                username: currentUser?.username
+            }
+        });
+        allUsers = response.data.users; // Store for filtering
+
+        renderUserTable(allUsers); // Render with all users initially
+    } catch (error) {
+        console.error('Error loading users:', error);
+        container.innerHTML = '<div class="text-center py-8 text-red-500">Lỗi tải danh sách người dùng</div>';
+    }
 }
 
 // ===== RENDER USER TABLE WITH PAGINATION =====
 function renderUserTable(users) {
-  const container = document.getElementById('admin-users-container');
-  filteredUsers = users; // Store filtered results
-  
-  if (users.length === 0) {
-    container.innerHTML = `
+    const container = document.getElementById('admin-users-container');
+    filteredUsers = users; // Store filtered results
+
+    if (users.length === 0) {
+        container.innerHTML = `
       <div class="text-center py-12 text-gray-500">
         <i class="fas fa-user-slash text-4xl mb-3"></i>
         <p class="text-lg">Không tìm thấy người dùng nào</p>
       </div>
     `;
-    document.getElementById('filter-count').textContent = '0';
-    return;
-  }
-  
-  // Calculate pagination
-  const totalPages = Math.ceil(users.length / USER_PAGE_SIZE);
-  const startIndex = (currentUserPage - 1) * USER_PAGE_SIZE;
-  const endIndex = Math.min(startIndex + USER_PAGE_SIZE, users.length);
-  const pageUsers = users.slice(startIndex, endIndex);
-  
-  let html = '<div class="overflow-x-auto">';
-  html += '<table class="w-full">';
-  
-  // Header - CANH TRÁI
-  html += `
+        document.getElementById('filter-count').textContent = '0';
+        return;
+    }
+
+    // Calculate pagination
+    const totalPages = Math.ceil(users.length / USER_PAGE_SIZE);
+    const startIndex = (currentUserPage - 1) * USER_PAGE_SIZE;
+    const endIndex = Math.min(startIndex + USER_PAGE_SIZE, users.length);
+    const pageUsers = users.slice(startIndex, endIndex);
+
+    let html = '<div class="overflow-x-auto">';
+    html += '<table class="w-full">';
+
+    // Header - CANH TRÁI
+    html += `
     <thead>
       <tr class="bg-gradient-to-r from-red-500 to-pink-600 text-white">
         <th class="px-4 py-3 text-left">STT</th>
@@ -2807,12 +2808,12 @@ function renderUserTable(users) {
       </tr>
     </thead>
   `;
-  
-  // Body - CANH TRÁI
-  html += '<tbody>';
-  pageUsers.forEach((user, idx) => {
-    const globalIndex = startIndex + idx;
-    html += `
+
+    // Body - CANH TRÁI
+    html += '<tbody>';
+    pageUsers.forEach((user, idx) => {
+        const globalIndex = startIndex + idx;
+        html += `
       <tr class="border-b hover:bg-gray-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
         <td class="px-4 py-3 font-semibold text-left">${globalIndex + 1}</td>
         <td class="px-4 py-3 text-blue-600 text-left">${user.username}</td>
@@ -2860,29 +2861,29 @@ function renderUserTable(users) {
         </td>
       </tr>
     `;
-  });
-  html += '</tbody>';
-  html += '</table>';
-  html += '</div>';
-  
-  // Pagination Controls
-  if (totalPages > 1) {
-    html += '<div class="mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">';
-    
-    // Page info - CANH TRÁI
-    html += `
+    });
+    html += '</tbody>';
+    html += '</table>';
+    html += '</div>';
+
+    // Pagination Controls
+    if (totalPages > 1) {
+        html += '<div class="mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">';
+
+        // Page info - CANH TRÁI
+        html += `
       <div class="text-sm text-gray-600 text-left">
         Hiển thị <span class="font-semibold">${startIndex + 1}</span> đến 
         <span class="font-semibold">${endIndex}</span> trong tổng số 
         <span class="font-semibold">${users.length}</span> người dùng
       </div>
     `;
-    
-    // Page buttons
-    html += '<div class="flex items-center space-x-2">';
-    
-    // Previous button
-    html += `
+
+        // Page buttons
+        html += '<div class="flex items-center space-x-2">';
+
+        // Previous button
+        html += `
       <button 
         onclick="goToUserPage(${currentUserPage - 1})"
         class="px-3 py-2 rounded-lg ${currentUserPage === 1 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-500 text-white hover:bg-blue-600'}"
@@ -2891,31 +2892,31 @@ function renderUserTable(users) {
         <i class="fas fa-chevron-left"></i>
       </button>
     `;
-    
-    // Page numbers
-    const maxPagesToShow = 5;
-    let startPage = Math.max(1, currentUserPage - Math.floor(maxPagesToShow / 2));
-    let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
-    
-    if (endPage - startPage < maxPagesToShow - 1) {
-      startPage = Math.max(1, endPage - maxPagesToShow + 1);
-    }
-    
-    // First page
-    if (startPage > 1) {
-      html += `
+
+        // Page numbers
+        const maxPagesToShow = 5;
+        let startPage = Math.max(1, currentUserPage - Math.floor(maxPagesToShow / 2));
+        let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+
+        if (endPage - startPage < maxPagesToShow - 1) {
+            startPage = Math.max(1, endPage - maxPagesToShow + 1);
+        }
+
+        // First page
+        if (startPage > 1) {
+            html += `
         <button onclick="goToUserPage(1)" class="px-3 py-2 rounded-lg bg-white border border-gray-300 hover:bg-gray-50">
           1
         </button>
       `;
-      if (startPage > 2) {
-        html += '<span class="px-2 text-gray-500">...</span>';
-      }
-    }
-    
-    // Page range
-    for (let i = startPage; i <= endPage; i++) {
-      html += `
+            if (startPage > 2) {
+                html += '<span class="px-2 text-gray-500">...</span>';
+            }
+        }
+
+        // Page range
+        for (let i = startPage; i <= endPage; i++) {
+            html += `
         <button 
           onclick="goToUserPage(${i})"
           class="px-3 py-2 rounded-lg ${i === currentUserPage ? 'bg-blue-600 text-white font-semibold' : 'bg-white border border-gray-300 hover:bg-gray-50'}"
@@ -2923,22 +2924,22 @@ function renderUserTable(users) {
           ${i}
         </button>
       `;
-    }
-    
-    // Last page
-    if (endPage < totalPages) {
-      if (endPage < totalPages - 1) {
-        html += '<span class="px-2 text-gray-500">...</span>';
-      }
-      html += `
+        }
+
+        // Last page
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                html += '<span class="px-2 text-gray-500">...</span>';
+            }
+            html += `
         <button onclick="goToUserPage(${totalPages})" class="px-3 py-2 rounded-lg bg-white border border-gray-300 hover:bg-gray-50">
           ${totalPages}
         </button>
       `;
-    }
-    
-    // Next button
-    html += `
+        }
+
+        // Next button
+        html += `
       <button 
         onclick="goToUserPage(${currentUserPage + 1})"
         class="px-3 py-2 rounded-lg ${currentUserPage === totalPages ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-500 text-white hover:bg-blue-600'}"
@@ -2947,282 +2948,282 @@ function renderUserTable(users) {
         <i class="fas fa-chevron-right"></i>
       </button>
     `;
-    
-    html += '</div>'; // end page buttons
-    html += '</div>'; // end pagination controls
-  }
-  
-  // Footer info
-  html += `
+
+        html += '</div>'; // end page buttons
+        html += '</div>'; // end pagination controls
+    }
+
+    // Footer info
+    html += `
     <div class="mt-4 text-sm text-gray-600">
       <i class="fas fa-info-circle mr-2"></i>
       <strong>Cấu trúc phân cấp:</strong> Giám sát → Trợ lý KD → GĐKD → GĐKDCC → PTGĐ
     </div>
   `;
-  
-  container.innerHTML = html;
-  document.getElementById('filter-count').textContent = users.length;
+
+    container.innerHTML = html;
+    document.getElementById('filter-count').textContent = users.length;
 }
 
 
 // ===== PAGINATION NAVIGATION =====
 function goToUserPage(page) {
-  const totalPages = Math.ceil(filteredUsers.length / USER_PAGE_SIZE);
-  
-  if (page < 1 || page > totalPages) return;
-  
-  currentUserPage = page;
-  renderUserTable(filteredUsers);
-  
-  // Scroll to top of table
-  document.getElementById('admin-users-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const totalPages = Math.ceil(filteredUsers.length / USER_PAGE_SIZE);
+
+    if (page < 1 || page > totalPages) return;
+
+    currentUserPage = page;
+    renderUserTable(filteredUsers);
+
+    // Scroll to top of table
+    document.getElementById('admin-users-container').scrollIntoView({behavior: 'smooth', block: 'start'});
 }
 
 // ===== UPDATE FILTER FUNCTION =====
 function filterUsers() {
-  const searchText = document.getElementById('user-search')?.value.toLowerCase() || '';
-  const filterRegionId = document.getElementById('filter-region')?.value || '';
-  const filterPositionId = document.getElementById('filter-position')?.value || '';
-  
-  let filtered = allUsers.filter(user => {
-    // Search by name or username
-    const matchSearch = !searchText || 
-      user.full_name.toLowerCase().includes(searchText) ||
-      user.username.toLowerCase().includes(searchText);
-    
-    // Filter by region
-    const matchRegion = !filterRegionId || user.region_id == filterRegionId;
-    
-    // Filter by position
-    const matchPosition = !filterPositionId || user.position_id == filterPositionId;
-    
-    return matchSearch && matchRegion && matchPosition;
-  });
-  
-  // Reset to page 1 when filtering
-  currentUserPage = 1;
-  renderUserTable(filtered);
+    const searchText = document.getElementById('user-search')?.value.toLowerCase() || '';
+    const filterRegionId = document.getElementById('filter-region')?.value || '';
+    const filterPositionId = document.getElementById('filter-position')?.value || '';
+
+    let filtered = allUsers.filter(user => {
+        // Search by name or username
+        const matchSearch = !searchText ||
+            user.full_name.toLowerCase().includes(searchText) ||
+            user.username.toLowerCase().includes(searchText);
+
+        // Filter by region
+        const matchRegion = !filterRegionId || user.region_id == filterRegionId;
+
+        // Filter by position
+        const matchPosition = !filterPositionId || user.position_id == filterPositionId;
+
+        return matchSearch && matchRegion && matchPosition;
+    });
+
+    // Reset to page 1 when filtering
+    currentUserPage = 1;
+    renderUserTable(filtered);
 }
 
 async function deleteUser(userId, fullName) {
-  if (!confirm(`Bạn có chắc muốn xóa tài khoản "${fullName}"?\n\nLưu ý: Tất cả dữ liệu KPI của người này sẽ bị xóa.`)) {
-    return;
-  }
-  
-  const messageDiv = document.getElementById('admin-message');
-  
-  try {
-    await axios.delete(`/api/admin/users/${userId}`);
-    
-    messageDiv.innerHTML = `
+    if (!confirm(`Bạn có chắc muốn xóa tài khoản "${fullName}"?\n\nLưu ý: Tất cả dữ liệu KPI của người này sẽ bị xóa.`)) {
+        return;
+    }
+
+    const messageDiv = document.getElementById('admin-message');
+
+    try {
+        await axios.delete(`/api/admin/users/${userId}`);
+
+        messageDiv.innerHTML = `
       <div class="p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded-lg">
         <i class="fas fa-check-circle mr-2"></i>Xóa tài khoản thành công!
       </div>
     `;
-    
-    await loadAdminUsers();
-    
-    setTimeout(() => {
-      messageDiv.innerHTML = '';
-    }, 3000);
-    
-  } catch (error) {
-    messageDiv.innerHTML = `
+
+        await loadAdminUsers();
+
+        setTimeout(() => {
+            messageDiv.innerHTML = '';
+        }, 3000);
+
+    } catch (error) {
+        messageDiv.innerHTML = `
       <div class="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
         <i class="fas fa-exclamation-circle mr-2"></i>${error.response?.data?.error || 'Lỗi xóa tài khoản'}
       </div>
     `;
-  }
+    }
 }
 
 // ===== EDIT USER FUNCTIONS =====
 let currentEditUserId = null;
 
 async function showEditUserModal(userId) {
-  currentEditUserId = userId;
-  
-  // Fetch user data
-  try {
-    const response = await axios.get('/api/admin/users');
-    const user = response.data.users.find(u => u.id === userId);
-    
-    if (!user) {
-      alert('Không tìm thấy người dùng');
-      return;
-    }
-    
-    // Populate form
-    document.getElementById('edit-username').value = user.username;
-    document.getElementById('edit-fullname').value = user.full_name;
-    document.getElementById('edit-password').value = ''; // Always empty
-    document.getElementById('edit-startdate').value = user.start_date || '';
+    currentEditUserId = userId;
 
-    // Populate region dropdown
-    const regionSelect = document.getElementById('edit-region');
-    regionSelect.innerHTML = '<option value="">Chọn khối</option>' +
-      adminMetadata.regions.map(r => 
-        `<option value="${r.id}" ${r.id === user.region_id ? 'selected' : ''}>${r.name}</option>`
-      ).join('');
-    
-    // Populate position dropdown
-    const positionSelect = document.getElementById('edit-position');
-    positionSelect.innerHTML = '<option value="">Chọn vị trí</option>' +
-      adminMetadata.positions.map(p => 
-        `<option value="${p.id}" ${p.id === user.position_id ? 'selected' : ''}>${p.display_name}</option>`
-      ).join('');
+    // Fetch user data
+    try {
+        const response = await axios.get('/api/admin/users');
+        const user = response.data.users.find(u => u.id === userId);
 
-    await loadEditPotentialManagers(user.manager_id);
-    
-    // Populate team field
-    document.getElementById('edit-team').value = user.team || '';
-    
-    // Populate cover image URL
-    const coverUrlInput = document.getElementById('edit-cover-url');
-    const coverPreview = document.getElementById('edit-cover-preview');
-    coverUrlInput.value = user.cover_image_url || '';
-    
-    // Show preview if URL exists
-    if (user.cover_image_url) {
-      coverPreview.querySelector('img').src = user.cover_image_url;
-      coverPreview.classList.remove('hidden');
-    } else {
-      coverPreview.classList.add('hidden');
+        if (!user) {
+            alert('Không tìm thấy người dùng');
+            return;
+        }
+
+        // Populate form
+        document.getElementById('edit-username').value = user.username;
+        document.getElementById('edit-fullname').value = user.full_name;
+        document.getElementById('edit-password').value = ''; // Always empty
+        document.getElementById('edit-startdate').value = user.start_date || '';
+
+        // Populate region dropdown
+        const regionSelect = document.getElementById('edit-region');
+        regionSelect.innerHTML = '<option value="">Chọn khối</option>' +
+            adminMetadata.regions.map(r =>
+                `<option value="${r.id}" ${r.id === user.region_id ? 'selected' : ''}>${r.name}</option>`
+            ).join('');
+
+        // Populate position dropdown
+        const positionSelect = document.getElementById('edit-position');
+        positionSelect.innerHTML = '<option value="">Chọn vị trí</option>' +
+            adminMetadata.positions.map(p =>
+                `<option value="${p.id}" ${p.id === user.position_id ? 'selected' : ''}>${p.display_name}</option>`
+            ).join('');
+
+        await loadEditPotentialManagers(user.manager_id);
+
+        // Populate team field
+        document.getElementById('edit-team').value = user.team || '';
+
+        // Populate cover image URL
+        const coverUrlInput = document.getElementById('edit-cover-url');
+        const coverPreview = document.getElementById('edit-cover-preview');
+        coverUrlInput.value = user.cover_image_url || '';
+
+        // Show preview if URL exists
+        if (user.cover_image_url) {
+            coverPreview.querySelector('img').src = user.cover_image_url;
+            coverPreview.classList.remove('hidden');
+        } else {
+            coverPreview.classList.add('hidden');
+        }
+
+        // Add input listener for preview
+        coverUrlInput.addEventListener('input', (e) => {
+            const url = e.target.value.trim();
+            if (url) {
+                coverPreview.querySelector('img').src = url;
+                coverPreview.classList.remove('hidden');
+            } else {
+                coverPreview.classList.add('hidden');
+            }
+        });
+
+        // Show modal
+        document.getElementById('edit-user-modal').classList.remove('hidden');
+
+    } catch (error) {
+        console.error('Error loading user data:', error);
+        alert('Lỗi tải thông tin người dùng');
     }
-    
-    // Add input listener for preview
-    coverUrlInput.addEventListener('input', (e) => {
-      const url = e.target.value.trim();
-      if (url) {
-        coverPreview.querySelector('img').src = url;
-        coverPreview.classList.remove('hidden');
-      } else {
-        coverPreview.classList.add('hidden');
-      }
-    });
-    
-    // Show modal
-    document.getElementById('edit-user-modal').classList.remove('hidden');
-    
-  } catch (error) {
-    console.error('Error loading user data:', error);
-    alert('Lỗi tải thông tin người dùng');
-  }
 }
 
 function hideEditUserModal() {
-  document.getElementById('edit-user-modal').classList.add('hidden');
-  currentEditUserId = null;
-  
-  // Clear form
-  document.getElementById('edit-username').value = '';
-  document.getElementById('edit-fullname').value = '';
-  document.getElementById('edit-password').value = '';
-  document.getElementById('edit-region').value = '';
-  document.getElementById('edit-position').value = '';
-  document.getElementById('edit-manager').value = '';
-  document.getElementById('edit-startdate').value = '';
+    document.getElementById('edit-user-modal').classList.add('hidden');
+    currentEditUserId = null;
+
+    // Clear form
+    document.getElementById('edit-username').value = '';
+    document.getElementById('edit-fullname').value = '';
+    document.getElementById('edit-password').value = '';
+    document.getElementById('edit-region').value = '';
+    document.getElementById('edit-position').value = '';
+    document.getElementById('edit-manager').value = '';
+    document.getElementById('edit-startdate').value = '';
 }
 
 async function loadEditPotentialManagers(managerId = null) {
-  const regionId = document.getElementById('edit-region').value;
-  const positionId = document.getElementById('edit-position').value;
-  const managerSelect = document.getElementById('edit-manager');
-  
-  if (!regionId || !positionId) {
-    managerSelect.innerHTML = '<option value="">Chọn quản lý (nếu có)</option>';
-    return;
-  }
-  
-  try {
-    const response = await axios.get(`/api/admin/potential-managers/${regionId}/${positionId}`);
-    const managers = response.data.managers;
-    
-    const currentManagerId = managerId; // Remember current selection
-    
-    if (managers.length === 0) {
-      managerSelect.innerHTML = '<option value="">Không có quản lý cấp trên (Phó Tổng)</option>';
-    } else {
-      managerSelect.innerHTML = '<option value="">Chọn quản lý</option>' +
-        managers.map(m => 
-          `<option value="${m.id}" ${m.id === currentManagerId ? 'selected' : ''}>${m.full_name} (${m.username})</option>`
-        ).join('');
+    const regionId = document.getElementById('edit-region').value;
+    const positionId = document.getElementById('edit-position').value;
+    const managerSelect = document.getElementById('edit-manager');
+
+    if (!regionId || !positionId) {
+        managerSelect.innerHTML = '<option value="">Chọn quản lý (nếu có)</option>';
+        return;
     }
-  } catch (error) {
-    console.error('Error loading managers:', error);
-  }
+
+    try {
+        const response = await axios.get(`/api/admin/potential-managers/${regionId}/${positionId}`);
+        const managers = response.data.managers;
+
+        const currentManagerId = managerId; // Remember current selection
+
+        if (managers.length === 0) {
+            managerSelect.innerHTML = '<option value="">Không có quản lý cấp trên (Phó Tổng)</option>';
+        } else {
+            managerSelect.innerHTML = '<option value="">Chọn quản lý</option>' +
+                managers.map(m =>
+                    `<option value="${m.id}" ${m.id === currentManagerId ? 'selected' : ''}>${m.full_name} (${m.username})</option>`
+                ).join('');
+        }
+    } catch (error) {
+        console.error('Error loading managers:', error);
+    }
 }
 
 async function saveEditUser() {
-  if (!currentEditUserId) return;
-  
-  const fullName = document.getElementById('edit-fullname').value.trim();
-  const password = document.getElementById('edit-password').value.trim();
-  const passwordConfirm = document.getElementById('edit-password-confirm').value.trim();
-  const regionId = document.getElementById('edit-region').value;
-  const positionId = document.getElementById('edit-position').value;
-  const managerId = document.getElementById('edit-manager').value;
-  const team = document.getElementById('edit-team').value.trim();
-  const startDate = document.getElementById('edit-startdate').value;
-  const coverImageUrl = document.getElementById('edit-cover-url').value.trim();
-  
-  // Validation
-  if (!fullName || !regionId || !positionId || !startDate) {
-    alert('Vui lòng điền đầy đủ thông tin bắt buộc (*)');
-    return;
-  }
+    if (!currentEditUserId) return;
 
-  if (password !== passwordConfirm) {
-    alert('Mật khẩu xác nhận không trùng khớp!');
-    return;
-  }
-  
-  const messageDiv = document.getElementById('admin-message');
-  
-  try {
-    // Build update data
-    const updateData = {
-      full_name: fullName,
-      region_id: parseInt(regionId),
-      position_id: parseInt(positionId),
-      team: team || null,
-      manager_id: managerId,
-      start_date: startDate,
-      cover_image_url: coverImageUrl || null
-    };
-    
-    // Only include password if provided
-    if (password && passwordConfirm) {
-      updateData.password = password;
+    const fullName = document.getElementById('edit-fullname').value.trim();
+    const password = document.getElementById('edit-password').value.trim();
+    const passwordConfirm = document.getElementById('edit-password-confirm').value.trim();
+    const regionId = document.getElementById('edit-region').value;
+    const positionId = document.getElementById('edit-position').value;
+    const managerId = document.getElementById('edit-manager').value;
+    const team = document.getElementById('edit-team').value.trim();
+    const startDate = document.getElementById('edit-startdate').value;
+    const coverImageUrl = document.getElementById('edit-cover-url').value.trim();
+
+    // Validation
+    if (!fullName || !regionId || !positionId || !startDate) {
+        alert('Vui lòng điền đầy đủ thông tin bắt buộc (*)');
+        return;
     }
-    
-    await axios.put(`/api/admin/users/${currentEditUserId}`, updateData);
-    
-    messageDiv.innerHTML = `
+
+    if (password !== passwordConfirm) {
+        alert('Mật khẩu xác nhận không trùng khớp!');
+        return;
+    }
+
+    const messageDiv = document.getElementById('admin-message');
+
+    try {
+        // Build update data
+        const updateData = {
+            full_name: fullName,
+            region_id: parseInt(regionId),
+            position_id: parseInt(positionId),
+            team: team || null,
+            manager_id: managerId,
+            start_date: startDate,
+            cover_image_url: coverImageUrl || null
+        };
+
+        // Only include password if provided
+        if (password && passwordConfirm) {
+            updateData.password = password;
+        }
+
+        await axios.put(`/api/admin/users/${currentEditUserId}`, updateData);
+
+        messageDiv.innerHTML = `
       <div class="p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded-lg">
         <i class="fas fa-check-circle mr-2"></i>Cập nhật thông tin thành công!
       </div>
     `;
-    
-    hideEditUserModal();
-    await loadAdminUsers();
-    
-    setTimeout(() => {
-      messageDiv.innerHTML = '';
-    }, 3000);
-    
-  } catch (error) {
-    console.log(error)
-    messageDiv.innerHTML = `
+
+        hideEditUserModal();
+        await loadAdminUsers();
+
+        setTimeout(() => {
+            messageDiv.innerHTML = '';
+        }, 3000);
+
+    } catch (error) {
+        console.log(error)
+        messageDiv.innerHTML = `
       <div class="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
         <i class="fas fa-exclamation-circle mr-2"></i>${error.response?.data?.error || 'Lỗi cập nhật thông tin'}
       </div>
     `;
-  }
+    }
 }
 
 // ===== COMMITMENT TAB =====
 function renderCommitmentTab(container) {
-  container.innerHTML = `
+    container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-8">
       <div class="flex items-center justify-between mb-6">
         <div class="flex items-center space-x-3">
@@ -3358,7 +3359,7 @@ function renderCommitmentTab(container) {
     </div>
   `;
 
-  // No need for event listeners since we use onchange and onclick directly
+    // No need for event listeners since we use onchange and onclick directly
 }
 
 // Global variable for upload
@@ -3366,47 +3367,47 @@ let selectedCoverFile = null;
 
 // Handle file selection
 function handleFileSelect(event) {
-  const file = event.target.files[0];
-  if (!file) return;
+    const file = event.target.files[0];
+    if (!file) return;
 
-  // Validate file size (2MB max to avoid stack overflow with base64)
-  const maxSize = 2 * 1024 * 1024; // 2MB
-  if (file.size > maxSize) {
-    alert('File quá lớn! Vui lòng chọn file nhỏ hơn 2MB, hoặc sử dụng tab "Paste URL" để upload file lớn từ GenSpark AI Drive');
-    document.getElementById('user-cover-file').value = '';
-    return;
-  }
+    // Validate file size (2MB max to avoid stack overflow with base64)
+    const maxSize = 2 * 1024 * 1024; // 2MB
+    if (file.size > maxSize) {
+        alert('File quá lớn! Vui lòng chọn file nhỏ hơn 2MB, hoặc sử dụng tab "Paste URL" để upload file lớn từ GenSpark AI Drive');
+        document.getElementById('user-cover-file').value = '';
+        return;
+    }
 
-  // Validate file type
-  const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf'];
-  if (!validTypes.includes(file.type)) {
-    alert('Định dạng file không hợp lệ! Chỉ chấp nhận PNG, JPG hoặc PDF');
-    document.getElementById('user-cover-file').value = '';
-    return;
-  }
+    // Validate file type
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf'];
+    if (!validTypes.includes(file.type)) {
+        alert('Định dạng file không hợp lệ! Chỉ chấp nhận PNG, JPG hoặc PDF');
+        document.getElementById('user-cover-file').value = '';
+        return;
+    }
 
-  selectedCoverFile = file;
+    selectedCoverFile = file;
 
-  // Show file info
-  const fileInfo = document.getElementById('selected-file-info');
-  const fileName = document.getElementById('file-name');
-  const fileSize = document.getElementById('file-size');
-  const uploadBtn = document.getElementById('upload-btn');
+    // Show file info
+    const fileInfo = document.getElementById('selected-file-info');
+    const fileName = document.getElementById('file-name');
+    const fileSize = document.getElementById('file-size');
+    const uploadBtn = document.getElementById('upload-btn');
 
-  fileName.textContent = file.name;
-  fileSize.textContent = formatFileSize(file.size);
-  fileInfo.classList.remove('hidden');
-  uploadBtn.disabled = false;
+    fileName.textContent = file.name;
+    fileSize.textContent = formatFileSize(file.size);
+    fileInfo.classList.remove('hidden');
+    uploadBtn.disabled = false;
 
-  // Show preview
-  const previewDiv = document.getElementById('user-cover-preview');
-  const previewContent = document.getElementById('preview-content');
+    // Show preview
+    const previewDiv = document.getElementById('user-cover-preview');
+    const previewContent = document.getElementById('preview-content');
 
-  if (file.type === 'application/pdf') {
-    // PDF preview using iframe
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      previewContent.innerHTML = `
+    if (file.type === 'application/pdf') {
+        // PDF preview using iframe
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            previewContent.innerHTML = `
         <embed 
           src="${e.target.result}" 
           type="application/pdf" 
@@ -3414,101 +3415,101 @@ function handleFileSelect(event) {
           style="height: 500px;"
         />
       `;
-      previewDiv.classList.remove('hidden');
-    };
-    reader.readAsDataURL(file);
-  } else {
-    // Image preview
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      previewContent.innerHTML = `
+            previewDiv.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+    } else {
+        // Image preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            previewContent.innerHTML = `
         <img 
           src="${e.target.result}" 
           class="w-full h-auto" 
           style="max-height: 500px; object-fit: contain;"
         />
       `;
-      previewDiv.classList.remove('hidden');
-    };
-    reader.readAsDataURL(file);
-  }
+            previewDiv.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+    }
 }
 
 // Clear file selection
 function clearFileSelection() {
-  selectedCoverFile = null;
-  document.getElementById('user-cover-file').value = '';
-  document.getElementById('selected-file-info').classList.add('hidden');
-  document.getElementById('user-cover-preview').classList.add('hidden');
-  document.getElementById('upload-btn').disabled = true;
+    selectedCoverFile = null;
+    document.getElementById('user-cover-file').value = '';
+    document.getElementById('selected-file-info').classList.add('hidden');
+    document.getElementById('user-cover-preview').classList.add('hidden');
+    document.getElementById('upload-btn').disabled = true;
 }
 
 // Format file size
 function formatFileSize(bytes) {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
 
 // Upload user cover image
 async function uploadUserCover() {
-  const messageDiv = document.getElementById('user-cover-message');
-  const uploadBtn = document.getElementById('upload-btn');
+    const messageDiv = document.getElementById('user-cover-message');
+    const uploadBtn = document.getElementById('upload-btn');
 
-  if (!selectedCoverFile) {
-    messageDiv.className = 'mt-4 p-4 bg-red-100 border border-red-300 rounded-lg text-red-800';
-    messageDiv.innerHTML = '<i class="fas fa-exclamation-circle mr-2"></i>Vui lòng chọn file trước';
-    messageDiv.classList.remove('hidden');
-    return;
-  }
-
-  // Show uploading state
-  uploadBtn.disabled = true;
-  uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang tải lên...';
-  messageDiv.className = 'mt-4 p-4 bg-blue-100 border border-blue-300 rounded-lg text-blue-800';
-  messageDiv.innerHTML = '<i class="fas fa-info-circle mr-2"></i>Đang tải file lên server...';
-  messageDiv.classList.remove('hidden');
-
-  try {
-    const formData = new FormData();
-    formData.append('file', selectedCoverFile);
-    formData.append('userId', currentUser.id);
-
-    const response = await fetch('/api/users/upload-cover', {
-      method: 'POST',
-      body: formData
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Lỗi khi upload');
+    if (!selectedCoverFile) {
+        messageDiv.className = 'mt-4 p-4 bg-red-100 border border-red-300 rounded-lg text-red-800';
+        messageDiv.innerHTML = '<i class="fas fa-exclamation-circle mr-2"></i>Vui lòng chọn file trước';
+        messageDiv.classList.remove('hidden');
+        return;
     }
 
-    // Success
-    messageDiv.className = 'mt-4 p-4 bg-green-100 border border-green-300 rounded-lg text-green-800';
-    messageDiv.innerHTML = '<i class="fas fa-check-circle mr-2"></i>Upload thành công! Đang tải lại...';
+    // Show uploading state
+    uploadBtn.disabled = true;
+    uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang tải lên...';
+    messageDiv.className = 'mt-4 p-4 bg-blue-100 border border-blue-300 rounded-lg text-blue-800';
+    messageDiv.innerHTML = '<i class="fas fa-info-circle mr-2"></i>Đang tải file lên server...';
+    messageDiv.classList.remove('hidden');
 
-    // Update currentUser and reload
-    currentUser.cover_image_url = data.coverUrl;
-    setTimeout(() => {
-      const container = document.getElementById('tab-content');
-      renderCommitmentTab(container);
-    }, 1500);
-  } catch (error) {
-    console.error('Upload cover error:', error);
-    messageDiv.className = 'mt-4 p-4 bg-red-100 border border-red-300 rounded-lg text-red-800';
-    messageDiv.innerHTML = `<i class="fas fa-exclamation-circle mr-2"></i>${error.message}`;
-    uploadBtn.disabled = false;
-    uploadBtn.innerHTML = '<i class="fas fa-upload mr-2"></i>Tải lên và Lưu';
-  }
+    try {
+        const formData = new FormData();
+        formData.append('file', selectedCoverFile);
+        formData.append('userId', currentUser.id);
+
+        const response = await fetch('/api/users/upload-cover', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Lỗi khi upload');
+        }
+
+        // Success
+        messageDiv.className = 'mt-4 p-4 bg-green-100 border border-green-300 rounded-lg text-green-800';
+        messageDiv.innerHTML = '<i class="fas fa-check-circle mr-2"></i>Upload thành công! Đang tải lại...';
+
+        // Update currentUser and reload
+        currentUser.cover_image_url = data.coverUrl;
+        setTimeout(() => {
+            const container = document.getElementById('tab-content');
+            renderCommitmentTab(container);
+        }, 1500);
+    } catch (error) {
+        console.error('Upload cover error:', error);
+        messageDiv.className = 'mt-4 p-4 bg-red-100 border border-red-300 rounded-lg text-red-800';
+        messageDiv.innerHTML = `<i class="fas fa-exclamation-circle mr-2"></i>${error.message}`;
+        uploadBtn.disabled = false;
+        uploadBtn.innerHTML = '<i class="fas fa-upload mr-2"></i>Tải lên và Lưu';
+    }
 }
 
 // ===== RECRUITMENT CHART TAB =====
 function renderRecruitmentTab(container) {
-  container.innerHTML = `
+    container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-8">
       <div class="flex items-center justify-between mb-6">
         <div class="flex items-center space-x-3">
@@ -3525,9 +3526,9 @@ function renderRecruitmentTab(container) {
             <option value="2026" selected>Năm 2026</option>
           </select>
           <select id="chart-month" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
-            ${Array.from({length: 12}, (_, i) => i + 1).map(m => 
-              `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`
-            ).join('')}
+            ${Array.from({length: 12}, (_, i) => i + 1).map(m =>
+        `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`
+    ).join('')}
           </select>
           <button onclick="loadRecruitmentChart()" class="px-6 py-2 bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-lg hover:shadow-lg transition-all duration-300">
             <i class="fas fa-sync-alt mr-2"></i>Tải dữ liệu
@@ -3542,71 +3543,71 @@ function renderRecruitmentTab(container) {
       </div>
     </div>
   `;
-  
-  // Load chart data
-  setTimeout(() => loadRecruitmentChart(), 100);
+
+    // Load chart data
+    setTimeout(() => loadRecruitmentChart(), 100);
 }
 
 async function loadRecruitmentChart() {
-  const year = document.getElementById('chart-year').value;
-  const month = document.getElementById('chart-month').value;
-  const container = document.getElementById('chart-container');
-  
-  try {
-    container.innerHTML = '<div class="flex items-center justify-center py-20"><div class="animate-spin rounded-full h-16 w-16 border-b-2 border-green-500"></div></div>';
-    
-    const response = await fetch(`/api/recruitment-chart/${year}/${month}`);
-    const result = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(result.error || 'Failed to load chart');
-    }
-    
-    renderRecruitmentChart(result);
-  } catch (error) {
-    container.innerHTML = `
+    const year = document.getElementById('chart-year').value;
+    const month = document.getElementById('chart-month').value;
+    const container = document.getElementById('chart-container');
+
+    try {
+        container.innerHTML = '<div class="flex items-center justify-center py-20"><div class="animate-spin rounded-full h-16 w-16 border-b-2 border-green-500"></div></div>';
+
+        const response = await fetch(`/api/recruitment-chart/${year}/${month}`);
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || 'Failed to load chart');
+        }
+
+        renderRecruitmentChart(result);
+    } catch (error) {
+        container.innerHTML = `
       <div class="text-center py-10 text-red-600">
         <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
         <p class="text-lg">Lỗi tải dữ liệu: ${error.message}</p>
       </div>
     `;
-  }
+    }
 }
 
 function renderRecruitmentChart(chartData) {
-  const container = document.getElementById('chart-container');
-  const { data, standard } = chartData;
-  
-  // Filter users with data and sort by actual_value
-  const usersWithData = data.filter(u => u.actual_value !== null).sort((a, b) => b.actual_value - a.actual_value);
-  const usersWithoutData = data.filter(u => u.actual_value === null);
-  
-  // Calculate company average
-  const totalRecruitment = usersWithData.reduce((sum, u) => sum + u.actual_value, 0);
-  const companyAverage = usersWithData.length > 0 ? Math.round(totalRecruitment / usersWithData.length * 10) / 10 : 0;
-  
-  if (usersWithData.length === 0) {
-    container.innerHTML = `
+    const container = document.getElementById('chart-container');
+    const {data, standard} = chartData;
+
+    // Filter users with data and sort by actual_value
+    const usersWithData = data.filter(u => u.actual_value !== null).sort((a, b) => b.actual_value - a.actual_value);
+    const usersWithoutData = data.filter(u => u.actual_value === null);
+
+    // Calculate company average
+    const totalRecruitment = usersWithData.reduce((sum, u) => sum + u.actual_value, 0);
+    const companyAverage = usersWithData.length > 0 ? Math.round(totalRecruitment / usersWithData.length * 10) / 10 : 0;
+
+    if (usersWithData.length === 0) {
+        container.innerHTML = `
       <div class="text-center py-20 text-gray-500">
         <i class="fas fa-chart-bar text-6xl mb-4 opacity-20"></i>
         <p class="text-xl">Chưa có dữ liệu cho tháng này</p>
         <p class="text-sm mt-2">Vui lòng nhập KPI để xem thống kê</p>
       </div>
     `;
-    return;
-  }
-  
-  // Get top 10 and users need improvement (< 15 people)
-  const top10 = usersWithData.slice(0, 10);
-  const needImprovement = usersWithData.filter(u => u.actual_value < 15).sort((a, b) => a.actual_value - b.actual_value);
-  
-  // Find current user position
-  const currentUserIndex = usersWithData.findIndex(u => u.id === currentUser.id);
-  const currentUserData = usersWithData[currentUserIndex];
-  const currentUserRank = currentUserIndex >= 0 ? currentUserIndex + 1 : null;
+        return;
+    }
 
-  
-  container.innerHTML = `
+    // Get top 10 and users need improvement (< 15 people)
+    const top10 = usersWithData.slice(0, 10);
+    const needImprovement = usersWithData.filter(u => u.actual_value < 15).sort((a, b) => a.actual_value - b.actual_value);
+
+    // Find current user position
+    const currentUserIndex = usersWithData.findIndex(u => u.id === currentUser.id);
+    const currentUserData = usersWithData[currentUserIndex];
+    const currentUserRank = currentUserIndex >= 0 ? currentUserIndex + 1 : null;
+
+
+    container.innerHTML = `
     <!-- Summary Cards -->
     <div class="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
       <div class="p-4 bg-gradient-to-r from-green-50 to-teal-50 rounded-lg border-2 border-green-200">
@@ -3716,11 +3717,11 @@ function renderRecruitmentChart(chartData) {
                 <tr class="border-b hover:bg-green-50 ${user.id === currentUser.id ? 'bg-purple-50' : ''}">
                   <td class="px-4 py-3">
                     <span class="inline-flex items-center justify-center w-8 h-8 rounded-full ${
-                      idx === 0 ? 'bg-yellow-400 text-yellow-900' :
-                      idx === 1 ? 'bg-gray-300 text-gray-700' :
-                      idx === 2 ? 'bg-orange-400 text-orange-900' :
-                      'bg-gray-100 text-gray-600'
-                    } font-bold text-sm">
+        idx === 0 ? 'bg-yellow-400 text-yellow-900' :
+            idx === 1 ? 'bg-gray-300 text-gray-700' :
+                idx === 2 ? 'bg-orange-400 text-orange-900' :
+                    'bg-gray-100 text-gray-600'
+    } font-bold text-sm">
                       ${idx + 1}
                     </span>
                   </td>
@@ -3803,7 +3804,7 @@ document.addEventListener('DOMContentLoaded', renderApp);
 
 // Position Dashboard with 12 months data
 function renderPositionDashboard(container, positionIds, positionName) {
-  container.innerHTML = `
+    container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-6">
       <div class="flex items-center justify-between mb-6">
         <h3 class="text-2xl font-bold text-gray-800">
@@ -3821,150 +3822,150 @@ function renderPositionDashboard(container, positionIds, positionName) {
       </div>
     </div>
   `;
-  
-  loadPositionDashboard(positionIds, positionName);
+
+    loadPositionDashboard(positionIds, positionName);
 }
 
 async function loadPositionDashboard(positionIds, positionName) {
-  try {
-    const year = document.getElementById('position-year')?.value || '2026';
-    
-    const response = await axios.get(`/api/admin/dashboard/${positionIds}/${year}`, {
-      params: {
-        userId: currentUser?.id,
-        username: currentUser?.username
-      }
-    });
-    
-    const { users, templates, monthlyData } = response.data;
-    const container = document.getElementById('position-dashboard-content');
-    
-    if (!users || users.length === 0) {
-      container.innerHTML = '<div class="text-center py-8 text-gray-500">Không có dữ liệu</div>';
-      return;
-    }
-    
-    // Group monthly data by user
-    const userMonthlyData = {};
-    monthlyData.forEach(m => {
-      if (!userMonthlyData[m.user_id]) userMonthlyData[m.user_id] = {};
-      userMonthlyData[m.user_id][m.month] = m;
-    });
-    
-    // Create TWO separate tables: KPI and Level
-    let html = '<div class="space-y-6">';
-    
-    // ===== TABLE 1: KPI =====
-    html += '<div>';
-    html += '<h4 class="text-lg font-bold text-blue-600 mb-3"><i class="fas fa-chart-line mr-2"></i>Bảng tổng hợp KPI</h4>';
-    html += '<div class="overflow-x-auto">';
-    html += '<table class="w-full text-sm border-collapse">';
-    
-    // KPI Header
-    html += '<thead class="bg-gradient-to-r from-blue-500 to-blue-600 text-white sticky top-0">';
-    html += '<tr>';
-    html += '<th class="border px-3 py-2 text-left sticky left-0 bg-blue-600 z-10">Họ và tên</th>';
-    html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
-    
-    // 12 months columns
-    for (let m = 1; m <= 12; m++) {
-      html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
-    }
-    
-    html += '</tr>';
-    html += '</thead>';
-    
-    // KPI Body
-    html += '<tbody>';
-    users.forEach((user, idx) => {
-      html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50">`;
-      html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
-      html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
-      
-      // 12 months KPI data
-      for (let m = 1; m <= 12; m++) {
-        const monthData = userMonthlyData[user.id]?.[m];
-        if (monthData) {
-          const kpiPercent = Math.round((monthData.total_kpi_score || 0) * 100);
-          const kpiColor = kpiPercent >= 100 ? 'text-green-600' : kpiPercent >= 80 ? 'text-blue-600' : 'text-orange-600';
-          
-          html += `<td class="border px-2 py-2 text-center">
+    try {
+        const year = document.getElementById('position-year')?.value || '2026';
+
+        const response = await axios.get(`/api/admin/dashboard/${positionIds}/${year}`, {
+            params: {
+                userId: currentUser?.id,
+                username: currentUser?.username
+            }
+        });
+
+        const {users, templates, monthlyData} = response.data;
+        const container = document.getElementById('position-dashboard-content');
+
+        if (!users || users.length === 0) {
+            container.innerHTML = '<div class="text-center py-8 text-gray-500">Không có dữ liệu</div>';
+            return;
+        }
+
+        // Group monthly data by user
+        const userMonthlyData = {};
+        monthlyData.forEach(m => {
+            if (!userMonthlyData[m.user_id]) userMonthlyData[m.user_id] = {};
+            userMonthlyData[m.user_id][m.month] = m;
+        });
+
+        // Create TWO separate tables: KPI and Level
+        let html = '<div class="space-y-6">';
+
+        // ===== TABLE 1: KPI =====
+        html += '<div>';
+        html += '<h4 class="text-lg font-bold text-blue-600 mb-3"><i class="fas fa-chart-line mr-2"></i>Bảng tổng hợp KPI</h4>';
+        html += '<div class="overflow-x-auto">';
+        html += '<table class="w-full text-sm border-collapse">';
+
+        // KPI Header
+        html += '<thead class="bg-gradient-to-r from-blue-500 to-blue-600 text-white sticky top-0">';
+        html += '<tr>';
+        html += '<th class="border px-3 py-2 text-left sticky left-0 bg-blue-600 z-10">Họ và tên</th>';
+        html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
+
+        // 12 months columns
+        for (let m = 1; m <= 12; m++) {
+            html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
+        }
+
+        html += '</tr>';
+        html += '</thead>';
+
+        // KPI Body
+        html += '<tbody>';
+        users.forEach((user, idx) => {
+            html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50">`;
+            html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
+            html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
+
+            // 12 months KPI data
+            for (let m = 1; m <= 12; m++) {
+                const monthData = userMonthlyData[user.id]?.[m];
+                if (monthData) {
+                    const kpiPercent = Math.round((monthData.total_kpi_score || 0) * 100);
+                    const kpiColor = kpiPercent >= 100 ? 'text-green-600' : kpiPercent >= 80 ? 'text-blue-600' : 'text-orange-600';
+
+                    html += `<td class="border px-2 py-2 text-center">
             <span class="${kpiColor} font-bold text-base">${kpiPercent}%</span>
           </td>`;
-        } else {
-          html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+                } else {
+                    html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+                }
+            }
+
+            html += '</tr>';
+        });
+        html += '</tbody>';
+        html += '</table>';
+        html += '</div>'; // end overflow-x-auto
+        html += '</div>'; // end KPI table
+
+        // ===== TABLE 2: LEVEL =====
+        html += '<div>';
+        html += '<h4 class="text-lg font-bold text-green-600 mb-3"><i class="fas fa-star mr-2"></i>Bảng tổng hợp Level</h4>';
+        html += '<div class="overflow-x-auto">';
+        html += '<table class="w-full text-sm border-collapse">';
+
+        // Level Header
+        html += '<thead class="bg-gradient-to-r from-green-500 to-green-600 text-white sticky top-0">';
+        html += '<tr>';
+        html += '<th class="border px-3 py-2 text-left sticky left-0 bg-green-600 z-10">Họ và tên</th>';
+        html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
+
+        // 12 months columns
+        for (let m = 1; m <= 12; m++) {
+            html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
         }
-      }
-      
-      html += '</tr>';
-    });
-    html += '</tbody>';
-    html += '</table>';
-    html += '</div>'; // end overflow-x-auto
-    html += '</div>'; // end KPI table
-    
-    // ===== TABLE 2: LEVEL =====
-    html += '<div>';
-    html += '<h4 class="text-lg font-bold text-green-600 mb-3"><i class="fas fa-star mr-2"></i>Bảng tổng hợp Level</h4>';
-    html += '<div class="overflow-x-auto">';
-    html += '<table class="w-full text-sm border-collapse">';
-    
-    // Level Header
-    html += '<thead class="bg-gradient-to-r from-green-500 to-green-600 text-white sticky top-0">';
-    html += '<tr>';
-    html += '<th class="border px-3 py-2 text-left sticky left-0 bg-green-600 z-10">Họ và tên</th>';
-    html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
-    
-    // 12 months columns
-    for (let m = 1; m <= 12; m++) {
-      html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
-    }
-    
-    html += '</tr>';
-    html += '</thead>';
-    
-    // Level Body
-    html += '<tbody>';
-    users.forEach((user, idx) => {
-      html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-green-50">`;
-      html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
-      html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
-      
-      // 12 months Level data
-      for (let m = 1; m <= 12; m++) {
-        const monthData = userMonthlyData[user.id]?.[m];
-        if (monthData) {
-          const levelPercent = Math.round((monthData.total_level_score || 0) * 100);
-          const levelColor = levelPercent >= 100 ? 'text-green-600' : levelPercent >= 80 ? 'text-blue-600' : 'text-orange-600';
-          
-          html += `<td class="border px-2 py-2 text-center">
+
+        html += '</tr>';
+        html += '</thead>';
+
+        // Level Body
+        html += '<tbody>';
+        users.forEach((user, idx) => {
+            html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-green-50">`;
+            html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
+            html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
+
+            // 12 months Level data
+            for (let m = 1; m <= 12; m++) {
+                const monthData = userMonthlyData[user.id]?.[m];
+                if (monthData) {
+                    const levelPercent = Math.round((monthData.total_level_score || 0) * 100);
+                    const levelColor = levelPercent >= 100 ? 'text-green-600' : levelPercent >= 80 ? 'text-blue-600' : 'text-orange-600';
+
+                    html += `<td class="border px-2 py-2 text-center">
             <span class="${levelColor} font-bold text-base">${levelPercent}%</span>
           </td>`;
-        } else {
-          html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
-        }
-      }
-      
-      html += '</tr>';
-    });
-    html += '</tbody>';
-    html += '</table>';
-    html += '</div>'; // end overflow-x-auto
-    html += '</div>'; // end Level table
-    
-    html += '</div>'; // end space-y-6
-    
-    container.innerHTML = html;
-  } catch (error) {
-    console.error('Error loading position dashboard:', error);
-    document.getElementById('position-dashboard-content').innerHTML = 
-      '<div class="text-center py-8 text-red-500">Lỗi tải dữ liệu</div>';
-  }
+                } else {
+                    html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+                }
+            }
+
+            html += '</tr>';
+        });
+        html += '</tbody>';
+        html += '</table>';
+        html += '</div>'; // end overflow-x-auto
+        html += '</div>'; // end Level table
+
+        html += '</div>'; // end space-y-6
+
+        container.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading position dashboard:', error);
+        document.getElementById('position-dashboard-content').innerHTML =
+            '<div class="text-center py-8 text-red-500">Lỗi tải dữ liệu</div>';
+    }
 }
 
 // ===== KPI DETAIL DASHBOARD =====
 function renderKpiDetail(container, positionIds, positionName, kpiIds) {
-  container.innerHTML = `
+    container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-6">
       <div class="flex items-center justify-between mb-6">
         <h3 class="text-2xl font-bold text-gray-800">
@@ -3982,100 +3983,100 @@ function renderKpiDetail(container, positionIds, positionName, kpiIds) {
       </div>
     </div>
   `;
-  
-  loadKpiDetail(positionIds, positionName, kpiIds);
+
+    loadKpiDetail(positionIds, positionName, kpiIds);
 }
 
 async function loadKpiDetail(positionIds, positionName, kpiIds) {
-  try {
-    const year = document.getElementById('kpi-year')?.value || '2026';
-    const response = await axios.get(`/api/admin/kpi-detail/${positionIds}/${year}/${kpiIds.join(',')}`, {
-      params: {
-        userId: currentUser?.id,
-        username: currentUser?.username
-      }
-    });
-    
-    const { users, kpiTemplates, kpiData } = response.data;
-    const container = document.getElementById('kpi-detail-content');
-    
-    if (!users || users.length === 0) {
-      container.innerHTML = '<div class="text-center py-8 text-gray-500">Không có dữ liệu</div>';
-      return;
-    }
-    
-    // Group data by user and kpi
-    const userKpiData = {};
-    kpiData.forEach(d => {
-      if (!userKpiData[d.user_id]) userKpiData[d.user_id] = {};
-      if (!userKpiData[d.user_id][d.kpi_template_id]) userKpiData[d.user_id][d.kpi_template_id] = {};
-      userKpiData[d.user_id][d.kpi_template_id][d.month] = d;
-    });
-    
-    let html = '<div class="space-y-8">';
-    
-    // Create one table per KPI
-    kpiTemplates.forEach(kpi => {
-      html += '<div>';
-      html += `<h4 class="text-lg font-bold text-orange-600 mb-3"><i class="fas fa-chart-bar mr-2"></i>${kpi.kpi_name}</h4>`;
-      html += '<div class="overflow-x-auto">';
-      html += '<table class="w-full text-sm border-collapse">';
-      
-      // Header
-      html += '<thead class="bg-gradient-to-r from-orange-500 to-red-600 text-white sticky top-0">';
-      html += '<tr>';
-      html += '<th class="border px-3 py-2 text-left sticky left-0 bg-orange-600 z-10">Họ và tên</th>';
-      html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
-      
-      // 12 months
-      for (let m = 1; m <= 12; m++) {
-        html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
-      }
-      
-      html += '</tr>';
-      html += '</thead>';
-      
-      // Body
-      html += '<tbody>';
-      users.forEach((user, idx) => {
-        html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-orange-50">`;
-        html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
-        html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
-        
-        // 12 months data
-        for (let m = 1; m <= 12; m++) {
-          const monthData = userKpiData[user.id]?.[kpi.id]?.[m];
-          if (monthData && monthData.actual_value !== null) {
-            const value = formatLargeNumber(monthData.actual_value, kpi.kpi_name);
-            html += `<td class="border px-2 py-2 text-center">
+    try {
+        const year = document.getElementById('kpi-year')?.value || '2026';
+        const response = await axios.get(`/api/admin/kpi-detail/${positionIds}/${year}/${kpiIds.join(',')}`, {
+            params: {
+                userId: currentUser?.id,
+                username: currentUser?.username
+            }
+        });
+
+        const {users, kpiTemplates, kpiData} = response.data;
+        const container = document.getElementById('kpi-detail-content');
+
+        if (!users || users.length === 0) {
+            container.innerHTML = '<div class="text-center py-8 text-gray-500">Không có dữ liệu</div>';
+            return;
+        }
+
+        // Group data by user and kpi
+        const userKpiData = {};
+        kpiData.forEach(d => {
+            if (!userKpiData[d.user_id]) userKpiData[d.user_id] = {};
+            if (!userKpiData[d.user_id][d.kpi_template_id]) userKpiData[d.user_id][d.kpi_template_id] = {};
+            userKpiData[d.user_id][d.kpi_template_id][d.month] = d;
+        });
+
+        let html = '<div class="space-y-8">';
+
+        // Create one table per KPI
+        kpiTemplates.forEach(kpi => {
+            html += '<div>';
+            html += `<h4 class="text-lg font-bold text-orange-600 mb-3"><i class="fas fa-chart-bar mr-2"></i>${kpi.kpi_name}</h4>`;
+            html += '<div class="overflow-x-auto">';
+            html += '<table class="w-full text-sm border-collapse">';
+
+            // Header
+            html += '<thead class="bg-gradient-to-r from-orange-500 to-red-600 text-white sticky top-0">';
+            html += '<tr>';
+            html += '<th class="border px-3 py-2 text-left sticky left-0 bg-orange-600 z-10">Họ và tên</th>';
+            html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
+
+            // 12 months
+            for (let m = 1; m <= 12; m++) {
+                html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
+            }
+
+            html += '</tr>';
+            html += '</thead>';
+
+            // Body
+            html += '<tbody>';
+            users.forEach((user, idx) => {
+                html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-orange-50">`;
+                html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
+                html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
+
+                // 12 months data
+                for (let m = 1; m <= 12; m++) {
+                    const monthData = userKpiData[user.id]?.[kpi.id]?.[m];
+                    if (monthData && monthData.actual_value !== null) {
+                        const value = formatLargeNumber(monthData.actual_value, kpi.kpi_name);
+                        html += `<td class="border px-2 py-2 text-center">
               <span class="font-bold text-blue-600">${value}</span>
             </td>`;
-          } else {
-            html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
-          }
-        }
-        
-        html += '</tr>';
-      });
-      html += '</tbody>';
-      html += '</table>';
-      html += '</div>'; // end overflow-x-auto
-      html += '</div>'; // end table div
-    });
-    
-    html += '</div>'; // end space-y-8
-    
-    container.innerHTML = html;
-  } catch (error) {
-    console.error('Error loading KPI detail:', error);
-    document.getElementById('kpi-detail-content').innerHTML = 
-      '<div class="text-center py-8 text-red-500">Lỗi tải dữ liệu</div>';
-  }
+                    } else {
+                        html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+                    }
+                }
+
+                html += '</tr>';
+            });
+            html += '</tbody>';
+            html += '</table>';
+            html += '</div>'; // end overflow-x-auto
+            html += '</div>'; // end table div
+        });
+
+        html += '</div>'; // end space-y-8
+
+        container.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading KPI detail:', error);
+        document.getElementById('kpi-detail-content').innerHTML =
+            '<div class="text-center py-8 text-red-500">Lỗi tải dữ liệu</div>';
+    }
 }
 
 // ===== REVENUE PLAN MANAGEMENT =====
 function renderRevenuePlan(container) {
-  container.innerHTML = `
+    container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-6">
       <div class="flex items-center justify-between mb-6">
         <h3 class="text-2xl font-bold text-gray-800">
@@ -4119,67 +4120,67 @@ function renderRevenuePlan(container) {
       </div>
     </div>
   `;
-  
-  loadRevenuePlan();
+
+    loadRevenuePlan();
 }
 
 async function loadRevenuePlan() {
-  try {
-    const year = document.getElementById('plan-year')?.value || '2026';
-    const response = await axios.get(`/api/admin/revenue-plan/${year}`, {
-      params: {
-        userId: currentUser?.id,
-        username: currentUser?.username
-      }
-    });
-    
-    const { users, plans } = response.data;
-    const container = document.getElementById('revenue-plan-content');
-    
-    if (!users || users.length === 0) {
-      container.innerHTML = '<div class="text-center py-8 text-gray-500">Không có dữ liệu</div>';
-      return;
-    }
-    
-    // Group plans by user and month
-    const userPlans = {};
-    plans.forEach(p => {
-      if (!userPlans[p.user_id]) userPlans[p.user_id] = {};
-      userPlans[p.user_id][p.month] = p.planned_revenue;
-    });
-    
-    let html = '<div class="overflow-x-auto">';
-    html += '<table class="w-full text-sm border-collapse">';
-    
-    // Header
-    html += '<thead class="bg-gradient-to-r from-green-500 to-teal-600 text-white sticky top-0">';
-    html += '<tr>';
-    html += '<th class="border px-3 py-2 text-left sticky left-0 bg-green-600 z-10">Họ và tên</th>';
-    html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
-    html += '<th class="border px-3 py-2 text-left">Vị trí</th>';
-    
-    // 12 months
-    for (let m = 1; m <= 12; m++) {
-      html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
-    }
-    
-    html += '<th class="border px-3 py-2 text-center bg-yellow-500 text-white font-bold">Tổng</th>';
-    html += '<th class="border px-3 py-2 text-center">Thao tác</th>';
-    html += '</tr>';
-    html += '</thead>';
-    
-    // Body
-    html += '<tbody>';
-    users.forEach((user, idx) => {
-      html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-green-50">`;
-      html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
-      html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
-      html += `<td class="border px-3 py-2 text-xs">${user.position_name}</td>`;
-      
-      // 12 months input
-      for (let m = 1; m <= 12; m++) {
-        const value = userPlans[user.id]?.[m] || '';
-        html += `<td class="border px-2 py-2">
+    try {
+        const year = document.getElementById('plan-year')?.value || '2026';
+        const response = await axios.get(`/api/admin/revenue-plan/${year}`, {
+            params: {
+                userId: currentUser?.id,
+                username: currentUser?.username
+            }
+        });
+
+        const {users, plans} = response.data;
+        const container = document.getElementById('revenue-plan-content');
+
+        if (!users || users.length === 0) {
+            container.innerHTML = '<div class="text-center py-8 text-gray-500">Không có dữ liệu</div>';
+            return;
+        }
+
+        // Group plans by user and month
+        const userPlans = {};
+        plans.forEach(p => {
+            if (!userPlans[p.user_id]) userPlans[p.user_id] = {};
+            userPlans[p.user_id][p.month] = p.planned_revenue;
+        });
+
+        let html = '<div class="overflow-x-auto">';
+        html += '<table class="w-full text-sm border-collapse">';
+
+        // Header
+        html += '<thead class="bg-gradient-to-r from-green-500 to-teal-600 text-white sticky top-0">';
+        html += '<tr>';
+        html += '<th class="border px-3 py-2 text-left sticky left-0 bg-green-600 z-10">Họ và tên</th>';
+        html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
+        html += '<th class="border px-3 py-2 text-left">Vị trí</th>';
+
+        // 12 months
+        for (let m = 1; m <= 12; m++) {
+            html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
+        }
+
+        html += '<th class="border px-3 py-2 text-center bg-yellow-500 text-white font-bold">Tổng</th>';
+        html += '<th class="border px-3 py-2 text-center">Thao tác</th>';
+        html += '</tr>';
+        html += '</thead>';
+
+        // Body
+        html += '<tbody>';
+        users.forEach((user, idx) => {
+            html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-green-50">`;
+            html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
+            html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
+            html += `<td class="border px-3 py-2 text-xs">${user.position_name}</td>`;
+
+            // 12 months input
+            for (let m = 1; m <= 12; m++) {
+                const value = userPlans[user.id]?.[m] || '';
+                html += `<td class="border px-2 py-2">
           <input 
             type="number" 
             step="0.1"
@@ -4191,18 +4192,18 @@ async function loadRevenuePlan() {
             oninput="calculateRowTotal(${user.id})"
           >
         </td>`;
-      }
-      
-      // Total column
-      let total = 0;
-      for (let m = 1; m <= 12; m++) {
-        total += parseFloat(userPlans[user.id]?.[m] || 0);
-      }
-      html += `<td class="border px-3 py-2 text-center bg-yellow-50 font-bold text-green-700" id="total-${user.id}">
+            }
+
+            // Total column
+            let total = 0;
+            for (let m = 1; m <= 12; m++) {
+                total += parseFloat(userPlans[user.id]?.[m] || 0);
+            }
+            html += `<td class="border px-3 py-2 text-center bg-yellow-50 font-bold text-green-700" id="total-${user.id}">
         ${formatLargeNumber(total)}
       </td>`;
-      
-      html += `<td class="border px-3 py-2 text-center">
+
+            html += `<td class="border px-3 py-2 text-center">
         <button 
           onclick="saveUserPlan(${user.id})"
           class="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-xs"
@@ -4210,14 +4211,14 @@ async function loadRevenuePlan() {
           <i class="fas fa-save mr-1"></i>Lưu
         </button>
       </td>`;
-      html += '</tr>';
-    });
-    html += '</tbody>';
-    html += '</table>';
-    html += '</div>';
-    
-    // Bulk save button
-    html += `
+            html += '</tr>';
+        });
+        html += '</tbody>';
+        html += '</table>';
+        html += '</div>';
+
+        // Bulk save button
+        html += `
       <div class="mt-6 flex justify-end">
         <button 
           onclick="saveAllPlans()"
@@ -4227,273 +4228,273 @@ async function loadRevenuePlan() {
         </button>
       </div>
     `;
-    
-    container.innerHTML = html;
-  } catch (error) {
-    console.error('Error loading revenue plan:', error);
-    document.getElementById('revenue-plan-content').innerHTML = 
-      '<div class="text-center py-8 text-red-500">Lỗi tải dữ liệu</div>';
-  }
+
+        container.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading revenue plan:', error);
+        document.getElementById('revenue-plan-content').innerHTML =
+            '<div class="text-center py-8 text-red-500">Lỗi tải dữ liệu</div>';
+    }
 }
 
 async function saveUserPlan(userId) {
-  try {
-    const year = document.getElementById('plan-year')?.value || '2026';
-    const inputs = document.querySelectorAll(`input[data-user="${userId}"]`);
-    
-    const plans = [];
-    inputs.forEach(input => {
-      const month = parseInt(input.dataset.month);
-      const value = parseFloat(input.value) || 0;
-      plans.push({ month, planned_revenue: value });
-    });
-    
-    await axios.post('/api/admin/revenue-plan', {
-      user_id: userId,
-      year: parseInt(year),
-      plans
-    });
-    
-    alert('✅ Lưu kế hoạch thành công!');
-  } catch (error) {
-    console.error('Error saving plan:', error);
-    alert('❌ Lỗi lưu kế hoạch: ' + (error.response?.data?.error || error.message));
-  }
+    try {
+        const year = document.getElementById('plan-year')?.value || '2026';
+        const inputs = document.querySelectorAll(`input[data-user="${userId}"]`);
+
+        const plans = [];
+        inputs.forEach(input => {
+            const month = parseInt(input.dataset.month);
+            const value = parseFloat(input.value) || 0;
+            plans.push({month, planned_revenue: value});
+        });
+
+        await axios.post('/api/admin/revenue-plan', {
+            user_id: userId,
+            year: parseInt(year),
+            plans
+        });
+
+        alert('✅ Lưu kế hoạch thành công!');
+    } catch (error) {
+        console.error('Error saving plan:', error);
+        alert('❌ Lỗi lưu kế hoạch: ' + (error.response?.data?.error || error.message));
+    }
 }
 
 async function saveAllPlans() {
-  try {
-    const year = document.getElementById('plan-year')?.value || '2026';
-    const inputs = document.querySelectorAll('input[data-user][data-month]');
-    
-    const allPlans = {};
-    inputs.forEach(input => {
-      const userId = parseInt(input.dataset.user);
-      const month = parseInt(input.dataset.month);
-      const value = parseFloat(input.value) || 0;
-      
-      if (!allPlans[userId]) allPlans[userId] = [];
-      allPlans[userId].push({ month, planned_revenue: value });
-    });
+    try {
+        const year = document.getElementById('plan-year')?.value || '2026';
+        const inputs = document.querySelectorAll('input[data-user][data-month]');
 
-    const entries = Object.entries(allPlans);
-    const total = entries.length;
-    let done = 0;
+        const allPlans = {};
+        inputs.forEach(input => {
+            const userId = parseInt(input.dataset.user);
+            const month = parseInt(input.dataset.month);
+            const value = parseFloat(input.value) || 0;
 
-    showLoadingOverlay('Đang lưu kế hoạch...');
+            if (!allPlans[userId]) allPlans[userId] = [];
+            allPlans[userId].push({month, planned_revenue: value});
+        });
 
-    for (const [userId, plans] of entries) {
-      updateLoadingOverlay(`Đang lưu kế hoạch... (${++done}/${total})`);
-      await axios.post('/api/admin/revenue-plan', {
-        user_id: parseInt(userId),
-        year: parseInt(year),
-        plans
-      });
+        const entries = Object.entries(allPlans);
+        const total = entries.length;
+        let done = 0;
+
+        showLoadingOverlay('Đang lưu kế hoạch...');
+
+        for (const [userId, plans] of entries) {
+            updateLoadingOverlay(`Đang lưu kế hoạch... (${++done}/${total})`);
+            await axios.post('/api/admin/revenue-plan', {
+                user_id: parseInt(userId),
+                year: parseInt(year),
+                plans
+            });
+        }
+
+        hideLoadingOverlay();
+        alert('✅ Lưu tất cả kế hoạch thành công!');
+        await loadRevenuePlan();
+    } catch (error) {
+        hideLoadingOverlay();
+        console.error('Error saving all plans:', error);
+        alert('❌ Lỗi lưu kế hoạch: ' + (error.response?.data?.error || error.message));
     }
-    
-    hideLoadingOverlay();
-    alert('✅ Lưu tất cả kế hoạch thành công!');
-    await loadRevenuePlan();
-  } catch (error) {
-    hideLoadingOverlay();
-    console.error('Error saving all plans:', error);
-    alert('❌ Lỗi lưu kế hoạch: ' + (error.response?.data?.error || error.message));
-  }
 }
 
 // Calculate row total
 function calculateRowTotal(userId) {
-  const inputs = document.querySelectorAll(`input[data-user="${userId}"]`);
-  let total = 0;
-  inputs.forEach(input => {
-    total += parseFloat(input.value) || 0;
-  });
-  
-  const totalCell = document.getElementById(`total-${userId}`);
-  if (totalCell) {
-    totalCell.textContent = formatLargeNumber(total);
-  }
+    const inputs = document.querySelectorAll(`input[data-user="${userId}"]`);
+    let total = 0;
+    inputs.forEach(input => {
+        total += parseFloat(input.value) || 0;
+    });
+
+    const totalCell = document.getElementById(`total-${userId}`);
+    if (totalCell) {
+        totalCell.textContent = formatLargeNumber(total);
+    }
 }
 
 // Export revenue plan template
 async function exportRevenuePlanTemplate() {
-  try {
-    const year = document.getElementById('plan-year')?.value || '2026';
-    const response = await axios.get(`/api/admin/revenue-plan/${year}`, {
-      params: {
-        userId: currentUser?.id,
-        username: currentUser?.username
-      }
-    });
-    
-    const { users, plans } = response.data;
-    
-    // Group plans by user
-    const userPlans = {};
-    plans.forEach(p => {
-      if (!userPlans[p.user_id]) userPlans[p.user_id] = {};
-      userPlans[p.user_id][p.month] = p.planned_revenue;
-    });
-    
-    // Create Excel workbook
-    const wb = XLSX.utils.book_new();
-    
-    // Prepare data
-    const data = [];
-    
-    // Header row
-    const header = ['STT', 'User ID', 'Họ và tên', 'Khu vực', 'Vị trí'];
-    for (let m = 1; m <= 12; m++) {
-      header.push(`T${m} (Tỷ VNĐ)`);
+    try {
+        const year = document.getElementById('plan-year')?.value || '2026';
+        const response = await axios.get(`/api/admin/revenue-plan/${year}`, {
+            params: {
+                userId: currentUser?.id,
+                username: currentUser?.username
+            }
+        });
+
+        const {users, plans} = response.data;
+
+        // Group plans by user
+        const userPlans = {};
+        plans.forEach(p => {
+            if (!userPlans[p.user_id]) userPlans[p.user_id] = {};
+            userPlans[p.user_id][p.month] = p.planned_revenue;
+        });
+
+        // Create Excel workbook
+        const wb = XLSX.utils.book_new();
+
+        // Prepare data
+        const data = [];
+
+        // Header row
+        const header = ['STT', 'User ID', 'Họ và tên', 'Khu vực', 'Vị trí'];
+        for (let m = 1; m <= 12; m++) {
+            header.push(`T${m} (Tỷ VNĐ)`);
+        }
+        header.push('Tổng');
+        data.push(header);
+
+        // Data rows
+        users.forEach((user, idx) => {
+            const row = [
+                idx + 1,
+                user.id,
+                user.full_name,
+                user.region_name,
+                user.position_name
+            ];
+
+            let total = 0;
+            for (let m = 1; m <= 12; m++) {
+                const value = userPlans[user.id]?.[m] || '';
+                row.push(value);
+                total += parseFloat(value) || 0;
+            }
+
+            // Add total with formula (optional, or just the calculated value)
+            row.push(total);
+            data.push(row);
+        });
+
+        // Create worksheet
+        const ws = XLSX.utils.aoa_to_sheet(data);
+
+        // Set column widths
+        ws['!cols'] = [
+            {wch: 5},  // STT
+            {wch: 10}, // User ID
+            {wch: 25}, // Họ và tên
+            {wch: 15}, // Khu vực
+            {wch: 20}, // Vị trí
+            ...Array(12).fill({wch: 10}), // T1-T12
+            {wch: 12}  // Tổng
+        ];
+
+        // Add worksheet to workbook
+        XLSX.utils.book_append_sheet(wb, ws, 'Kế hoạch Doanh thu');
+
+        // Generate and download
+        XLSX.writeFile(wb, `Ke_Hoach_Doanh_Thu_${year}.xlsx`);
+
+        alert('✅ Tải file mẫu Excel thành công!');
+    } catch (error) {
+        console.error('Error exporting template:', error);
+        alert('❌ Lỗi tải file: ' + (error.response?.data?.error || error.message));
     }
-    header.push('Tổng');
-    data.push(header);
-    
-    // Data rows
-    users.forEach((user, idx) => {
-      const row = [
-        idx + 1,
-        user.id,
-        user.full_name,
-        user.region_name,
-        user.position_name
-      ];
-      
-      let total = 0;
-      for (let m = 1; m <= 12; m++) {
-        const value = userPlans[user.id]?.[m] || '';
-        row.push(value);
-        total += parseFloat(value) || 0;
-      }
-      
-      // Add total with formula (optional, or just the calculated value)
-      row.push(total);
-      data.push(row);
-    });
-    
-    // Create worksheet
-    const ws = XLSX.utils.aoa_to_sheet(data);
-    
-    // Set column widths
-    ws['!cols'] = [
-      { wch: 5 },  // STT
-      { wch: 10 }, // User ID
-      { wch: 25 }, // Họ và tên
-      { wch: 15 }, // Khu vực
-      { wch: 20 }, // Vị trí
-      ...Array(12).fill({ wch: 10 }), // T1-T12
-      { wch: 12 }  // Tổng
-    ];
-    
-    // Add worksheet to workbook
-    XLSX.utils.book_append_sheet(wb, ws, 'Kế hoạch Doanh thu');
-    
-    // Generate and download
-    XLSX.writeFile(wb, `Ke_Hoach_Doanh_Thu_${year}.xlsx`);
-    
-    alert('✅ Tải file mẫu Excel thành công!');
-  } catch (error) {
-    console.error('Error exporting template:', error);
-    alert('❌ Lỗi tải file: ' + (error.response?.data?.error || error.message));
-  }
 }
 
 // Import revenue plan from file
 async function importRevenuePlan(event) {
-  const file = event.target.files[0];
-  if (!file) return;
+    const file = event.target.files[0];
+    if (!file) return;
 
-  showLoadingOverlay('Đang đọc file...');
+    showLoadingOverlay('Đang đọc file...');
 
-  try {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+    try {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
 
-        const dataRows = jsonData.slice(1).filter(row => row && row.length >= 17);
-        const year = document.getElementById('plan-year')?.value || '2026';
-        const total = dataRows.length;
-        let done = 0;
-        const errors = [];
+                const dataRows = jsonData.slice(1).filter(row => row && row.length >= 17);
+                const year = document.getElementById('plan-year')?.value || '2026';
+                const total = dataRows.length;
+                let done = 0;
+                const errors = [];
 
-        for (const row of dataRows) {
-          const stt   = row[0] ?? '';
-          const userId = parseInt(row[1]);
-          const name  = row[2] ?? '';
-          const region = row[3];
-          const position = row[4];
+                for (const row of dataRows) {
+                    const stt = row[0] ?? '';
+                    const userId = parseInt(row[1]);
+                    const name = row[2] ?? '';
+                    const region = row[3];
+                    const position = row[4];
 
-          if (!userId) {
-            errors.push({ stt, userId: row[1], name, region, position, reason: 'User ID không hợp lệ' });
-            done++;
-            continue;
-          }
+                    if (!userId) {
+                        errors.push({stt, userId: row[1], name, region, position, reason: 'User ID không hợp lệ'});
+                        done++;
+                        continue;
+                    }
 
-          const plans = [];
-          for (let m = 0; m < 12; m++) {
-            plans.push({ month: m + 1, planned_revenue: parseFloat(row[5 + m]) || 0 });
-          }
+                    const plans = [];
+                    for (let m = 0; m < 12; m++) {
+                        plans.push({month: m + 1, planned_revenue: parseFloat(row[5 + m]) || 0});
+                    }
 
-          updateLoadingOverlay(`Đang lưu dữ liệu... (${++done}/${total})`);
+                    updateLoadingOverlay(`Đang lưu dữ liệu... (${++done}/${total})`);
 
-          try {
-            await axios.post('/api/admin/revenue-plan', {
-              user_id: userId,
-              year: parseInt(year),
-              plans
-            });
-          } catch (rowError) {
-            errors.push({
-              stt,
-              userId,
-              name,
-              region,
-              position,
-              reason: rowError.response?.data?.error || rowError.message || 'Lỗi không xác định'
-            });
-          }
-        }
+                    try {
+                        await axios.post('/api/admin/revenue-plan', {
+                            user_id: userId,
+                            year: parseInt(year),
+                            plans
+                        });
+                    } catch (rowError) {
+                        errors.push({
+                            stt,
+                            userId,
+                            name,
+                            region,
+                            position,
+                            reason: rowError.response?.data?.error || rowError.message || 'Lỗi không xác định'
+                        });
+                    }
+                }
 
+                hideLoadingOverlay();
+
+                if (errors.length === 0) {
+                    alert(`✅ Import ${total} dòng thành công!`);
+                } else {
+                    const successCount = total - errors.length;
+                    showImportErrors(errors, successCount, total, year);
+                }
+
+                loadRevenuePlan();
+            } catch (err) {
+                hideLoadingOverlay();
+                alert('❌ Lỗi đọc file: ' + err.message);
+            }
+        };
+
+        reader.readAsArrayBuffer(file);
+    } catch (error) {
         hideLoadingOverlay();
+        alert('❌ Lỗi import file: ' + error.message);
+    }
 
-        if (errors.length === 0) {
-          alert(`✅ Import ${total} dòng thành công!`);
-        } else {
-          const successCount = total - errors.length;
-          showImportErrors(errors, successCount, total, year);
-        }
-
-        loadRevenuePlan();
-      } catch (err) {
-        hideLoadingOverlay();
-        alert('❌ Lỗi đọc file: ' + err.message);
-      }
-    };
-
-    reader.readAsArrayBuffer(file);
-  } catch (error) {
-    hideLoadingOverlay();
-    alert('❌ Lỗi import file: ' + error.message);
-  }
-
-  event.target.value = '';
+    event.target.value = '';
 }
 
 // Hiển thị modal thông báo lỗi và cho phép tải về file lỗi
 function showImportErrors(errors, successCount, total, year) {
-  console.log(errors)
-  // Xóa modal cũ nếu có
-  document.getElementById('import-error-modal')?.remove();
+    console.log(errors)
+    // Xóa modal cũ nếu có
+    document.getElementById('import-error-modal')?.remove();
 
-  const modal = document.createElement('div');
-  modal.id = 'import-error-modal';
-  modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;padding:16px;';
+    const modal = document.createElement('div');
+    modal.id = 'import-error-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;padding:16px;';
 
-  const rows = errors.map((e, i) => `
+    const rows = errors.map((e, i) => `
     <tr class="${i % 2 === 0 ? 'bg-white' : 'bg-red-50'}">
       <td class="px-3 py-2 text-center text-gray-500">${e.stt}</td>
       <td class="px-3 py-2 text-center font-mono">${e.userId}</td>
@@ -4504,7 +4505,7 @@ function showImportErrors(errors, successCount, total, year) {
     </tr>
   `).join('');
 
-  modal.innerHTML = `
+    modal.innerHTML = `
     <div class="bg-white rounded-2xl w-full max-w-[680px] max-h-[85vh] flex flex-col shadow-[0_20px_60px_rgba(0,0,0,0.3)]">
       <div class="p-5 px-6 flex-shrink-0">
         <div class="flex items-center justify-between mb-3">
@@ -4562,34 +4563,34 @@ function showImportErrors(errors, successCount, total, year) {
     </div>
   `;
 
-  document.body.appendChild(modal);
+    document.body.appendChild(modal);
 }
 
 // Tải file Excel chứa các dòng lỗi để người dùng chỉnh sửa rồi import lại
 function downloadImportErrors(errors, year) {
-  const header = ['STT', 'User ID', 'Họ và tên', 'Khu vực', 'Vị trí', 'Lý do lỗi'];
-  const rows = errors.map(e => [e.stt, e.userId, e.name, e.region, e.position, e.reason]);
+    const header = ['STT', 'User ID', 'Họ và tên', 'Khu vực', 'Vị trí', 'Lý do lỗi'];
+    const rows = errors.map(e => [e.stt, e.userId, e.name, e.region, e.position, e.reason]);
 
-  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-  ws['!cols'] = [
-    { wch: 5 }, { wch: 10 }, { wch: 25 }, { wch: 35 },
-    ...Array(12).fill({ wch: 10 })
-  ];
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    ws['!cols'] = [
+        {wch: 5}, {wch: 10}, {wch: 25}, {wch: 35},
+        ...Array(12).fill({wch: 10})
+    ];
 
-  // Tô đỏ cột lý do lỗi
-  rows.forEach((_, i) => {
-    const cell = ws[XLSX.utils.encode_cell({ r: i + 1, c: 3 })];
-    if (cell) cell.s = { font: { color: { rgb: 'DC2626' } } };
-  });
+    // Tô đỏ cột lý do lỗi
+    rows.forEach((_, i) => {
+        const cell = ws[XLSX.utils.encode_cell({r: i + 1, c: 3})];
+        if (cell) cell.s = {font: {color: {rgb: 'DC2626'}}};
+    });
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Lỗi Import');
-  XLSX.writeFile(wb, `loi_import_ke_hoach_${year}.xlsx`);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Lỗi Import');
+    XLSX.writeFile(wb, `loi_import_ke_hoach_${year}.xlsx`);
 }
 
 // ===== ACTUAL REVENUE UPLOAD (ADMIN) =====
 function renderActualRevenueUpload(container) {
-  container.innerHTML = `
+    container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-6 mt-8">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-2xl font-bold text-gray-800">
@@ -4632,54 +4633,54 @@ function renderActualRevenueUpload(container) {
 }
 
 async function importActualRevenue(event) {
-  const file = event.target.files[0];
-  if (!file) return;
+    const file = event.target.files[0];
+    if (!file) return;
 
-  const data = await file.arrayBuffer();
-  const workbook = XLSX.read(data);
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(sheet);
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet);
 
-  // Chuẩn hóa dữ liệu
-  const payload = rows.map(row => {
-  let emailRaw = String(row.email || '').trim().toLowerCase();
+    // Chuẩn hóa dữ liệu
+    const payload = rows.map(row => {
+        let emailRaw = String(row.email || '').trim().toLowerCase();
 
-  // Cắt phần sau @ nếu có
-  const email = emailRaw.includes('@')
-    ? emailRaw.split('@')[0]
-    : emailRaw;
+        // Cắt phần sau @ nếu có
+        const email = emailRaw.includes('@')
+            ? emailRaw.split('@')[0]
+            : emailRaw;
 
-  return {
-    email,
-    month: Number(row.month),
-    year: Number(row.year),
-    actual_value: Number(row.actual_value)
-  };
-});
+        return {
+            email,
+            month: Number(row.month),
+            year: Number(row.year),
+            actual_value: Number(row.actual_value)
+        };
+    });
 
 
-  console.log("IMPORT DATA:", payload);
+    console.log("IMPORT DATA:", payload);
 
-  const response = await fetch('/api/admin/import-actual-revenue', {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ rows: payload })
-  });
-  
-  if (response.ok) {
-    alert("Upload thành công");
-  }else{
-    alert("Upload xảy ra lỗi.");
-  }
-  
+    const response = await fetch('/api/admin/import-actual-revenue', {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({rows: payload})
+    });
+
+    if (response.ok) {
+        alert("Upload thành công");
+    } else {
+        alert("Upload xảy ra lỗi.");
+    }
+
 }
 
 
 // Change Password Modal
 function showChangePasswordModal() {
-  const modal = document.createElement('div');
-  modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-  modal.innerHTML = `
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.innerHTML = `
     <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4">
       <h3 class="text-xl font-bold mb-4">Đổi mật khẩu</h3>
       <div class="space-y-4">
@@ -4707,57 +4708,57 @@ function showChangePasswordModal() {
       </div>
     </div>
   `;
-  document.body.appendChild(modal);
+    document.body.appendChild(modal);
 }
 
 async function submitChangePassword() {
-  const oldPwd = document.getElementById('old-password').value;
-  const newPwd = document.getElementById('new-password').value;
-  const confirmPwd = document.getElementById('confirm-password').value;
-  const msgDiv = document.getElementById('password-message');
-  
-  if (!oldPwd || !newPwd || !confirmPwd) {
-    msgDiv.innerHTML = '<p class="text-red-600 text-sm">Vui lòng điền đầy đủ thông tin</p>';
-    return;
-  }
-  
-  if (newPwd.length < 6) {
-    msgDiv.innerHTML = '<p class="text-red-600 text-sm">Mật khẩu mới phải có ít nhất 6 ký tự</p>';
-    return;
-  }
-  
-  if (newPwd !== confirmPwd) {
-    msgDiv.innerHTML = '<p class="text-red-600 text-sm">Mật khẩu mới không khớp</p>';
-    return;
-  }
-  
-  try {
-    const response = await fetch('/api/change-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: currentUser.id,
-        oldPassword: oldPwd,
-        newPassword: newPwd
-      })
-    });
-    
-    const data = await response.json();
-    
-    if (response.ok) {
-      msgDiv.innerHTML = '<p class="text-green-600 text-sm">✓ Đổi mật khẩu thành công!</p>';
-      setTimeout(() => document.querySelector('.fixed').remove(), 1500);
-    } else {
-      msgDiv.innerHTML = `<p class="text-red-600 text-sm">${data.error}</p>`;
+    const oldPwd = document.getElementById('old-password').value;
+    const newPwd = document.getElementById('new-password').value;
+    const confirmPwd = document.getElementById('confirm-password').value;
+    const msgDiv = document.getElementById('password-message');
+
+    if (!oldPwd || !newPwd || !confirmPwd) {
+        msgDiv.innerHTML = '<p class="text-red-600 text-sm">Vui lòng điền đầy đủ thông tin</p>';
+        return;
     }
-  } catch (error) {
-    msgDiv.innerHTML = '<p class="text-red-600 text-sm">Lỗi kết nối</p>';
-  }
+
+    if (newPwd.length < 6) {
+        msgDiv.innerHTML = '<p class="text-red-600 text-sm">Mật khẩu mới phải có ít nhất 6 ký tự</p>';
+        return;
+    }
+
+    if (newPwd !== confirmPwd) {
+        msgDiv.innerHTML = '<p class="text-red-600 text-sm">Mật khẩu mới không khớp</p>';
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/change-password', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                userId: currentUser.id,
+                oldPassword: oldPwd,
+                newPassword: newPwd
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            msgDiv.innerHTML = '<p class="text-green-600 text-sm">✓ Đổi mật khẩu thành công!</p>';
+            setTimeout(() => document.querySelector('.fixed').remove(), 1500);
+        } else {
+            msgDiv.innerHTML = `<p class="text-red-600 text-sm">${data.error}</p>`;
+        }
+    } catch (error) {
+        msgDiv.innerHTML = '<p class="text-red-600 text-sm">Lỗi kết nối</p>';
+    }
 }
 
 // Lock Month Management for Admin
 function renderLockMonthTab(container) {
-  container.innerHTML = `
+    container.innerHTML = `
     <div class="bg-white rounded-xl shadow-xl p-6">
       <h3 class="text-2xl font-bold mb-4">
         <i class="fas fa-lock mr-2"></i>Quản lý Khóa tháng KPI/Level
@@ -4773,105 +4774,105 @@ function renderLockMonthTab(container) {
       <div id="lock-month-content">Đang tải...</div>
     </div>
   `;
-  setTimeout(() => loadLockMonths(), 100);
+    setTimeout(() => loadLockMonths(), 100);
 }
 
 async function loadLockMonths() {
-  const year = document.getElementById('lock-year').value;
-  const content = document.getElementById('lock-month-content');
-  
-  try {
-    const response = await fetch(`/api/admin/locked-months/${year}`);
-    const data = await response.json();
-    
-    const positions = [
-      { id: 1, name: 'PTGĐ' },
-      { id: 5, name: 'GĐKDCC' },
-      { id: 2, name: 'GĐKD' },
-      { id: 3, name: 'TLKD' },
-      { id: 4, name: 'Giám sát' }
-    ];
-    
-    let html = '<div class="overflow-x-auto"><table class="w-full"><thead class="bg-gray-100"><tr>';
-    html += '<th class="px-4 py-2 text-left">Tháng</th>';
-    positions.forEach(p => html += `<th class="px-4 py-2 text-center">${p.name}</th>`);
-    html += '</tr></thead><tbody>';
-    
-    for (let month = 1; month <= 12; month++) {
-      html += `<tr class="border-b"><td class="px-4 py-2 font-semibold">Tháng ${month}</td>`;
-      
-      for (const pos of positions) {
-        const lock = data.locks.find(l => l.month === month && l.position_id === pos.id);
-        if (lock) {
-          html += `<td class="px-4 py-2 text-center">
+    const year = document.getElementById('lock-year').value;
+    const content = document.getElementById('lock-month-content');
+
+    try {
+        const response = await fetch(`/api/admin/locked-months/${year}`);
+        const data = await response.json();
+
+        const positions = [
+            {id: 1, name: 'PTGĐ'},
+            {id: 5, name: 'GĐKDCC'},
+            {id: 2, name: 'GĐKD'},
+            {id: 3, name: 'TLKD'},
+            {id: 4, name: 'Giám sát'}
+        ];
+
+        let html = '<div class="overflow-x-auto"><table class="w-full"><thead class="bg-gray-100"><tr>';
+        html += '<th class="px-4 py-2 text-left">Tháng</th>';
+        positions.forEach(p => html += `<th class="px-4 py-2 text-center">${p.name}</th>`);
+        html += '</tr></thead><tbody>';
+
+        for (let month = 1; month <= 12; month++) {
+            html += `<tr class="border-b"><td class="px-4 py-2 font-semibold">Tháng ${month}</td>`;
+
+            for (const pos of positions) {
+                const lock = data.locks.find(l => l.month === month && l.position_id === pos.id);
+                if (lock) {
+                    html += `<td class="px-4 py-2 text-center">
             <span class="inline-block px-2 py-1 bg-red-100 text-red-600 rounded text-xs">
               <i class="fas fa-lock"></i> Đã khóa
             </span>
             <button onclick="unlockMonth(${year}, ${month}, ${pos.id})" 
               class="ml-1 text-xs text-blue-600 hover:underline">Mở</button>
           </td>`;
-        } else {
-          html += `<td class="px-4 py-2 text-center">
+                } else {
+                    html += `<td class="px-4 py-2 text-center">
             <button onclick="lockMonth(${year}, ${month}, ${pos.id})" 
               class="px-2 py-1 bg-green-100 text-green-600 rounded text-xs hover:bg-green-200">
               <i class="fas fa-check"></i> Duyệt
             </button>
           </td>`;
+                }
+            }
+            html += '</tr>';
         }
-      }
-      html += '</tr>';
+
+        html += '</tbody></table></div>';
+        content.innerHTML = html;
+    } catch (error) {
+        content.innerHTML = '<p class="text-red-600">Lỗi tải dữ liệu</p>';
     }
-    
-    html += '</tbody></table></div>';
-    content.innerHTML = html;
-  } catch (error) {
-    content.innerHTML = '<p class="text-red-600">Lỗi tải dữ liệu</p>';
-  }
 }
 
 async function lockMonth(year, month, positionId) {
-  if (!confirm(`Duyệt và khóa tháng ${month}/${year}?\nSau khi khóa, user không thể sửa KPI/Level!`)) return;
-  
-  try {
-    const response = await fetch('/api/admin/lock-month', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        year, month, positionId,
-        userId: currentUser.id
-      })
-    });
-    
-    const data = await response.json();
-    if (response.ok) {
-      alert(data.message);
-      loadLockMonths();
-    } else {
-      alert('Lỗi: ' + data.error);
+    if (!confirm(`Duyệt và khóa tháng ${month}/${year}?\nSau khi khóa, user không thể sửa KPI/Level!`)) return;
+
+    try {
+        const response = await fetch('/api/admin/lock-month', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                year, month, positionId,
+                userId: currentUser.id
+            })
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            alert(data.message);
+            loadLockMonths();
+        } else {
+            alert('Lỗi: ' + data.error);
+        }
+    } catch (error) {
+        alert('Lỗi kết nối');
     }
-  } catch (error) {
-    alert('Lỗi kết nối');
-  }
 }
 
 async function unlockMonth(year, month, positionId) {
-  if (!confirm(`Mở khóa tháng ${month}/${year}?\nUser sẽ có thể sửa lại KPI/Level!`)) return;
-  
-  try {
-    const response = await fetch('/api/admin/unlock-month', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ year, month, positionId })
-    });
-    
-    const data = await response.json();
-    if (response.ok) {
-      alert(data.message);
-      loadLockMonths();
-    } else {
-      alert('Lỗi: ' + data.error);
+    if (!confirm(`Mở khóa tháng ${month}/${year}?\nUser sẽ có thể sửa lại KPI/Level!`)) return;
+
+    try {
+        const response = await fetch('/api/admin/unlock-month', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({year, month, positionId})
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            alert(data.message);
+            loadLockMonths();
+        } else {
+            alert('Lỗi: ' + data.error);
+        }
+    } catch (error) {
+        alert('Lỗi kết nối');
     }
-  } catch (error) {
-    alert('Lỗi kết nối');
-  }
 }
