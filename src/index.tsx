@@ -1840,7 +1840,7 @@ app.get('/', (c) => {
           }
         </style>
     </head>
-    <body class="bg-gray-50">
+    <body class="bg-gray-50 select-none">
         <div id="app"></div>
         
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>

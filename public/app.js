@@ -55,6 +55,49 @@ function formatLargeNumber(value, kpiName = '', forceShort = false) {
   return num.toLocaleString('vi-VN');
 }
 
+// ===== LOADING OVERLAY =====
+function showLoadingOverlay(message = 'Đang xử lý...') {
+  let overlay = document.getElementById('loading-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'loading-overlay';
+    overlay.style.cssText = `
+      position: fixed; inset: 0; z-index: 9999;
+      background: rgba(0,0,0,0.55);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 16px;
+    `;
+    overlay.innerHTML = `
+      <div style="width:56px;height:56px;border:5px solid rgba(255,255,255,0.3);
+                  border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+      <p id="loading-overlay-msg" style="color:#fff;font-size:1.1rem;font-weight:600;
+                                          text-shadow:0 1px 4px rgba(0,0,0,0.5);">${message}</p>
+    `;
+    // Thêm keyframe nếu chưa có
+    if (!document.getElementById('loading-overlay-style')) {
+      const style = document.createElement('style');
+      style.id = 'loading-overlay-style';
+      style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+      document.head.appendChild(style);
+    }
+    document.body.appendChild(overlay);
+  } else {
+    document.getElementById('loading-overlay-msg').textContent = message;
+    overlay.style.display = 'flex';
+  }
+}
+
+function updateLoadingOverlay(message) {
+  const msg = document.getElementById('loading-overlay-msg');
+  if (msg) msg.textContent = message;
+}
+
+function hideLoadingOverlay() {
+  const overlay = document.getElementById('loading-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
 // ===== AUTH =====
 function checkAuth() {
   const userStr = localStorage.getItem('user');
@@ -4232,8 +4275,15 @@ async function saveAllPlans() {
       if (!allPlans[userId]) allPlans[userId] = [];
       allPlans[userId].push({ month, planned_revenue: value });
     });
-    
-    for (const [userId, plans] of Object.entries(allPlans)) {
+
+    const entries = Object.entries(allPlans);
+    const total = entries.length;
+    let done = 0;
+
+    showLoadingOverlay('Đang lưu kế hoạch...');
+
+    for (const [userId, plans] of entries) {
+      updateLoadingOverlay(`Đang lưu kế hoạch... (${++done}/${total})`);
       await axios.post('/api/admin/revenue-plan', {
         user_id: parseInt(userId),
         year: parseInt(year),
@@ -4241,9 +4291,11 @@ async function saveAllPlans() {
       });
     }
     
+    hideLoadingOverlay();
     alert('✅ Lưu tất cả kế hoạch thành công!');
-    loadRevenuePlan();
+    await loadRevenuePlan();
   } catch (error) {
+    hideLoadingOverlay();
     console.error('Error saving all plans:', error);
     alert('❌ Lỗi lưu kế hoạch: ' + (error.response?.data?.error || error.message));
   }
@@ -4348,60 +4400,65 @@ async function exportRevenuePlanTemplate() {
 
 // Import revenue plan from file
 async function importRevenuePlan(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // Hiện overlay loading
+  showLoadingOverlay('Đang đọc file...');
+
   try {
-    const file = event.target.files[0];
-    if (!file) return;
-    
     const reader = new FileReader();
     reader.onload = async (e) => {
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
-      
-      // Get first sheet
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      
-      // Convert to JSON (array of arrays)
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-      
-      // Skip header row
-      const dataRows = jsonData.slice(1);
-      
-      const year = document.getElementById('plan-year')?.value || '2026';
-      
-      for (const row of dataRows) {
-        if (!row || row.length < 17) continue;
-        
-        const userId = parseInt(row[1]);
-        if (!userId) continue;
-        
-        const plans = [];
-        for (let m = 0; m < 12; m++) {
-          const value = parseFloat(row[5 + m]) || 0;
-          plans.push({ month: m + 1, planned_revenue: value });
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+        const dataRows = jsonData.slice(1).filter(row => row && row.length >= 17);
+        const year = document.getElementById('plan-year')?.value || '2026';
+        const total = dataRows.length;
+        let done = 0;
+
+        for (const row of dataRows) {
+          const userId = parseInt(row[1]);
+          if (!userId) { done++; continue; }
+
+          const plans = [];
+          for (let m = 0; m < 12; m++) {
+            plans.push({ month: m + 1, planned_revenue: parseFloat(row[5 + m]) || 0 });
+          }
+
+          updateLoadingOverlay(`Đang lưu dữ liệu... (${++done}/${total})`);
+          await axios.post('/api/admin/revenue-plan', {
+            user_id: userId,
+            year: parseInt(year),
+            plans
+          });
         }
-        
-        await axios.post('/api/admin/revenue-plan', {
-          user_id: userId,
-          year: parseInt(year),
-          plans
-        });
+
+        hideLoadingOverlay();
+        alert('✅ Import dữ liệu từ Excel thành công!');
+        loadRevenuePlan();
+      } catch (error) {
+        hideLoadingOverlay();
+        console.error('Error importing file:', error);
+        alert('❌ Lỗi import file: ' + (error.response?.data?.error || error.message));
       }
-      
-      alert('✅ Import dữ liệu từ Excel thành công!');
-      loadRevenuePlan();
     };
-    
+
     reader.readAsArrayBuffer(file);
-    
-    // Reset file input
-    event.target.value = '';
   } catch (error) {
+    hideLoadingOverlay();
     console.error('Error importing file:', error);
     alert('❌ Lỗi import file: ' + (error.response?.data?.error || error.message));
   }
-}
 
+  // Reset file input
+  event.target.value = '';
+}
 // ===== ACTUAL REVENUE UPLOAD (ADMIN) =====
 function renderActualRevenueUpload(container) {
   container.innerHTML = `
