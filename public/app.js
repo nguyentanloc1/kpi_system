@@ -4403,7 +4403,6 @@ async function importRevenuePlan(event) {
   const file = event.target.files[0];
   if (!file) return;
 
-  // Hiện overlay loading
   showLoadingOverlay('Đang đọc file...');
 
   try {
@@ -4412,19 +4411,27 @@ async function importRevenuePlan(event) {
       try {
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
-
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
         const dataRows = jsonData.slice(1).filter(row => row && row.length >= 17);
         const year = document.getElementById('plan-year')?.value || '2026';
         const total = dataRows.length;
         let done = 0;
+        const errors = [];
 
         for (const row of dataRows) {
+          const stt   = row[0] ?? '';
           const userId = parseInt(row[1]);
-          if (!userId) { done++; continue; }
+          const name  = row[2] ?? '';
+          const region = row[3];
+          const position = row[4];
+
+          if (!userId) {
+            errors.push({ stt, userId: row[1], name, region, position, reason: 'User ID không hợp lệ' });
+            done++;
+            continue;
+          }
 
           const plans = [];
           for (let m = 0; m < 12; m++) {
@@ -4432,33 +4439,154 @@ async function importRevenuePlan(event) {
           }
 
           updateLoadingOverlay(`Đang lưu dữ liệu... (${++done}/${total})`);
-          await axios.post('/api/admin/revenue-plan', {
-            user_id: userId,
-            year: parseInt(year),
-            plans
-          });
+
+          try {
+            await axios.post('/api/admin/revenue-plan', {
+              user_id: userId,
+              year: parseInt(year),
+              plans
+            });
+          } catch (rowError) {
+            errors.push({
+              stt,
+              userId,
+              name,
+              region,
+              position,
+              reason: rowError.response?.data?.error || rowError.message || 'Lỗi không xác định'
+            });
+          }
         }
 
         hideLoadingOverlay();
-        alert('✅ Import dữ liệu từ Excel thành công!');
+
+        if (errors.length === 0) {
+          alert(`✅ Import ${total} dòng thành công!`);
+        } else {
+          const successCount = total - errors.length;
+          showImportErrors(errors, successCount, total, year);
+        }
+
         loadRevenuePlan();
-      } catch (error) {
+      } catch (err) {
         hideLoadingOverlay();
-        console.error('Error importing file:', error);
-        alert('❌ Lỗi import file: ' + (error.response?.data?.error || error.message));
+        alert('❌ Lỗi đọc file: ' + err.message);
       }
     };
 
     reader.readAsArrayBuffer(file);
   } catch (error) {
     hideLoadingOverlay();
-    console.error('Error importing file:', error);
-    alert('❌ Lỗi import file: ' + (error.response?.data?.error || error.message));
+    alert('❌ Lỗi import file: ' + error.message);
   }
 
-  // Reset file input
   event.target.value = '';
 }
+
+// Hiển thị modal thông báo lỗi và cho phép tải về file lỗi
+function showImportErrors(errors, successCount, total, year) {
+  console.log(errors)
+  // Xóa modal cũ nếu có
+  document.getElementById('import-error-modal')?.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'import-error-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;padding:16px;';
+
+  const rows = errors.map((e, i) => `
+    <tr class="${i % 2 === 0 ? 'bg-white' : 'bg-red-50'}">
+      <td class="px-3 py-2 text-center text-gray-500">${e.stt}</td>
+      <td class="px-3 py-2 text-center font-mono">${e.userId}</td>
+      <td class="px-3 py-2">${e.name}</td>
+      <td class="px-3 py-2">${e.region}</td>
+      <td class="px-3 py-2">${e.position}</td>
+      <td class="px-3 py-2 text-red-600">${e.reason}</td>
+    </tr>
+  `).join('');
+
+  modal.innerHTML = `
+    <div class="bg-white rounded-2xl w-full max-w-[680px] max-h-[85vh] flex flex-col shadow-[0_20px_60px_rgba(0,0,0,0.3)]">
+      <div class="p-5 px-6 flex-shrink-0">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-[1.1rem] font-bold text-gray-800">
+            ⚠️ Import hoàn tất — có ${errors.length} dòng lỗi
+          </h3>
+          <button onclick="document.getElementById('import-error-modal').remove()"
+            class="w-8 h-8 rounded-full border-none bg-gray-100 cursor-pointer text-base text-gray-500 hover:bg-gray-200 transition-colors">
+            ✕
+          </button>
+        </div>
+        
+        <div class="flex gap-3 mb-4">
+          <div class="flex-1 bg-green-100 rounded-[10px] py-2.5 px-3.5 text-center">
+            <div class="text-[1.4rem] font-bold text-green-600">${successCount}</div>
+            <div class="text-[0.78rem] text-green-700">Thành công</div>
+          </div>
+          <div class="flex-1 bg-red-100 rounded-[10px] py-2.5 px-3.5 text-center">
+            <div class="text-[1.4rem] font-bold text-red-600">${errors.length}</div>
+            <div class="text-[0.78rem] text-red-800">Lỗi</div>
+          </div>
+          <div class="flex-1 bg-gray-100 rounded-[10px] py-2.5 px-3.5 text-center">
+            <div class="text-[1.4rem] font-bold text-gray-700">${total}</div>
+            <div class="text-[0.78rem] text-gray-500">Tổng số dòng</div>
+          </div>
+        </div>
+      </div>
+  
+      <div class="overflow-y-auto flex-1 px-6">
+        <table class="w-full border-collapse text-[0.85rem]">
+          <thead class="sticky top-0 bg-red-50 z-10">
+            <tr>
+              <th class="px-3 py-2 text-center text-red-700 w-[50px]">STT</th>
+              <th class="px-3 py-2 text-center text-red-700 w-[80px]">User ID</th>
+              <th class="px-3 py-2 text-left text-red-700">Họ và tên</th>
+              <th class="px-3 py-2 text-left text-red-700">Khu vực</th>
+              <th class="px-3 py-2 text-left text-red-700">Vị trí</th>
+              <th class="px-3 py-2 text-left text-red-700">Lý do lỗi</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">${rows}</tbody>
+        </table>
+      </div>
+  
+      <div class="p-4 px-6 flex-shrink-0 border-t border-gray-100 flex gap-2.5 justify-end">
+        <button onclick="downloadImportErrors(${JSON.stringify(errors).replace(/"/g, '&quot;')}, '${year}')"
+          class="px-[18px] py-2 bg-indigo-600 hover:bg-indigo-700 text-white border-none rounded-lg cursor-pointer font-semibold text-[0.9rem] flex items-center transition-colors">
+          <i class="fas fa-download mr-1.5"></i>Tải file lỗi (.xlsx)
+        </button>
+        <button onclick="document.getElementById('import-error-modal').remove()"
+          class="px-[18px] py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 border-none rounded-lg cursor-pointer font-semibold text-[0.9rem] transition-colors">
+          Đóng
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+}
+
+// Tải file Excel chứa các dòng lỗi để người dùng chỉnh sửa rồi import lại
+function downloadImportErrors(errors, year) {
+  const header = ['STT', 'User ID', 'Họ và tên', 'Khu vực', 'Vị trí', 'Lý do lỗi'];
+  const rows = errors.map(e => [e.stt, e.userId, e.name, e.region, e.position, e.reason]);
+
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+  ws['!cols'] = [
+    { wch: 5 }, { wch: 10 }, { wch: 25 }, { wch: 35 },
+    ...Array(12).fill({ wch: 10 })
+  ];
+
+  // Tô đỏ cột lý do lỗi
+  rows.forEach((_, i) => {
+    const cell = ws[XLSX.utils.encode_cell({ r: i + 1, c: 3 })];
+    if (cell) cell.s = { font: { color: { rgb: 'DC2626' } } };
+  });
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Lỗi Import');
+  XLSX.writeFile(wb, `loi_import_ke_hoach_${year}.xlsx`);
+}
+
 // ===== ACTUAL REVENUE UPLOAD (ADMIN) =====
 function renderActualRevenueUpload(container) {
   container.innerHTML = `
