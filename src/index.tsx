@@ -1143,26 +1143,22 @@ app.get('/api/admin/users', async (c) => {
 
 // Get regions and positions for dropdowns
 app.get('/api/admin/metadata', async (c) => {
-    try {
-        const regions = await c.env.DB.prepare(`
-            SELECT id, name
-            FROM regions
-            ORDER BY id
-        `).all()
-
-        const positions = await c.env.DB.prepare(`
-            SELECT id, name, display_name
-            FROM positions
-            ORDER BY id
-        `).all()
-
-        return c.json({
-            regions: regions.results,
-            positions: positions.results
-        })
-    } catch (error) {
-        return c.json({error: 'Lỗi lấy metadata'}, 500)
-    }
+  try {
+    const regions = await c.env.DB.prepare(`
+      SELECT id, name FROM regions ORDER BY id
+    `).all()
+    
+    const positions = await c.env.DB.prepare(`
+      SELECT id, name, display_name, level FROM positions ORDER BY id
+    `).all()
+    
+    return c.json({ 
+      regions: regions.results,
+      positions: positions.results
+    })
+  } catch (error) {
+    return c.json({ error: 'Lỗi lấy metadata' }, 500)
+  }
 })
 
 // Get admin statistics
@@ -1563,38 +1559,39 @@ app.post("/api/admin/import-actual-revenue", async (c) => {
 
 // Get potential managers for a position
 app.get('/api/admin/potential-managers/:regionId/:positionId', async (c) => {
-    try {
-        const regionId = c.req.param('regionId')
-        const positionId = parseInt(c.req.param('positionId'))
+  try {
+    const regionId = c.req.param('regionId')
+    const positionId = parseInt(c.req.param('positionId'))
 
-        // Determine which position can be manager
-        // Position 4 (Giám sát) -> manager is Position 3 (Trợ lý)
-        // Position 3 (Trợ lý) -> manager is Position 2 (GĐKD)
-        // Position 2 (GĐKD) -> manager is Position 1 (PTGĐ)
-        // Position 1 (PTGĐ) -> no manager (NULL)
-
-        let managerPositionId = null
-        if (positionId === 4) managerPositionId = 3
-        else if (positionId === 3) managerPositionId = 2
-        else if (positionId === 2) managerPositionId = 1
-
-        if (!managerPositionId) {
-            return c.json({managers: []})
-        }
-
-        const results = await c.env.DB.prepare(`
-            SELECT id, full_name, username
-            FROM users
-            WHERE region_id = ?
-              AND position_id = ?
-              AND username NOT IN ('admin', 'admin1', 'admin2', 'admin3')
-            ORDER BY full_name
-        `).bind(regionId, managerPositionId).all()
-
-        return c.json({managers: results.results})
-    } catch (error) {
-        return c.json({error: 'Lỗi lấy danh sách quản lý'}, 500)
+    const selectedPosition = await c.env.DB.prepare(`
+      SELECT level FROM positions WHERE id = ?
+    `).bind(positionId).first()
+    
+    if (!selectedPosition) {
+      return c.json({ managers: [] })
     }
+    
+    const selectedLevel = selectedPosition.level
+
+    if (selectedLevel <= 1) {
+      return c.json({ managers: [] })
+    }
+    
+    const results = await c.env.DB.prepare(`
+      SELECT u.id, u.full_name, u.username, p.level, p.display_name as position_name
+      FROM users u
+      JOIN positions p ON u.position_id = p.id
+      WHERE u.region_id = ?
+        AND p.level < ?
+        AND u.position_id != ?
+        AND u.username NOT IN ('admin', 'admin1', 'admin2', 'admin3')
+      ORDER BY p.level DESC, u.full_name
+    `).bind(regionId, selectedLevel, positionId).all()
+    
+    return c.json({ managers: results.results })
+  } catch (error) {
+    return c.json({ error: 'Lỗi lấy danh sách quản lý' }, 500)
+  }
 })
 
 // Create new user (admin only)
