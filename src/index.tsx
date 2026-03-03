@@ -1288,19 +1288,40 @@ app.post('/api/admin/revenue-plan', async (c) => {
   try {
     const body = await c.req.json()
     const { user_id, year, plans } = body
-    
-    if (!user_id || !year || !plans || !Array.isArray(plans)) {
-      return c.json({ error: 'Thiếu thông tin bắt buộc' }, 400)
+
+    if (!user_id) {
+      return c.json({ error: 'Thiếu user_id' }, 400)
     }
-    
-    // Delete existing plans for this user/year
-    await c.env.DB.prepare(`
-      DELETE
-      FROM revenue_plan
-      WHERE user_id = ? AND year = ?
-    `).bind(user_id, year).run()
-    
-    // Insert new plans
+    if (!year) {
+      return c.json({ error: 'Thiếu year' }, 400)
+    }
+    if (!plans || !Array.isArray(plans)) {
+      return c.json({ error: 'Dữ liệu plans không hợp lệ' }, 400)
+    }
+    if (plans.length === 0) {
+      return c.json({ error: 'Danh sách plans trống' }, 400)
+    }
+
+    // Kiểm tra user tồn tại
+    const user = await c.env.DB.prepare('SELECT id, full_name FROM users WHERE id = ?')
+        .bind(user_id).first()
+    if (!user) {
+      return c.json({ error: `Không tìm thấy người dùng với ID ${user_id}` }, 404)
+    }
+
+    // Validate từng plan
+    for (const plan of plans) {
+      if (!plan.month || plan.month < 1 || plan.month > 12) {
+        return c.json({ error: `Tháng không hợp lệ: ${plan.month} (user: ${user.full_name})` }, 400)
+      }
+      if (plan.planned_revenue < 0) {
+        return c.json({ error: `Doanh thu tháng ${plan.month} không được âm (user: ${user.full_name})` }, 400)
+      }
+    }
+
+    await c.env.DB.prepare('DELETE FROM revenue_plan WHERE user_id = ? AND year = ?')
+        .bind(user_id, year).run()
+
     for (const plan of plans) {
       if (plan.planned_revenue > 0) {
         await c.env.DB.prepare(`
@@ -1309,11 +1330,12 @@ app.post('/api/admin/revenue-plan', async (c) => {
         `).bind(user_id, year, plan.month, plan.planned_revenue).run()
       }
     }
-    
-    return c.json({ success: true, message: 'Lưu kế hoạch thành công' })
+
+    return c.json({ success: true, message: `Đã lưu kế hoạch năm ${year} cho ${user.full_name}` })
   } catch (error) {
     console.error('Error saving revenue plan:', error)
-    return c.json({ error: 'Lỗi lưu kế hoạch doanh thu' }, 500)
+    const msg = error instanceof Error ? error.message : String(error)
+    return c.json({ error: `Lỗi lưu kế hoạch: ${msg}` }, 500)
   }
 })
 
