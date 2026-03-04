@@ -2644,24 +2644,27 @@ async function loadAdminMetadata() {
 }
 
 async function loadPotentialManagers() {
-  const regionId = document.getElementById('new-region').value;
-  const positionId = document.getElementById('new-position').value;
-  const managerSelect = document.getElementById('new-manager');
-  
-  if (!regionId || !positionId) {
-    managerSelect.innerHTML = '<option value="">Chọn quản lý (nếu có)</option>';
-    return;
-  }
-  
-  try {
-    const response = await axios.get(`/api/admin/potential-managers/${regionId}/${positionId}`);
-    const managers = response.data.managers;
+    const regionId = document.getElementById('new-region').value;
+    const positionId = document.getElementById('new-position').value;
+    const managerSelect = document.getElementById('new-manager');
 
-    if (managers.length === 0) {
-      managerSelect.innerHTML = '<option value="">Không có quản lý cấp trên (Phó Tổng)</option>';
-    } else {
-      managerSelect.innerHTML = '<option value="">Chọn quản lý</option>' +
-        managers.map(m => `<option value="${m.id}">${m.full_name} (${m.username}) - ${m.position_name}</option>`).join('');
+    if (!regionId || !positionId) {
+        managerSelect.innerHTML = '<option value="">Chọn quản lý (nếu có)</option>';
+        return;
+    }
+
+    try {
+        const response = await axios.get(`/api/admin/potential-managers/${regionId}/${positionId}`);
+        const managers = response.data.managers;
+
+        if (managers.length === 0) {
+            managerSelect.innerHTML = '<option value="">Không có quản lý cấp trên (Phó Tổng)</option>';
+        } else {
+            managerSelect.innerHTML = '<option value="">Chọn quản lý</option>' +
+                managers.map(m => `<option value="${m.id}">${m.full_name} (${m.username}) - ${m.position_name}</option>`).join('');
+        }
+    } catch (error) {
+        console.error('Error loading managers:', error);
     }
 }
 

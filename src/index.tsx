@@ -1143,22 +1143,26 @@ app.get('/api/admin/users', async (c) => {
 
 // Get regions and positions for dropdowns
 app.get('/api/admin/metadata', async (c) => {
-  try {
-    const regions = await c.env.DB.prepare(`
-      SELECT id, name FROM regions ORDER BY id
-    `).all()
-    
-    const positions = await c.env.DB.prepare(`
-      SELECT id, name, display_name, level FROM positions ORDER BY id
-    `).all()
-    
-    return c.json({ 
-      regions: regions.results,
-      positions: positions.results
-    })
-  } catch (error) {
-    return c.json({ error: 'Lỗi lấy metadata' }, 500)
-  }
+    try {
+        const regions = await c.env.DB.prepare(`
+            SELECT id, name
+            FROM regions
+            ORDER BY id
+        `).all()
+
+        const positions = await c.env.DB.prepare(`
+            SELECT id, name, display_name, level
+            FROM positions
+            ORDER BY id
+        `).all()
+
+        return c.json({
+            regions: regions.results,
+            positions: positions.results
+        })
+    } catch (error) {
+        return c.json({error: 'Lỗi lấy metadata'}, 500)
+    }
 })
 
 // Get admin statistics
@@ -1563,15 +1567,17 @@ app.get('/api/admin/potential-managers/:regionId/:positionId', async (c) => {
     const regionId = c.req.param('regionId')
     const positionId = parseInt(c.req.param('positionId'))
 
-    const selectedPosition = await c.env.DB.prepare(`
-      SELECT level FROM positions WHERE id = ?
-    `).bind(positionId).first()
-    
-    if (!selectedPosition) {
-      return c.json({ managers: [] })
-    }
-    
-    const selectedLevel = selectedPosition.level
+        const selectedPosition = await c.env.DB.prepare(`
+            SELECT level
+            FROM positions
+            WHERE id = ?
+        `).bind(positionId).first()
+
+        if (!selectedPosition) {
+            return c.json({managers: []})
+        }
+
+        const selectedLevel = selectedPosition.level
 
     if (selectedLevel <= 1) {
       return c.json({ managers: [] })
