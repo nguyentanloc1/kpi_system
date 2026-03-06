@@ -4,6 +4,12 @@ import {serveStatic} from 'hono/cloudflare-workers'
 
 type Bindings = {
     DB: D1Database;
+    LARK_APP_ID: string;
+    LARK_APP_SECRET: string;
+    LARK_SPREADSHEET_TOKEN: string;
+    LARK_SHEET_ID: string;
+    // Sheet chứa mapping: cột "Kênh tiktok" <-> cột "Email"
+    LARK_SHEET_ID_MAPPING: string;
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -12,6 +18,202 @@ const app = new Hono<{ Bindings: Bindings }>()
 function ensureSafeNumber(value: any, defaultValue: number = 0): number {
     const num = Number(value)
     return (isNaN(num) || num === null || num === undefined) ? defaultValue : num
+}
+
+// Lấy app_access_token từ Lark (token dùng chung cho app, hết hạn sau 2 tiếng)
+async function getLarkAccessToken(appId: string, appSecret: string): Promise<string> {
+    const res = await fetch('https://open.larksuite.com/open-apis/auth/v3/app_access_token/internal', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({app_id: appId, app_secret: appSecret}),
+    })
+    if (!res.ok) {
+        throw new Error(`Lark auth error: ${res.status}`)
+    }
+    const data: any = await res.json()
+    if (data.code !== 0) {
+        throw new Error(`Lark auth failed: ${data.msg}`)
+    }
+    return data.app_access_token
+}
+
+// Helper: đọc raw values từ 1 sheet Lark (tự detect số hàng)
+async function fetchSheetValues(
+    token: string,
+    spreadsheetToken: string,
+    sheetId: string
+): Promise<any[][]> {
+    // Lấy metadata để biết số hàng thực tế
+    const metaRes = await fetch(
+        `https://open.larksuite.com/open-apis/sheets/v3/spreadsheets/${spreadsheetToken}/sheets/${sheetId}`,
+        {headers: {'Authorization': `Bearer ${token}`}}
+    )
+    if (!metaRes.ok) throw new Error(`Lark sheet meta error: ${metaRes.status}`)
+    const metaData: any = await metaRes.json()
+    if (metaData.code !== 0) throw new Error(`Lark sheet meta failed: ${metaData.msg}`)
+    const rowCount: number = metaData.data?.sheet?.grid_properties?.row_count ?? 2000
+
+    const range = `${sheetId}!A1:AZ${rowCount}`
+    const dataRes = await fetch(
+        `https://open.larksuite.com/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${range}`,
+        {headers: {'Authorization': `Bearer ${token}`}}
+    )
+    if (!dataRes.ok) throw new Error(`Lark sheet read error: ${dataRes.status}`)
+    const sheetData: any = await dataRes.json()
+    if (sheetData.code !== 0) throw new Error(`Lark sheet read failed: ${sheetData.msg}`)
+    return sheetData.data?.valueRange?.values ?? []
+}
+
+// Bảng 1 (LARK_SHEET_ID): lấy cột "channel" và "video_create_time"
+async function fetchLarkSheetRows(
+    token: string,
+    spreadsheetToken: string,
+    sheetId: string
+): Promise<Array<{ channel: string; video_create_time: string }>> {
+    const values = await fetchSheetValues(token, spreadsheetToken, sheetId)
+    if (values.length < 2) return []
+
+    const headers: string[] = (values[0] ?? []).map((h: any) => String(h ?? '').trim())
+    const channelIdx = headers.indexOf('channel')
+    const dateIdx = headers.indexOf('video_create_time')
+
+    if (channelIdx === -1 || dateIdx === -1) {
+        throw new Error(`Không tìm thấy cột "channel" hoặc "video_create_time" trong sheet`)
+    }
+
+    const rows: Array<{ channel: string; video_create_time: string }> = []
+    for (let i = 1; i < values.length; i++) {
+        const row = values[i] ?? []
+        const channel = String(row[channelIdx] ?? '').trim()
+        const dateVal = String(row[dateIdx] ?? '').trim()
+        if (channel && dateVal) {
+            rows.push({channel, video_create_time: dateVal})
+        }
+    }
+    return rows
+}
+
+// Bảng 2 (LARK_SHEET_ID_MAPPING): đọc cột "Kênh tiktok" và "Email"
+// Trả về Map<channelName_lowercase, email_lowercase>
+async function fetchChannelEmailMapping(
+    token: string,
+    spreadsheetToken: string,
+    mappingSheetId: string
+): Promise<Map<string, string>> {
+    const values = await fetchSheetValues(token, spreadsheetToken, mappingSheetId)
+    const map = new Map<string, string>()
+    if (values.length < 2) return map
+
+    const headers: string[] = (values[0] ?? []).map((h: any) => String(h ?? '').trim())
+    const channelIdx = headers.findIndex(h => h === 'Kênh tiktok')
+    const emailIdx = headers.findIndex(h => h.toLowerCase() === 'email')
+
+    if (channelIdx === -1 || emailIdx === -1) {
+        console.warn('[Lark mapping] Không tìm thấy cột "Kênh tiktok" hoặc "Email" trong mapping sheet. Headers:', headers)
+        return map
+    }
+
+    for (let i = 1; i < values.length; i++) {
+        const row = values[i] ?? []
+        const channel = String(row[channelIdx] ?? '').trim().toLowerCase()
+        const email = String(row[emailIdx] ?? '').trim().toLowerCase()
+        if (channel && email) {
+            map.set(channel, email)
+        }
+    }
+    console.log(`[Lark mapping] Loaded ${map.size} channel->email mappings`)
+    return map
+}
+
+// Đếm số video trong tháng: dùng channel->email mapping để xác định user
+// username so với phần trước "@" của email
+function countVideosByUsernameAndMonth(
+    rows: Array<{ channel: string; video_create_time: string }>,
+    channelEmailMap: Map<string, string>,
+    username: string,
+    year: number,
+    month: number
+): number {
+    const prefix = `${year}-${String(month).padStart(2, '0')}` // "2025-03"
+    const usernameLower = username.toLowerCase()
+
+    return rows.filter(r => {
+        if (!r.video_create_time.startsWith(prefix)) return false
+        const channelKey = r.channel.toLowerCase()
+        const email = channelEmailMap.get(channelKey)
+        if (!email) return false
+        // So phần trước "@" trong email với username
+        const localPart = email.split('@')[0]
+        return localPart === usernameLower
+    }).length
+}
+
+// Helper chạy full sync cho 1 user (dùng cả trong HTTP endpoint lẫn Cron)
+async function runLarkSyncForUser(
+    env: any,
+    userId: number,
+    year: number,
+    month: number
+): Promise<{ success: boolean; videoCount?: number; error?: string; skipped?: boolean }> {
+    const user = await env.DB.prepare(
+        'SELECT id, username, position_id FROM users WHERE id = ?'
+    ).bind(userId).first()
+
+    if (!user) return {success: false, error: 'Không tìm thấy user'}
+    if ((user.position_id as number) !== 4) return {success: true, skipped: true}
+
+    const larkToken = await getLarkAccessToken(env.LARK_APP_ID, env.LARK_APP_SECRET)
+
+    // Gọi song song 2 bảng
+    const [rows, channelEmailMap] = await Promise.all([
+        fetchLarkSheetRows(larkToken, env.LARK_SPREADSHEET_TOKEN, env.LARK_SHEET_ID),
+        fetchChannelEmailMapping(larkToken, env.LARK_SPREADSHEET_TOKEN, env.LARK_SHEET_ID_MAPPING),
+    ])
+
+    const videoCount = countVideosByUsernameAndMonth(
+        rows, channelEmailMap, user.username as string, year, month
+    )
+    console.log(`[Lark sync] user=${user.username}, videoCount=${videoCount}`)
+
+    const template = await env.DB.prepare(`
+        SELECT id, standard_value, weight
+        FROM kpi_templates
+        WHERE id = 34
+          AND position_id = 4
+          AND is_for_kpi = 1 LIMIT 1
+    `).first()
+
+    // Fallback: tìm bằng tên nếu id 34 không tồn tại
+    const tpl = template ?? await env.DB.prepare(`
+        SELECT id, standard_value, weight
+        FROM kpi_templates
+        WHERE position_id = 4
+          AND is_for_kpi = 1
+          AND kpi_name LIKE '%video post%'
+        ORDER BY display_order LIMIT 1
+    `).first()
+
+    if (!tpl) return {success: false, error: 'Không tìm thấy KPI template video trong DB'}
+
+    const completionPercent = Math.min((videoCount / (tpl.standard_value as number)) * 100, 150)
+    const weightedScore = (completionPercent / 100) * (tpl.weight as number)
+
+    const safeCount = ensureSafeNumber(videoCount, 0)
+    const safeComp = ensureSafeNumber(completionPercent, 0)
+    const safeWt = ensureSafeNumber(weightedScore, 0)
+
+    await env.DB.prepare(`
+        INSERT INTO kpi_data (user_id, month, year, kpi_template_id, actual_value, completion_percent, weighted_score)
+        VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id)
+        DO
+        UPDATE SET
+            actual_value = ?,
+            completion_percent = ?,
+            weighted_score = ?,
+            updated_at = CURRENT_TIMESTAMP
+    `).bind(userId, month, year, tpl.id, safeCount, safeComp, safeWt, safeCount, safeComp, safeWt).run()
+
+    return {success: true, videoCount}
 }
 
 // Enable CORS
@@ -1563,9 +1765,9 @@ app.post("/api/admin/import-actual-revenue", async (c) => {
 
 // Get potential managers for a position
 app.get('/api/admin/potential-managers/:regionId/:positionId', async (c) => {
-  try {
-    const regionId = c.req.param('regionId')
-    const positionId = parseInt(c.req.param('positionId'))
+    try {
+        const regionId = c.req.param('regionId')
+        const positionId = parseInt(c.req.param('positionId'))
 
         const selectedPosition = await c.env.DB.prepare(`
             SELECT level
@@ -1579,25 +1781,25 @@ app.get('/api/admin/potential-managers/:regionId/:positionId', async (c) => {
 
         const selectedLevel = selectedPosition.level
 
-    if (selectedLevel <= 1) {
-      return c.json({ managers: [] })
-    }
-    
-    const results = await c.env.DB.prepare(`
-      SELECT u.id, u.full_name, u.username, p.level, p.display_name as position_name
-      FROM users u
-      JOIN positions p ON u.position_id = p.id
-      WHERE u.region_id = ?
-        AND p.level < ?
-        AND u.position_id != ?
+        if (selectedLevel <= 1) {
+            return c.json({managers: []})
+        }
+
+        const results = await c.env.DB.prepare(`
+            SELECT u.id, u.full_name, u.username, p.level, p.display_name as position_name
+            FROM users u
+                     JOIN positions p ON u.position_id = p.id
+            WHERE u.region_id = ?
+              AND p.level < ?
+              AND u.position_id != ?
         AND u.username NOT IN ('admin', 'admin1', 'admin2', 'admin3')
-      ORDER BY p.level DESC, u.full_name
-    `).bind(regionId, selectedLevel, positionId).all()
-    
-    return c.json({ managers: results.results })
-  } catch (error) {
-    return c.json({ error: 'Lỗi lấy danh sách quản lý' }, 500)
-  }
+            ORDER BY p.level DESC, u.full_name
+        `).bind(regionId, selectedLevel, positionId).all()
+
+        return c.json({managers: results.results})
+    } catch (error) {
+        return c.json({error: 'Lỗi lấy danh sách quản lý'}, 500)
+    }
 })
 
 // Create new user (admin only)
@@ -2322,6 +2524,62 @@ app.get('/api/admin/locked-months/:year', async (c) => {
     }
 })
 
+// ===== LARK → KPI AUTO-SYNC =====
+// Gọi khi Giám sát (position_id = 4) đăng nhập. Chạy nhanh (không block UI).
+// Luồng: lấy Lark token → đọc 2 sheet song song → map channel→email → đếm → upsert vào kpi_data
+app.post('/api/lark/sync-video-kpi', async (c) => {
+    try {
+        const {userId, year, month} = await c.req.json()
+        if (!userId || !year || !month) {
+            return c.json({error: 'Thiếu thông tin: userId, year, month'}, 400)
+        }
+
+        const result = await runLarkSyncForUser(c.env, userId, year, month)
+
+        if (result.skipped) {
+            return c.json({success: true, skipped: true, reason: 'Chỉ áp dụng cho Giám sát'})
+        }
+        if (!result.success) {
+            return c.json({success: false, error: result.error}, 200)
+        }
+
+        return c.json({
+            success: true,
+            videoCount: result.videoCount,
+            message: `Đã tự động điền ${result.videoCount} video cho tháng ${month}/${year}`
+        })
+    } catch (error: any) {
+        console.error('Lark sync error:', error)
+        return c.json({success: false, error: error.message ?? 'Lỗi sync Lark'}, 200)
+    }
+})
+
+// Admin: kích hoạt sync thủ công cho tất cả Giám sát
+app.post('/api/admin/lark/sync-all', async (c) => {
+    try {
+        const {year, month} = await c.req.json()
+        if (!year || !month) return c.json({error: 'Thiếu year/month'}, 400)
+
+        const users = await c.env.DB.prepare(
+            'SELECT id FROM users WHERE position_id = 4'
+        ).all()
+
+        let success = 0, failed = 0
+        for (const u of users.results) {
+            try {
+                const r = await runLarkSyncForUser(c.env, u.id as number, year, month)
+                if (r.success) success++; else failed++
+            } catch {
+                failed++
+            }
+        }
+
+        return c.json({success: true, message: `Sync xong: ${success} thành công, ${failed} lỗi`})
+    } catch (error: any) {
+        return c.json({error: error.message}, 500)
+    }
+})
+
 // Serve static files (app.js, style.css, etc.) - MUST be last to not override API routes
 // Note: serveStatic with manifest only works in production, will throw error for .ico in dev
 app.use('/*', async (c, next) => {
@@ -2333,4 +2591,34 @@ app.use('/*', async (c, next) => {
     }
 })
 
-export default app
+// Cron handler: tự động sync Lark mỗi tuần (cấu hình trong wrangler.toml)
+// Thêm vào wrangler.toml: [triggers] / crons = ["0 2 * * 1"]
+async function runLarkCronSync(env: any) {
+    const now = new Date()
+    const month = now.getMonth() + 1
+    const year = now.getFullYear()
+    console.log(`[Cron] Starting Lark sync for ${month}/${year}`)
+
+    const users = await env.DB.prepare(
+        'SELECT id FROM users WHERE position_id = 4'
+    ).all()
+
+    let success = 0, failed = 0
+    for (const u of users.results) {
+        try {
+            const r = await runLarkSyncForUser(env, u.id as number, year, month)
+            if (r.success) success++; else failed++
+        } catch (e: any) {
+            console.error(`[Cron] Failed for user ${u.id}:`, e.message)
+            failed++
+        }
+    }
+    console.log(`[Cron] Done: ${success} success, ${failed} failed`)
+}
+
+export default {
+    fetch: app.fetch.bind(app),
+    async scheduled(_event: ScheduledEvent, env: any, ctx: ExecutionContext) {
+        ctx.waitUntil(runLarkCronSync(env))
+    }
+}

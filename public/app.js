@@ -116,6 +116,11 @@ async function refreshUserFromDB() {
             const fresh = response.data.user;
             const merged = {...currentUser, ...fresh};
             currentUser = merged;
+
+            if (currentUser.position_id === 4) {
+                syncLarkVideoKpi(currentUser.id); // chạy nền, KHÔNG await
+            }
+
             localStorage.setItem('user', JSON.stringify(merged));
             return true;
         }
@@ -220,12 +225,42 @@ function setupLoginListeners() {
                 }
                 currentUser = response.data.user;
                 renderApp();
+
+                if (currentUser.position_id === 4) {
+                    syncLarkVideoKpi(currentUser.id); // chạy nền, KHÔNG await
+                }
             }
         } catch (error) {
             errorDiv.classList.remove('hidden');
             errorMsg.textContent = error.response?.data?.error || 'Đã xảy ra lỗi';
         }
     });
+}
+
+async function syncLarkVideoKpi(userId) {
+    try {
+        const now = new Date();
+        const month = now.getMonth() + 1;
+        const year = now.getFullYear();
+        const res = await axios.post('/api/lark/sync-video-kpi', {userId, year, month});
+
+        if (res.data?.success && res.data?.videoCount !== undefined) {
+            const videoCount = res.data.videoCount;
+            // Thử điền vào input nếu form đang mở (KPI template id=34)
+            const input = document.querySelector('.kpi-input[data-template-id="34"]');
+            if (input) {
+                input.value = videoCount;
+                input.style.borderColor = '#22c55e';
+                input.title = `Đã tự động điền ${videoCount} video từ dữ liệu Lark`;
+                input.dispatchEvent(new Event('input')); // kích hoạt calculateKpiPercent
+            } else {
+                // Form chưa mở — khi người dùng load KPI form thì data đã có sẵn trong DB
+                console.log(`[Lark sync] videoCount=${videoCount} đã lưu vào DB`);
+            }
+        }
+    } catch (e) {
+        console.warn('[Lark sync] Lỗi nền:', e?.message);
+    }
 }
 
 // ===== MAIN PAGE =====
@@ -653,6 +688,24 @@ async function loadKpiData() {
 
         container.innerHTML = html;
         document.getElementById('kpi-save-section').classList.remove('hidden');
+
+        // Nếu là Giám sát (position_id=4): highlight ô video (template 34) nếu đã có dữ liệu từ Lark
+        if (currentUser.position_id === 4) {
+            const videoInput = document.querySelector('.kpi-input[data-template-id="34"]');
+            if (videoInput && videoInput.value && parseFloat(videoInput.value) >= 0) {
+                videoInput.style.borderColor = '#22c55e';
+                videoInput.style.backgroundColor = '#f0fdf4';
+                videoInput.readOnly = true;
+                videoInput.title = 'Số video được tự động điền từ dữ liệu Lark. Không cần nhập thủ công.';
+                // Thêm badge thông báo bên dưới input
+                const badge = document.createElement('div');
+                badge.className = 'mt-1 flex items-center text-xs text-green-700 font-semibold';
+                badge.innerHTML = '<i class="fas fa-robot mr-1"></i>Đã tự động điền từ Lark';
+                videoInput.parentNode.appendChild(badge);
+                // Trigger tính % hiển thị
+                videoInput.dispatchEvent(new Event('input'));
+            }
+        }
 
         // Load history for the year
         await loadKpiHistory(year);
@@ -2066,6 +2119,9 @@ function renderAdminTab(container) {
           <button onclick="showAdminSubTab('revenue-actual')" class="admin-subtab px-6 py-3 rounded-lg font-semibold transition-all" data-tab="revenue-actual">
             <i class="fas fa-upload mr-2"></i>Upload Doanh thu
           </button>
+          <button onclick="showAdminSubTab('lark-sync')" class="admin-subtab px-6 py-3 rounded-lg font-semibold transition-all" data-tab="lark-sync">
+            <i class="fab fa-tiktok mr-2"></i>Sync Lark
+          </button>
           
           <!-- Separator -->
           <div class="w-full border-t border-gray-300 my-2"></div>
@@ -2135,6 +2191,8 @@ function showAdminSubTab(tabName) {
         renderKpiDetail(content, '4', 'Giám sát', [38]); // KPI ID 38: Tuyển dụng
     } else if (tabName === 'lock-month') {
         renderLockMonthTab(content);
+    } else if (tabName === 'lark-sync') {
+        renderLarkSyncTab(content);
     }
 }
 
@@ -4754,6 +4812,87 @@ async function submitChangePassword() {
     }
 }
 
+// ===== LARK SYNC ADMIN TAB =====
+function renderLarkSyncTab(container) {
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const year = now.getFullYear();
+
+    container.innerHTML = `
+    <div class="bg-white rounded-xl shadow-xl p-6">
+      <h3 class="text-2xl font-bold mb-2 flex items-center">
+        <i class="fab fa-tiktok mr-2 text-black"></i>Sync dữ liệu Lark → KPI
+      </h3>
+      <p class="text-gray-500 text-sm mb-6">
+        Đồng bộ số lượng video TikTok từ Lark Spreadsheet vào KPI Giám sát.<br>
+        Hệ thống tự động chạy mỗi tuần (thứ Hai 2:00 SA). Bạn cũng có thể kích hoạt thủ công dưới đây.
+      </p>
+
+      <div class="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border-2 border-blue-200 mb-6">
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Tháng</label>
+            <select id="lark-sync-month" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg">
+              ${Array.from({length: 12}, (_, i) => i + 1).map(m =>
+        `<option value="${m}" ${m === month ? 'selected' : ''}>Tháng ${m}</option>`
+    ).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Năm</label>
+            <select id="lark-sync-year" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg">
+              <option value="${year}" selected>Năm ${year}</option>
+            </select>
+          </div>
+        </div>
+        <button onclick="triggerLarkSyncAll()" id="lark-sync-btn"
+          class="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all">
+          <i class="fas fa-sync-alt mr-2"></i>Sync tất cả Giám sát ngay bây giờ
+        </button>
+      </div>
+
+      <div id="lark-sync-result" class="hidden"></div>
+
+      <div class="bg-yellow-50 border border-yellow-300 rounded-lg p-4 text-sm text-yellow-800">
+        <i class="fas fa-info-circle mr-2"></i>
+        <strong>Lưu ý:</strong> Để Cron tự động hoạt động, cần thêm vào <code class="bg-yellow-100 px-1 rounded">wrangler.toml</code>:
+        <pre class="mt-2 bg-white rounded p-2 text-xs overflow-x-auto">[triggers]\ncrons = ["0 2 * * 1"]  # Thứ Hai 2:00 SA mỗi tuần</pre>
+      </div>
+    </div>
+  `;
+}
+
+async function triggerLarkSyncAll() {
+    const month = parseInt(document.getElementById('lark-sync-month').value);
+    const year = parseInt(document.getElementById('lark-sync-year').value);
+    const btn = document.getElementById('lark-sync-btn');
+    const result = document.getElementById('lark-sync-result');
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang sync...';
+    result.classList.add('hidden');
+
+    try {
+        const res = await axios.post('/api/admin/lark/sync-all', {year, month});
+        result.innerHTML = `
+      <div class="p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded-lg">
+        <i class="fas fa-check-circle mr-2"></i>${res.data.message}
+      </div>
+    `;
+        result.classList.remove('hidden');
+    } catch (e) {
+        result.innerHTML = `
+      <div class="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
+        <i class="fas fa-exclamation-circle mr-2"></i>${e.response?.data?.error || 'Lỗi sync'}
+      </div>
+    `;
+        result.classList.remove('hidden');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Sync tất cả Giám sát ngay bây giờ';
+    }
+}
+
 // Lock Month Management for Admin
 function renderLockMonthTab(container) {
     container.innerHTML = `
@@ -4874,3 +5013,4 @@ async function unlockMonth(year, month, positionId) {
         alert('Lỗi kết nối');
     }
 }
+
