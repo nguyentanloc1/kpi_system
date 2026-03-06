@@ -1,26 +1,19 @@
-// ===== GLOBAL STATE =====
 let currentUser = null;
 let currentYear = new Date().getFullYear();
 let currentMonth = new Date().getMonth() + 1;
-let currentTab = 'commitment'; // 'commitment', 'kpi', 'level', 'dashboard', 'recruitment', 'admin'
-let kpiMonthYear = null; // Store selected KPI month/year, format: { month, year }
+let currentTab = 'commitment';
+let kpiMonthYear = null;
 
-// ===== USER PAGINATION VARIABLES =====
 let allUsers = [];
 let filteredUsers = [];
 let currentUserPage = 1;
-const USER_PAGE_SIZE = 25; // số user / trang
+const USER_PAGE_SIZE = 25;
 
-
-// ===== UTILITY FUNCTIONS =====
 function formatLargeNumber(value, kpiName = '', forceShort = false) {
     if (!value || value === '-') return '-';
     const num = parseFloat(value);
     if (isNaN(num)) return value;
 
-    // Special case: value = 1
-    // If kpi_name contains "Tỷ lệ" (any ratio/percentage) -> show as 100%
-    // Otherwise (e.g., "Số lượng") -> show as 1
     if (num === 1) {
         if (kpiName && kpiName.includes('Tỷ lệ')) {
             return '100%';
@@ -32,18 +25,14 @@ function formatLargeNumber(value, kpiName = '', forceShort = false) {
         return Number(value).toFixed(2) + ' năm';
     }
 
-    // If value is between 0 and 1 (excluding 1), treat as percentage
     if (kpiName && kpiName.includes('Tỷ lệ') && num > 0 && num < 1) {
         return (num * 100) + '%';
     }
 
-
-    // For "Tỷ lệ %" indicators with value > 1, show as percentage directly
     if (kpiName && kpiName.includes('Tỷ lệ %') && num >= 1 && num <= 200) {
         return num.toFixed(1).replace('.0', '') + '%';
     }
 
-    // Short format for very large numbers (revenue)
     if (num >= 1000000000) {
         const billions = num / 1000000000;
         return billions.toFixed(billions >= 10 ? 0 : 1).replace('.0', '') + ' tỷ';
@@ -55,7 +44,6 @@ function formatLargeNumber(value, kpiName = '', forceShort = false) {
     return num.toLocaleString('vi-VN');
 }
 
-// ===== LOADING OVERLAY =====
 function showLoadingOverlay(message = 'Đang xử lý...') {
     let overlay = document.getElementById('loading-overlay');
     if (!overlay) {
@@ -74,7 +62,7 @@ function showLoadingOverlay(message = 'Đang xử lý...') {
       <p id="loading-overlay-msg" style="color:#fff;font-size:1.1rem;font-weight:600;
                                           text-shadow:0 1px 4px rgba(0,0,0,0.5);">${message}</p>
     `;
-        // Thêm keyframe nếu chưa có
+
         if (!document.getElementById('loading-overlay-style')) {
             const style = document.createElement('style');
             style.id = 'loading-overlay-style';
@@ -98,7 +86,6 @@ function hideLoadingOverlay() {
     if (overlay) overlay.style.display = 'none';
 }
 
-// ===== AUTH =====
 function checkAuth() {
     const userStr = localStorage.getItem('user');
     if (userStr) {
@@ -118,7 +105,7 @@ async function refreshUserFromDB() {
             currentUser = merged;
 
             if (currentUser.position_id === 4) {
-                syncLarkVideoKpi(currentUser.id); // chạy nền, KHÔNG await
+                syncLarkVideoKpi(currentUser.id);
             }
 
             localStorage.setItem('user', JSON.stringify(merged));
@@ -142,7 +129,6 @@ function logout() {
     renderApp();
 }
 
-// ===== MAIN APP =====
 async function renderApp() {
     const app = document.getElementById('app');
     if (!checkAuth()) {
@@ -160,7 +146,6 @@ async function renderApp() {
     setupMainPageListeners();
 }
 
-// ===== LOGIN PAGE =====
 function renderLoginPage() {
     return `
     <div class="min-h-screen flex items-center justify-center relative overflow-hidden">
@@ -224,10 +209,10 @@ function setupLoginListeners() {
                     localStorage.setItem('adminRegions', JSON.stringify(response.data.adminRegions));
                 }
                 currentUser = response.data.user;
-                renderApp();
+                await renderApp();
 
                 if (currentUser.position_id === 4) {
-                    syncLarkVideoKpi(currentUser.id); // chạy nền, KHÔNG await
+                    syncLarkVideoKpi(currentUser.id);
                 }
             }
         } catch (error) {
@@ -246,16 +231,13 @@ async function syncLarkVideoKpi(userId) {
 
         if (res.data?.success && res.data?.videoCount !== undefined) {
             const videoCount = res.data.videoCount;
-            // Thử điền vào input nếu form đang mở (KPI template id=34)
             const input = document.querySelector('.kpi-input[data-template-id="34"]');
             if (input) {
+                input.readOnly = true;
                 input.value = videoCount;
                 input.style.borderColor = '#22c55e';
                 input.title = `Đã tự động điền ${videoCount} video từ dữ liệu Lark`;
-                input.dispatchEvent(new Event('input')); // kích hoạt calculateKpiPercent
-            } else {
-                // Form chưa mở — khi người dùng load KPI form thì data đã có sẵn trong DB
-                console.log(`[Lark sync] videoCount=${videoCount} đã lưu vào DB`);
+                input.dispatchEvent(new Event('input'));
             }
         }
     } catch (e) {
@@ -263,7 +245,6 @@ async function syncLarkVideoKpi(userId) {
     }
 }
 
-// ===== MAIN PAGE =====
 function renderMainPage() {
     const isAdmin = currentUser.username === 'admin';
 
@@ -428,7 +409,6 @@ function setupMainPageListeners() {
 function switchTab(tab) {
     currentTab = tab;
 
-    // Update desktop tab styling
     document.querySelectorAll('[id^="tab-"]').forEach(btn => {
         btn.classList.remove('bg-gradient-to-r', 'from-blue-500', 'to-purple-600', 'text-white', 'shadow-lg');
         btn.classList.add('text-gray-600', 'hover:text-gray-800');
@@ -440,7 +420,6 @@ function switchTab(tab) {
         activeTab.classList.remove('text-gray-600', 'hover:text-gray-800');
     }
 
-    // Update mobile tab styling
     document.querySelectorAll('[id^="mobile-tab-"]').forEach(btn => {
         btn.classList.remove('bg-gradient-to-t', 'from-blue-500', 'to-purple-600', 'text-white');
         btn.classList.add('text-gray-500');
@@ -452,7 +431,6 @@ function switchTab(tab) {
         activeMobileTab.classList.remove('text-gray-500');
     }
 
-    // Render content
     const content = document.getElementById('tab-content');
     if (tab === 'kpi') {
         renderKpiTab(content);
@@ -471,7 +449,6 @@ function switchTab(tab) {
     }
 }
 
-// ===== KPI TAB =====
 function renderKpiTab(container) {
     container.innerHTML = `
     <div class="bg-white rounded-xl lg:rounded-2xl shadow-lg lg:shadow-xl p-4 lg:p-8">
@@ -565,7 +542,6 @@ function renderKpiTab(container) {
 
     loadKpiData();
 
-    // Setup mobile listeners
     document.getElementById('load-kpi-btn').addEventListener('click', loadKpiData);
     document.getElementById('save-kpi-btn').addEventListener('click', saveKpiData);
     document.getElementById('kpi-month').addEventListener('change', () => {
@@ -587,7 +563,6 @@ function renderKpiTab(container) {
         }
     });
 
-    // Setup desktop listeners (if exists)
     const desktopLoadBtn = document.getElementById('load-kpi-btn-desktop');
     if (desktopLoadBtn) {
         desktopLoadBtn.addEventListener('click', loadKpiData);
@@ -615,20 +590,18 @@ async function loadKpiData() {
     const year = document.getElementById('kpi-year').value;
     const container = document.getElementById('kpi-form-container');
 
-    // Store selected month/year for Level tab
     kpiMonthYear = {month: parseInt(month), year: parseInt(year)};
 
     try {
-        // Use new API with revenue plan
+
         const response = await axios.get(
             `/api/kpi-form-data/${currentUser.id}/${currentUser.position_id}/${year}/${month}?type=kpi`
         );
         const {templates, revenuePlan, existingData} = response.data;
 
-        // Create data map
         const dataMap = {};
         existingData.forEach(item => {
-            // Convert decimal back to percentage for display (0.7 -> 70)
+
             let displayValue = item.actual_value;
             const isRevenueGrowthKpi = item.kpi_name && item.kpi_name.includes('doanh thu tăng trưởng');
             const isPercentageKpi = item.kpi_name && item.kpi_name.includes('Tỷ lệ') && !isRevenueGrowthKpi;
@@ -638,13 +611,10 @@ async function loadKpiData() {
             dataMap[item.kpi_template_id] = displayValue;
         });
 
-        // Check if user position has revenue KPIs (PTGĐ=1, GĐKDCC=5, GĐKD=2, TLKD=3)
         const hasRevenue = [1, 2, 3, 5].includes(currentUser.position_id);
 
-        // Render form
         let html = '';
 
-        // Revenue plan info (if applicable)
         if (hasRevenue && revenuePlan) {
             html += `
         <div class="bg-gradient-to-r from-green-50 to-emerald-50 p-5 rounded-xl mb-6 border-2 border-green-200">
@@ -663,21 +633,18 @@ async function loadKpiData() {
       `;
         }
 
-        // Render KPI inputs
         html += '<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">';
 
         const half = Math.ceil(templates.length / 2);
         const leftTemplates = templates.slice(0, half);
         const rightTemplates = templates.slice(half);
 
-        // Left column
         html += '<div>';
         leftTemplates.forEach((template, idx) => {
             html += renderKpiInput(template, idx + 1, dataMap[template.id] || '', revenuePlan, hasRevenue, month);
         });
         html += '</div>';
 
-        // Right column
         html += '<div>';
         rightTemplates.forEach((template, idx) => {
             html += renderKpiInput(template, half + idx + 1, dataMap[template.id] || '', revenuePlan, hasRevenue, month);
@@ -689,25 +656,16 @@ async function loadKpiData() {
         container.innerHTML = html;
         document.getElementById('kpi-save-section').classList.remove('hidden');
 
-        // Nếu là Giám sát (position_id=4): highlight ô video (template 34) nếu đã có dữ liệu từ Lark
         if (currentUser.position_id === 4) {
             const videoInput = document.querySelector('.kpi-input[data-template-id="34"]');
             if (videoInput && videoInput.value && parseFloat(videoInput.value) >= 0) {
                 videoInput.style.borderColor = '#22c55e';
                 videoInput.style.backgroundColor = '#f0fdf4';
                 videoInput.readOnly = true;
-                videoInput.title = 'Số video được tự động điền từ dữ liệu Lark. Không cần nhập thủ công.';
-                // Thêm badge thông báo bên dưới input
-                const badge = document.createElement('div');
-                badge.className = 'mt-1 flex items-center text-xs text-green-700 font-semibold';
-                badge.innerHTML = '<i class="fas fa-robot mr-1"></i>Đã tự động điền từ Lark';
-                videoInput.parentNode.appendChild(badge);
-                // Trigger tính % hiển thị
                 videoInput.dispatchEvent(new Event('input'));
             }
         }
 
-        // Load history for the year
         await loadKpiHistory(year);
 
     } catch (error) {
@@ -723,9 +681,9 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) 
     let infoHtml = '';
 
     if (isRevenueKpi && hasRevenue) {
-        // Revenue KPI - show special input with or without plan
+
         if (revenuePlan) {
-            // Has plan - show calculator
+
             inputHtml = `
         <div class="space-y-3">
           <div>
@@ -754,7 +712,7 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) 
         </div>
       `;
         } else {
-            // No plan - just show input with warning
+
             inputHtml = `
         <div class="space-y-3">
           <div class="bg-orange-50 p-3 rounded-lg border border-orange-300 mb-3">
@@ -782,10 +740,9 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) 
       `;
         }
 
-        // No instructions needed - removed per user request
         infoHtml = '';
     } else {
-        // Normal input with auto-calculate
+
         const isRevenueGrowthKpi = template.kpi_name && template.kpi_name.includes('doanh thu tăng trưởng');
         const isPercentageKpi = template.kpi_name && template.kpi_name.includes('Tỷ lệ') && !isRevenueGrowthKpi;
         const placeholder = isPercentageKpi ? 'Nhập số % (ví dụ: 70 cho 70%)' : 'Nhập giá trị thực tế đạt được';
@@ -862,7 +819,6 @@ function calculateKpiPercent(input) {
 
     if (!standardValue || standardValue === 0) return;
 
-    // If it's a percentage KPI, convert input (70) to decimal (0.7)
     const adjustedValue = isPercentage ? actualValue / 100 : actualValue;
 
     const percent = Math.min((adjustedValue / standardValue) * 100, 150);
@@ -914,10 +870,8 @@ async function saveKpiData() {
       </div>
     `;
 
-        // Load and show KPI summary
         await loadKpiSummary(year, month);
 
-        // Load and show KPI history
         await loadKpiHistory(year);
 
         setTimeout(() => {
@@ -1088,7 +1042,6 @@ async function loadLevelHistory(year) {
     }
 }
 
-// ===== LEVEL TAB =====
 function renderLevelTab(container) {
     container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-4 md:p-8">
@@ -1171,19 +1124,16 @@ async function loadLevelDataNew() {
     container.innerHTML = '<div class="text-center py-12"><i class="fas fa-spinner fa-spin text-4xl text-purple-500"></i><p class="mt-4 text-gray-600">Đang tải dữ liệu Level...</p></div>';
 
     try {
-        // Load Level templates
+
         const templatesRes = await axios.get(`/api/kpi-templates/${currentUser.position_id}?type=level`);
         const templates = templatesRes.data.templates;
 
-        // Load Level data (auto-filled from KPI by backend)
         const dataRes = await axios.get(`/api/kpi-data/${currentUser.id}/${year}/${month}`);
         const allData = dataRes.data.data || [];
 
-        // Filter Level data only
         const levelTemplateIds = new Set(templates.map(t => t.id));
         const levelData = allData.filter(item => levelTemplateIds.has(item.kpi_template_id));
 
-        // Create data map
         const dataMap = {};
         levelData.forEach(item => {
             dataMap[item.kpi_template_id] = {
@@ -1193,7 +1143,6 @@ async function loadLevelDataNew() {
             };
         });
 
-        // Render Level cards - Responsive design
         let html = '<div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">';
 
         templates.forEach((template, idx) => {
@@ -1258,7 +1207,6 @@ async function loadLevelDataNew() {
         html += '</div>';
         container.innerHTML = html;
 
-        // Load Level summary and history
         await loadLevelSummary(year, month);
         await loadLevelHistory(year);
 
@@ -1278,7 +1226,6 @@ async function loadLevelData() {
     const container = document.getElementById('level-form-container');
     const periodDisplay = document.getElementById('level-current-period');
 
-    // Check if KPI month/year has been selected
     if (!kpiMonthYear) {
         if (periodDisplay) {
             periodDisplay.textContent = '-';
@@ -1299,7 +1246,6 @@ async function loadLevelData() {
     const month = kpiMonthYear.month;
     const year = kpiMonthYear.year;
 
-    // Update period display
     if (periodDisplay) {
         periodDisplay.textContent = `Tháng ${month}/${year}`;
     }
@@ -1309,21 +1255,18 @@ async function loadLevelData() {
     container.innerHTML = '<div class="text-center py-12"><i class="fas fa-spinner fa-spin text-4xl text-purple-500"></i><p class="mt-4 text-gray-600">Đang tải dữ liệu Level...</p></div>';
 
     try {
-        // Load Level templates
+
         const response = await axios.get(`/api/kpi-templates/${currentUser.position_id}?type=level`);
         const templates = response.data.templates;
 
-        // Load existing Level data (auto-filled from KPI)
         const dataRes = await axios.get(`/api/kpi-data/${currentUser.id}/${year}/${month}`);
         const existingData = dataRes.data.data || [];
 
-        // Create set of Level template IDs
         const levelTemplateIds = new Set(templates.map(t => t.id));
 
-        // Create data map for Level data only (match by template ID)
         const dataMap = {};
         existingData.forEach(item => {
-            if (levelTemplateIds.has(item.kpi_template_id)) { // Level data
+            if (levelTemplateIds.has(item.kpi_template_id)) {
                 dataMap[item.kpi_template_id] = {
                     value: item.actual_value,
                     percent: item.completion_percent,
@@ -1332,7 +1275,6 @@ async function loadLevelData() {
             }
         });
 
-        // Render Level indicators in 2 columns
         const leftColumn = templates.slice(0, 2).map((template, idx) => {
             const data = dataMap[template.id];
             const hasData = !!data;
@@ -1444,7 +1386,6 @@ async function loadLevelData() {
 
         container.innerHTML = html;
 
-        // Load Level summary and history
         loadLevelSummary(year, month);
         loadLevelHistory(year);
 
@@ -1459,7 +1400,6 @@ async function loadLevelData() {
     }
 }
 
-// ===== TRACKING TAB =====
 function renderTrackingTab(container) {
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -1506,11 +1446,10 @@ async function loadTrackingData() {
     container.innerHTML = '<div class="text-center py-12"><i class="fas fa-spinner fa-spin text-4xl text-indigo-500"></i></div>';
 
     try {
-        // Load all monthly data for the year
+
         const response = await axios.get(`/api/tracking/${currentUser.id}/${year}`);
         const {kpiData, levelData, templates} = response.data;
 
-        // Render KPI tracking section
         let html = `
       <div class="bg-gradient-to-r from-blue-50 to-cyan-50 p-6 rounded-xl border-2 border-blue-200">
         <h3 class="text-xl font-bold text-blue-800 mb-4 flex items-center">
@@ -1527,7 +1466,6 @@ async function loadTrackingData() {
             <tbody>
     `;
 
-        // Render each KPI indicator
         templates.kpi.forEach((template) => {
             html += `
         <tr class="hover:bg-blue-50">
@@ -1537,11 +1475,11 @@ async function loadTrackingData() {
             for (let month = 1; month <= 12; month++) {
                 const data = kpiData.find(d => d.month === month && d.kpi_template_id === template.id);
                 if (data) {
-                    // For percentage KPIs, multiply by 100 to show the original input value
+
                     const isPercentKpi = template.kpi_name.includes('Tỷ lệ %');
                     let displayValue = data.actual_value;
                     if (isPercentKpi && displayValue < 2) {
-                        displayValue = displayValue * 100; // Convert 0.7 → 70
+                        displayValue = displayValue * 100;
                     }
                     const percent = data.completion_percent * 100;
                     const color = percent >= 100 ? 'text-green-600' : percent >= 50 ? 'text-yellow-600' : 'text-red-600';
@@ -1554,7 +1492,6 @@ async function loadTrackingData() {
             html += `</tr>`;
         });
 
-        // Add total %KPI row
         html += `
       <tr class="bg-blue-100 font-bold">
         <td class="border border-blue-300 px-4 py-2">% KPI tổng</td>
@@ -1576,7 +1513,6 @@ async function loadTrackingData() {
       </tr>
     `;
 
-        // Add KPI Classification row
         html += `
       <tr class="bg-blue-50 font-semibold">
         <td class="border border-blue-300 px-4 py-2">Xếp loại KPI</td>
@@ -1617,7 +1553,6 @@ async function loadTrackingData() {
             <tbody>
     `;
 
-        // Render each Level indicator
         templates.level.forEach((template) => {
             html += `
         <tr class="hover:bg-purple-50">
@@ -1627,11 +1562,11 @@ async function loadTrackingData() {
             for (let month = 1; month <= 12; month++) {
                 const data = levelData.find(d => d.month === month && d.kpi_template_id === template.id);
                 if (data) {
-                    // For percentage KPIs, multiply by 100 to show the original input value
+
                     const isPercentKpi = template.name.includes('Tỷ lệ %');
                     let displayValue = data.actual_value;
                     if (isPercentKpi && displayValue < 2) {
-                        displayValue = displayValue * 100; // Convert 0.7 → 70
+                        displayValue = displayValue * 100;
                     }
                     const percent = data.completion_percent * 100;
                     const color = percent >= 100 ? 'text-green-600' : percent >= 50 ? 'text-yellow-600' : 'text-red-600';
@@ -1644,7 +1579,6 @@ async function loadTrackingData() {
             html += `</tr>`;
         });
 
-        // Add total %Level row
         html += `
       <tr class="bg-purple-100 font-bold">
         <td class="border border-purple-300 px-4 py-2">% Level tổng</td>
@@ -1666,7 +1600,6 @@ async function loadTrackingData() {
       </tr>
     `;
 
-        // Add Level Classification row
         html += `
       <tr class="bg-purple-50 font-semibold">
         <td class="border border-purple-300 px-4 py-2">Xếp loại Level</td>
@@ -1701,7 +1634,6 @@ async function loadTrackingData() {
     }
 }
 
-// ===== DASHBOARD TAB =====
 function renderDashboardTab(container) {
     container.innerHTML = `
     <div class="bg-white rounded-xl lg:rounded-2xl shadow-lg lg:shadow-xl p-4 lg:p-8">
@@ -1767,7 +1699,6 @@ function renderDashboardTab(container) {
 
     loadDashboardData();
 
-    // Setup mobile listeners
     document.getElementById('load-dash-btn').addEventListener('click', loadDashboardData);
     document.getElementById('dash-month').addEventListener('change', () => {
         const month = document.getElementById('dash-month').value;
@@ -1780,7 +1711,6 @@ function renderDashboardTab(container) {
         if (desktopYear) desktopYear.value = year;
     });
 
-    // Setup desktop listeners (if exists)
     const desktopLoadBtn = document.getElementById('load-dash-btn-desktop');
     if (desktopLoadBtn) {
         desktopLoadBtn.addEventListener('click', loadDashboardData);
@@ -1812,11 +1742,10 @@ async function loadDashboardData() {
             return;
         }
 
-        // If admin: group by region and show 4 tables
         if (isAdmin) {
             renderAdminDashboard(data, container);
         } else {
-            // Normal user: 2-column layout (KPI left, Level right)
+
             renderTwoColumnDashboard(data, container);
         }
 
@@ -1827,7 +1756,7 @@ async function loadDashboardData() {
 }
 
 function renderAdminDashboard(data, container) {
-    // Group by region
+
     const regions = {};
     data.forEach(user => {
         if (!regions[user.region_name]) {
@@ -1927,7 +1856,7 @@ function renderAdminDashboard(data, container) {
 }
 
 function renderTwoColumnDashboard(data, container) {
-    // Group by position
+
     const byPosition = {};
     const positionNames = {};
 
@@ -1940,7 +1869,6 @@ function renderTwoColumnDashboard(data, container) {
         byPosition[posId].push(user);
     });
 
-    // Sort positions: 1, 5, 2, 3, 4
     const sortedPositions = Object.keys(byPosition).map(Number).sort((a, b) => {
         const order = {1: 1, 5: 2, 2: 3, 3: 4, 4: 5};
         return order[a] - order[b];
@@ -2037,7 +1965,6 @@ function renderTwoColumnDashboard(data, container) {
     container.innerHTML = html;
 }
 
-// Helper function to get KPI classification based on percentage
 function getKpiClassification(percent) {
     if (percent >= 120) return 'Xuất sắc';
     if (percent >= 90) return 'Giỏi';
@@ -2046,24 +1973,22 @@ function getKpiClassification(percent) {
     return 'Cần Cải Thiện';
 }
 
-// Helper function to get Level classification based on percentage and position
-// positionId: 1=PTGĐ, 2=GĐKD, 3=TLKD, 4=Giám sát, 5=GĐKDCC
 function getLevelClassification(percent, positionId) {
     if (!positionId || positionId === 1 || positionId === 5) {
-        // PTGĐ & GĐKDCC
+
         if (percent >= 155) return 'Level 4';
         if (percent >= 131) return 'Level 3';
         if (percent > 100) return 'Level 2';
         if (percent >= 50) return 'Level 1';
     } else if (positionId === 2 || positionId === 3) {
-        // GĐKD & Trợ lý KD
+
         if (percent >= 140) return 'Level 5';
         if (percent >= 121) return 'Level 4';
         if (percent >= 101) return 'Level 3';
         if (percent >= 81) return 'Level 2';
         if (percent >= 50) return 'Level 1';
     } else if (positionId === 4) {
-        // Giám sát
+
         if (percent >= 150) return 'Level 5';
         if (percent >= 131) return 'Level 4';
         if (percent >= 101) return 'Level 3';
@@ -2074,18 +1999,15 @@ function getLevelClassification(percent, positionId) {
 }
 
 function getLevelColor(level) {
-    // Based on xep loai level.xlsx - Different thresholds per position
-    // PTGĐ/GĐKDCC: Level 1-4 only
-    // GĐKD/TLKD/Giám sát: Level 1-5
-    if (level === 'Tốt' || level.includes('Level 5')) return 'bg-purple-500 shadow-lg shadow-purple-300';   // Level 5 - Xuất sắc nhất
-    if (level === 'Tốt' || level.includes('Level 4')) return 'bg-green-500 shadow-lg shadow-green-300';      // Level 4 - Tốt
-    if (level === 'Khá' || level.includes('Level 3')) return 'bg-blue-500 shadow-lg shadow-blue-300';       // Level 3 - Khá
-    if (level === 'Đạt chuẩn' || level.includes('Level 2')) return 'bg-yellow-500 shadow-lg shadow-yellow-300'; // Level 2 - Đạt chuẩn
-    if (level.includes('Level 1')) return 'bg-orange-500 shadow-lg shadow-orange-300';                      // Level 1
-    return 'bg-red-500 shadow-lg shadow-red-300';  // Xem xét lại (<50%)
+
+    if (level === 'Tốt' || level.includes('Level 5')) return 'bg-purple-500 shadow-lg shadow-purple-300';
+    if (level === 'Tốt' || level.includes('Level 4')) return 'bg-green-500 shadow-lg shadow-green-300';
+    if (level === 'Khá' || level.includes('Level 3')) return 'bg-blue-500 shadow-lg shadow-blue-300';
+    if (level === 'Đạt chuẩn' || level.includes('Level 2')) return 'bg-yellow-500 shadow-lg shadow-yellow-300';
+    if (level.includes('Level 1')) return 'bg-orange-500 shadow-lg shadow-orange-300';
+    return 'bg-red-500 shadow-lg shadow-red-300';
 }
 
-// ===== ADMIN TAB - COMPLETE REWRITE =====
 function renderAdminTab(container) {
     container.innerHTML = `
     <div class="space-y-6">
@@ -2148,13 +2070,11 @@ function renderAdminTab(container) {
     </div>
   `;
 
-    // Show overview by default
     showAdminSubTab('overview');
 }
 
-// Handle sub-tab switching
 function showAdminSubTab(tabName) {
-    // Update tab styles
+
     document.querySelectorAll('.admin-subtab').forEach(btn => {
         if (btn.dataset.tab === tabName) {
             btn.className = 'admin-subtab px-6 py-3 rounded-lg font-semibold transition-all bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg';
@@ -2170,7 +2090,7 @@ function showAdminSubTab(tabName) {
     } else if (tabName === 'users') {
         renderAdminUsers(content);
     } else if (tabName === 'ptgd') {
-        renderPositionDashboard(content, '1,5', 'PTGĐ/GĐKDCC'); // position 1 and 5
+        renderPositionDashboard(content, '1,5', 'PTGĐ/GĐKDCC');
     } else if (tabName === 'gdkd') {
         renderPositionDashboard(content, '2', 'GĐKD');
     } else if (tabName === 'tlkd') {
@@ -2182,13 +2102,13 @@ function showAdminSubTab(tabName) {
     } else if (tabName === 'revenue-actual') {
         renderActualRevenueUpload(content);
     } else if (tabName === 'ptgd-kpi') {
-        renderKpiDetail(content, '1,5', 'PTGĐ/GĐKDCC - Doanh thu', [7]); // KPI ID 7: Doanh thu
+        renderKpiDetail(content, '1,5', 'PTGĐ/GĐKDCC - Doanh thu', [7]);
     } else if (tabName === 'gdkd-kpi') {
-        renderKpiDetail(content, '2', 'GĐKD - Doanh thu', [17]); // KPI ID 17: Doanh thu
+        renderKpiDetail(content, '2', 'GĐKD - Doanh thu', [17]);
     } else if (tabName === 'tlkd-kpi') {
-        renderKpiDetail(content, '3', 'Trợ lý kinh doanh - Doanh thu và Zalo', [27, 29]); // KPI ID 27: Doanh thu, 29: Zalo
+        renderKpiDetail(content, '3', 'Trợ lý kinh doanh - Doanh thu và Zalo', [27, 29]);
     } else if (tabName === 'gs-kpi') {
-        renderKpiDetail(content, '4', 'Giám sát', [38]); // KPI ID 38: Tuyển dụng
+        renderKpiDetail(content, '4', 'Giám sát', [38]);
     } else if (tabName === 'lock-month') {
         renderLockMonthTab(content);
     } else if (tabName === 'lark-sync') {
@@ -2546,13 +2466,11 @@ function renderAdminUsers(container) {
     </div> <!-- end bg-white -->
   `;
 
-    // Only load user-related data, NOT statistics or templates
     loadAdminMetadata();
     loadAdminUsers();
 }
 
 let adminMetadata = {regions: [], positions: []};
-
 
 async function loadAdminStatistics() {
     try {
@@ -2592,7 +2510,6 @@ async function loadKpiTemplates() {
         const templates = response.data.templates;
         const container = document.getElementById('kpi-templates-table');
 
-        // Group by position
         const grouped = {};
         templates.forEach(t => {
             if (!grouped[t.position_name]) grouped[t.position_name] = {kpi: [], level: []};
@@ -2670,21 +2587,18 @@ async function loadAdminMetadata() {
         const response = await axios.get('/api/admin/metadata');
         adminMetadata = response.data;
 
-        // Populate region dropdown (for create form)
         const regionSelect = document.getElementById('new-region');
         if (regionSelect) {
             regionSelect.innerHTML = '<option value="">Chọn khối</option>' +
                 adminMetadata.regions.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
         }
 
-        // Populate position dropdown (for create form)
         const positionSelect = document.getElementById('new-position');
         if (positionSelect) {
             positionSelect.innerHTML = '<option value="">Chọn vị trí</option>' +
                 adminMetadata.positions.map(p => `<option value="${p.id}">${p.display_name}</option>`).join('');
         }
 
-        // Populate filter dropdowns
         const filterRegion = document.getElementById('filter-region');
         if (filterRegion) {
             filterRegion.innerHTML = '<option value="">Tất cả khối</option>' +
@@ -2757,7 +2671,7 @@ async function createNewUser() {
     const manager = document.getElementById('new-manager').value.trim();
     const startDate = document.getElementById('new-startdate').value;
     const messageDiv = document.getElementById('create-new-user-message');
-    // Validation
+
     if (!username || !password || !fullName || !regionId || !positionId || !manager || !startDate) {
         messageDiv.innerHTML = `
       <div class="p-4 bg-yellow-50 border-l-4 border-yellow-500 text-yellow-700 rounded-lg">
@@ -2816,19 +2730,18 @@ async function loadAdminUsers() {
                 username: currentUser?.username
             }
         });
-        allUsers = response.data.users; // Store for filtering
+        allUsers = response.data.users;
 
-        renderUserTable(allUsers); // Render with all users initially
+        renderUserTable(allUsers);
     } catch (error) {
         console.error('Error loading users:', error);
         container.innerHTML = '<div class="text-center py-8 text-red-500">Lỗi tải danh sách người dùng</div>';
     }
 }
 
-// ===== RENDER USER TABLE WITH PAGINATION =====
 function renderUserTable(users) {
     const container = document.getElementById('admin-users-container');
-    filteredUsers = users; // Store filtered results
+    filteredUsers = users;
 
     if (users.length === 0) {
         container.innerHTML = `
@@ -2841,7 +2754,6 @@ function renderUserTable(users) {
         return;
     }
 
-    // Calculate pagination
     const totalPages = Math.ceil(users.length / USER_PAGE_SIZE);
     const startIndex = (currentUserPage - 1) * USER_PAGE_SIZE;
     const endIndex = Math.min(startIndex + USER_PAGE_SIZE, users.length);
@@ -2850,7 +2762,6 @@ function renderUserTable(users) {
     let html = '<div class="overflow-x-auto">';
     html += '<table class="w-full">';
 
-    // Header - CANH TRÁI
     html += `
     <thead>
       <tr class="bg-gradient-to-r from-red-500 to-pink-600 text-white">
@@ -2867,7 +2778,6 @@ function renderUserTable(users) {
     </thead>
   `;
 
-    // Body - CANH TRÁI
     html += '<tbody>';
     pageUsers.forEach((user, idx) => {
         const globalIndex = startIndex + idx;
@@ -2924,11 +2834,9 @@ function renderUserTable(users) {
     html += '</table>';
     html += '</div>';
 
-    // Pagination Controls
     if (totalPages > 1) {
         html += '<div class="mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">';
 
-        // Page info - CANH TRÁI
         html += `
       <div class="text-sm text-gray-600 text-left">
         Hiển thị <span class="font-semibold">${startIndex + 1}</span> đến 
@@ -2937,10 +2845,8 @@ function renderUserTable(users) {
       </div>
     `;
 
-        // Page buttons
         html += '<div class="flex items-center space-x-2">';
 
-        // Previous button
         html += `
       <button 
         onclick="goToUserPage(${currentUserPage - 1})"
@@ -2951,7 +2857,6 @@ function renderUserTable(users) {
       </button>
     `;
 
-        // Page numbers
         const maxPagesToShow = 5;
         let startPage = Math.max(1, currentUserPage - Math.floor(maxPagesToShow / 2));
         let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
@@ -2960,7 +2865,6 @@ function renderUserTable(users) {
             startPage = Math.max(1, endPage - maxPagesToShow + 1);
         }
 
-        // First page
         if (startPage > 1) {
             html += `
         <button onclick="goToUserPage(1)" class="px-3 py-2 rounded-lg bg-white border border-gray-300 hover:bg-gray-50">
@@ -2972,7 +2876,6 @@ function renderUserTable(users) {
             }
         }
 
-        // Page range
         for (let i = startPage; i <= endPage; i++) {
             html += `
         <button 
@@ -2984,7 +2887,6 @@ function renderUserTable(users) {
       `;
         }
 
-        // Last page
         if (endPage < totalPages) {
             if (endPage < totalPages - 1) {
                 html += '<span class="px-2 text-gray-500">...</span>';
@@ -2996,7 +2898,6 @@ function renderUserTable(users) {
       `;
         }
 
-        // Next button
         html += `
       <button 
         onclick="goToUserPage(${currentUserPage + 1})"
@@ -3007,11 +2908,10 @@ function renderUserTable(users) {
       </button>
     `;
 
-        html += '</div>'; // end page buttons
-        html += '</div>'; // end pagination controls
+        html += '</div>';
+        html += '</div>';
     }
 
-    // Footer info
     html += `
     <div class="mt-4 text-sm text-gray-600">
       <i class="fas fa-info-circle mr-2"></i>
@@ -3023,8 +2923,6 @@ function renderUserTable(users) {
     document.getElementById('filter-count').textContent = users.length;
 }
 
-
-// ===== PAGINATION NAVIGATION =====
 function goToUserPage(page) {
     const totalPages = Math.ceil(filteredUsers.length / USER_PAGE_SIZE);
 
@@ -3033,32 +2931,27 @@ function goToUserPage(page) {
     currentUserPage = page;
     renderUserTable(filteredUsers);
 
-    // Scroll to top of table
     document.getElementById('admin-users-container').scrollIntoView({behavior: 'smooth', block: 'start'});
 }
 
-// ===== UPDATE FILTER FUNCTION =====
 function filterUsers() {
     const searchText = document.getElementById('user-search')?.value.toLowerCase() || '';
     const filterRegionId = document.getElementById('filter-region')?.value || '';
     const filterPositionId = document.getElementById('filter-position')?.value || '';
 
     let filtered = allUsers.filter(user => {
-        // Search by name or username
+
         const matchSearch = !searchText ||
             user.full_name.toLowerCase().includes(searchText) ||
             user.username.toLowerCase().includes(searchText);
 
-        // Filter by region
         const matchRegion = !filterRegionId || user.region_id == filterRegionId;
 
-        // Filter by position
         const matchPosition = !filterPositionId || user.position_id == filterPositionId;
 
         return matchSearch && matchRegion && matchPosition;
     });
 
-    // Reset to page 1 when filtering
     currentUserPage = 1;
     renderUserTable(filtered);
 }
@@ -3094,13 +2987,11 @@ async function deleteUser(userId, fullName) {
     }
 }
 
-// ===== EDIT USER FUNCTIONS =====
 let currentEditUserId = null;
 
 async function showEditUserModal(userId) {
     currentEditUserId = userId;
 
-    // Fetch user data
     try {
         const response = await axios.get('/api/admin/users');
         const user = response.data.users.find(u => u.id === userId);
@@ -3110,20 +3001,17 @@ async function showEditUserModal(userId) {
             return;
         }
 
-        // Populate form
         document.getElementById('edit-username').value = user.username;
         document.getElementById('edit-fullname').value = user.full_name;
-        document.getElementById('edit-password').value = ''; // Always empty
+        document.getElementById('edit-password').value = '';
         document.getElementById('edit-startdate').value = user.start_date || '';
 
-        // Populate region dropdown
         const regionSelect = document.getElementById('edit-region');
         regionSelect.innerHTML = '<option value="">Chọn khối</option>' +
             adminMetadata.regions.map(r =>
                 `<option value="${r.id}" ${r.id === user.region_id ? 'selected' : ''}>${r.name}</option>`
             ).join('');
 
-        // Populate position dropdown
         const positionSelect = document.getElementById('edit-position');
         positionSelect.innerHTML = '<option value="">Chọn vị trí</option>' +
             adminMetadata.positions.map(p =>
@@ -3132,15 +3020,12 @@ async function showEditUserModal(userId) {
 
         await loadEditPotentialManagers(user.manager_id);
 
-        // Populate team field
         document.getElementById('edit-team').value = user.team || '';
 
-        // Populate cover image URL
         const coverUrlInput = document.getElementById('edit-cover-url');
         const coverPreview = document.getElementById('edit-cover-preview');
         coverUrlInput.value = user.cover_image_url || '';
 
-        // Show preview if URL exists
         if (user.cover_image_url) {
             coverPreview.querySelector('img').src = user.cover_image_url;
             coverPreview.classList.remove('hidden');
@@ -3148,7 +3033,6 @@ async function showEditUserModal(userId) {
             coverPreview.classList.add('hidden');
         }
 
-        // Add input listener for preview
         coverUrlInput.addEventListener('input', (e) => {
             const url = e.target.value.trim();
             if (url) {
@@ -3159,7 +3043,6 @@ async function showEditUserModal(userId) {
             }
         });
 
-        // Show modal
         document.getElementById('edit-user-modal').classList.remove('hidden');
 
     } catch (error) {
@@ -3172,7 +3055,6 @@ function hideEditUserModal() {
     document.getElementById('edit-user-modal').classList.add('hidden');
     currentEditUserId = null;
 
-    // Clear form
     document.getElementById('edit-username').value = '';
     document.getElementById('edit-fullname').value = '';
     document.getElementById('edit-password').value = '';
@@ -3196,7 +3078,7 @@ async function loadEditPotentialManagers(managerId = null) {
         const response = await axios.get(`/api/admin/potential-managers/${regionId}/${positionId}`);
         const managers = response.data.managers;
 
-        const currentManagerId = managerId; // Remember current selection
+        const currentManagerId = managerId;
 
         if (managers.length === 0) {
             managerSelect.innerHTML = '<option value="">Không có quản lý cấp trên (Phó Tổng)</option>';
@@ -3224,7 +3106,6 @@ async function saveEditUser() {
     const startDate = document.getElementById('edit-startdate').value;
     const coverImageUrl = document.getElementById('edit-cover-url').value.trim();
 
-    // Validation
     if (!fullName || !regionId || !positionId || !startDate) {
         alert('Vui lòng điền đầy đủ thông tin bắt buộc (*)');
         return;
@@ -3238,7 +3119,7 @@ async function saveEditUser() {
     const messageDiv = document.getElementById('admin-message');
 
     try {
-        // Build update data
+
         const updateData = {
             full_name: fullName,
             region_id: parseInt(regionId),
@@ -3249,7 +3130,6 @@ async function saveEditUser() {
             cover_image_url: coverImageUrl || null
         };
 
-        // Only include password if provided
         if (password && passwordConfirm) {
             updateData.password = password;
         }
@@ -3279,7 +3159,6 @@ async function saveEditUser() {
     }
 }
 
-// ===== COMMITMENT TAB =====
 function renderCommitmentTab(container) {
     container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-8">
@@ -3417,26 +3296,21 @@ function renderCommitmentTab(container) {
     </div>
   `;
 
-    // No need for event listeners since we use onchange and onclick directly
 }
 
-// Global variable for upload
 let selectedCoverFile = null;
 
-// Handle file selection
 function handleFileSelect(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Validate file size (2MB max to avoid stack overflow with base64)
-    const maxSize = 2 * 1024 * 1024; // 2MB
+    const maxSize = 2 * 1024 * 1024;
     if (file.size > maxSize) {
         alert('File quá lớn! Vui lòng chọn file nhỏ hơn 2MB, hoặc sử dụng tab "Paste URL" để upload file lớn từ GenSpark AI Drive');
         document.getElementById('user-cover-file').value = '';
         return;
     }
 
-    // Validate file type
     const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf'];
     if (!validTypes.includes(file.type)) {
         alert('Định dạng file không hợp lệ! Chỉ chấp nhận PNG, JPG hoặc PDF');
@@ -3446,7 +3320,6 @@ function handleFileSelect(event) {
 
     selectedCoverFile = file;
 
-    // Show file info
     const fileInfo = document.getElementById('selected-file-info');
     const fileName = document.getElementById('file-name');
     const fileSize = document.getElementById('file-size');
@@ -3457,12 +3330,11 @@ function handleFileSelect(event) {
     fileInfo.classList.remove('hidden');
     uploadBtn.disabled = false;
 
-    // Show preview
     const previewDiv = document.getElementById('user-cover-preview');
     const previewContent = document.getElementById('preview-content');
 
     if (file.type === 'application/pdf') {
-        // PDF preview using iframe
+
         const reader = new FileReader();
         reader.onload = (e) => {
             previewContent.innerHTML = `
@@ -3477,7 +3349,7 @@ function handleFileSelect(event) {
         };
         reader.readAsDataURL(file);
     } else {
-        // Image preview
+
         const reader = new FileReader();
         reader.onload = (e) => {
             previewContent.innerHTML = `
@@ -3493,7 +3365,6 @@ function handleFileSelect(event) {
     }
 }
 
-// Clear file selection
 function clearFileSelection() {
     selectedCoverFile = null;
     document.getElementById('user-cover-file').value = '';
@@ -3502,7 +3373,6 @@ function clearFileSelection() {
     document.getElementById('upload-btn').disabled = true;
 }
 
-// Format file size
 function formatFileSize(bytes) {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -3511,7 +3381,6 @@ function formatFileSize(bytes) {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
 
-// Upload user cover image
 async function uploadUserCover() {
     const messageDiv = document.getElementById('user-cover-message');
     const uploadBtn = document.getElementById('upload-btn');
@@ -3523,7 +3392,6 @@ async function uploadUserCover() {
         return;
     }
 
-    // Show uploading state
     uploadBtn.disabled = true;
     uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang tải lên...';
     messageDiv.className = 'mt-4 p-4 bg-blue-100 border border-blue-300 rounded-lg text-blue-800';
@@ -3546,11 +3414,9 @@ async function uploadUserCover() {
             throw new Error(data.error || 'Lỗi khi upload');
         }
 
-        // Success
         messageDiv.className = 'mt-4 p-4 bg-green-100 border border-green-300 rounded-lg text-green-800';
         messageDiv.innerHTML = '<i class="fas fa-check-circle mr-2"></i>Upload thành công! Đang tải lại...';
 
-        // Update currentUser and reload
         currentUser.cover_image_url = data.coverUrl;
         setTimeout(() => {
             const container = document.getElementById('tab-content');
@@ -3565,7 +3431,6 @@ async function uploadUserCover() {
     }
 }
 
-// ===== RECRUITMENT CHART TAB =====
 function renderRecruitmentTab(container) {
     container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-8">
@@ -3602,7 +3467,6 @@ function renderRecruitmentTab(container) {
     </div>
   `;
 
-    // Load chart data
     setTimeout(() => loadRecruitmentChart(), 100);
 }
 
@@ -3636,11 +3500,9 @@ function renderRecruitmentChart(chartData) {
     const container = document.getElementById('chart-container');
     const {data, standard} = chartData;
 
-    // Filter users with data and sort by actual_value
     const usersWithData = data.filter(u => u.actual_value !== null).sort((a, b) => b.actual_value - a.actual_value);
     const usersWithoutData = data.filter(u => u.actual_value === null);
 
-    // Calculate company average
     const totalRecruitment = usersWithData.reduce((sum, u) => sum + u.actual_value, 0);
     const companyAverage = usersWithData.length > 0 ? Math.round(totalRecruitment / usersWithData.length * 10) / 10 : 0;
 
@@ -3655,15 +3517,12 @@ function renderRecruitmentChart(chartData) {
         return;
     }
 
-    // Get top 10 and users need improvement (< 15 people)
     const top10 = usersWithData.slice(0, 10);
     const needImprovement = usersWithData.filter(u => u.actual_value < 15).sort((a, b) => a.actual_value - b.actual_value);
 
-    // Find current user position
     const currentUserIndex = usersWithData.findIndex(u => u.id === currentUser.id);
     const currentUserData = usersWithData[currentUserIndex];
     const currentUserRank = currentUserIndex >= 0 ? currentUserIndex + 1 : null;
-
 
     container.innerHTML = `
     <!-- Summary Cards -->
@@ -3857,10 +3716,8 @@ function renderRecruitmentChart(chartData) {
   `;
 }
 
-// ===== INIT =====
 document.addEventListener('DOMContentLoaded', renderApp);
 
-// Position Dashboard with 12 months data
 function renderPositionDashboard(container, positionIds, positionName) {
     container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-6">
@@ -3903,29 +3760,24 @@ async function loadPositionDashboard(positionIds, positionName) {
             return;
         }
 
-        // Group monthly data by user
         const userMonthlyData = {};
         monthlyData.forEach(m => {
             if (!userMonthlyData[m.user_id]) userMonthlyData[m.user_id] = {};
             userMonthlyData[m.user_id][m.month] = m;
         });
 
-        // Create TWO separate tables: KPI and Level
         let html = '<div class="space-y-6">';
 
-        // ===== TABLE 1: KPI =====
         html += '<div>';
         html += '<h4 class="text-lg font-bold text-blue-600 mb-3"><i class="fas fa-chart-line mr-2"></i>Bảng tổng hợp KPI</h4>';
         html += '<div class="overflow-x-auto">';
         html += '<table class="w-full text-sm border-collapse">';
 
-        // KPI Header
         html += '<thead class="bg-gradient-to-r from-blue-500 to-blue-600 text-white sticky top-0">';
         html += '<tr>';
         html += '<th class="border px-3 py-2 text-left sticky left-0 bg-blue-600 z-10">Họ và tên</th>';
         html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
 
-        // 12 months columns
         for (let m = 1; m <= 12; m++) {
             html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
         }
@@ -3933,14 +3785,12 @@ async function loadPositionDashboard(positionIds, positionName) {
         html += '</tr>';
         html += '</thead>';
 
-        // KPI Body
         html += '<tbody>';
         users.forEach((user, idx) => {
             html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50">`;
             html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
             html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
 
-            // 12 months KPI data
             for (let m = 1; m <= 12; m++) {
                 const monthData = userMonthlyData[user.id]?.[m];
                 if (monthData) {
@@ -3959,22 +3809,19 @@ async function loadPositionDashboard(positionIds, positionName) {
         });
         html += '</tbody>';
         html += '</table>';
-        html += '</div>'; // end overflow-x-auto
-        html += '</div>'; // end KPI table
+        html += '</div>';
+        html += '</div>';
 
-        // ===== TABLE 2: LEVEL =====
         html += '<div>';
         html += '<h4 class="text-lg font-bold text-green-600 mb-3"><i class="fas fa-star mr-2"></i>Bảng tổng hợp Level</h4>';
         html += '<div class="overflow-x-auto">';
         html += '<table class="w-full text-sm border-collapse">';
 
-        // Level Header
         html += '<thead class="bg-gradient-to-r from-green-500 to-green-600 text-white sticky top-0">';
         html += '<tr>';
         html += '<th class="border px-3 py-2 text-left sticky left-0 bg-green-600 z-10">Họ và tên</th>';
         html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
 
-        // 12 months columns
         for (let m = 1; m <= 12; m++) {
             html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
         }
@@ -3982,14 +3829,12 @@ async function loadPositionDashboard(positionIds, positionName) {
         html += '</tr>';
         html += '</thead>';
 
-        // Level Body
         html += '<tbody>';
         users.forEach((user, idx) => {
             html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-green-50">`;
             html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
             html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
 
-            // 12 months Level data
             for (let m = 1; m <= 12; m++) {
                 const monthData = userMonthlyData[user.id]?.[m];
                 if (monthData) {
@@ -4008,10 +3853,10 @@ async function loadPositionDashboard(positionIds, positionName) {
         });
         html += '</tbody>';
         html += '</table>';
-        html += '</div>'; // end overflow-x-auto
-        html += '</div>'; // end Level table
+        html += '</div>';
+        html += '</div>';
 
-        html += '</div>'; // end space-y-6
+        html += '</div>';
 
         container.innerHTML = html;
     } catch (error) {
@@ -4021,7 +3866,6 @@ async function loadPositionDashboard(positionIds, positionName) {
     }
 }
 
-// ===== KPI DETAIL DASHBOARD =====
 function renderKpiDetail(container, positionIds, positionName, kpiIds) {
     container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-6">
@@ -4063,7 +3907,6 @@ async function loadKpiDetail(positionIds, positionName, kpiIds) {
             return;
         }
 
-        // Group data by user and kpi
         const userKpiData = {};
         kpiData.forEach(d => {
             if (!userKpiData[d.user_id]) userKpiData[d.user_id] = {};
@@ -4073,20 +3916,17 @@ async function loadKpiDetail(positionIds, positionName, kpiIds) {
 
         let html = '<div class="space-y-8">';
 
-        // Create one table per KPI
         kpiTemplates.forEach(kpi => {
             html += '<div>';
             html += `<h4 class="text-lg font-bold text-orange-600 mb-3"><i class="fas fa-chart-bar mr-2"></i>${kpi.kpi_name}</h4>`;
             html += '<div class="overflow-x-auto">';
             html += '<table class="w-full text-sm border-collapse">';
 
-            // Header
             html += '<thead class="bg-gradient-to-r from-orange-500 to-red-600 text-white sticky top-0">';
             html += '<tr>';
             html += '<th class="border px-3 py-2 text-left sticky left-0 bg-orange-600 z-10">Họ và tên</th>';
             html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
 
-            // 12 months
             for (let m = 1; m <= 12; m++) {
                 html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
             }
@@ -4094,14 +3934,12 @@ async function loadKpiDetail(positionIds, positionName, kpiIds) {
             html += '</tr>';
             html += '</thead>';
 
-            // Body
             html += '<tbody>';
             users.forEach((user, idx) => {
                 html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-orange-50">`;
                 html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
                 html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
 
-                // 12 months data
                 for (let m = 1; m <= 12; m++) {
                     const monthData = userKpiData[user.id]?.[kpi.id]?.[m];
                     if (monthData && monthData.actual_value !== null) {
@@ -4118,11 +3956,11 @@ async function loadKpiDetail(positionIds, positionName, kpiIds) {
             });
             html += '</tbody>';
             html += '</table>';
-            html += '</div>'; // end overflow-x-auto
-            html += '</div>'; // end table div
+            html += '</div>';
+            html += '</div>';
         });
 
-        html += '</div>'; // end space-y-8
+        html += '</div>';
 
         container.innerHTML = html;
     } catch (error) {
@@ -4132,7 +3970,6 @@ async function loadKpiDetail(positionIds, positionName, kpiIds) {
     }
 }
 
-// ===== REVENUE PLAN MANAGEMENT =====
 function renderRevenuePlan(container) {
     container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-6">
@@ -4200,7 +4037,6 @@ async function loadRevenuePlan() {
             return;
         }
 
-        // Group plans by user and month
         const userPlans = {};
         plans.forEach(p => {
             if (!userPlans[p.user_id]) userPlans[p.user_id] = {};
@@ -4210,14 +4046,12 @@ async function loadRevenuePlan() {
         let html = '<div class="overflow-x-auto">';
         html += '<table class="w-full text-sm border-collapse">';
 
-        // Header
         html += '<thead class="bg-gradient-to-r from-green-500 to-teal-600 text-white sticky top-0">';
         html += '<tr>';
         html += '<th class="border px-3 py-2 text-left sticky left-0 bg-green-600 z-10">Họ và tên</th>';
         html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
         html += '<th class="border px-3 py-2 text-left">Vị trí</th>';
 
-        // 12 months
         for (let m = 1; m <= 12; m++) {
             html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
         }
@@ -4227,7 +4061,6 @@ async function loadRevenuePlan() {
         html += '</tr>';
         html += '</thead>';
 
-        // Body
         html += '<tbody>';
         users.forEach((user, idx) => {
             html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-green-50">`;
@@ -4235,7 +4068,6 @@ async function loadRevenuePlan() {
             html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
             html += `<td class="border px-3 py-2 text-xs">${user.position_name}</td>`;
 
-            // 12 months input
             for (let m = 1; m <= 12; m++) {
                 const value = userPlans[user.id]?.[m] || '';
                 html += `<td class="border px-2 py-2">
@@ -4252,7 +4084,6 @@ async function loadRevenuePlan() {
         </td>`;
             }
 
-            // Total column
             let total = 0;
             for (let m = 1; m <= 12; m++) {
                 total += parseFloat(userPlans[user.id]?.[m] || 0);
@@ -4275,7 +4106,6 @@ async function loadRevenuePlan() {
         html += '</table>';
         html += '</div>';
 
-        // Bulk save button
         html += `
       <div class="mt-6 flex justify-end">
         <button 
@@ -4360,7 +4190,6 @@ async function saveAllPlans() {
     }
 }
 
-// Calculate row total
 function calculateRowTotal(userId) {
     const inputs = document.querySelectorAll(`input[data-user="${userId}"]`);
     let total = 0;
@@ -4374,7 +4203,6 @@ function calculateRowTotal(userId) {
     }
 }
 
-// Export revenue plan template
 async function exportRevenuePlanTemplate() {
     try {
         const year = document.getElementById('plan-year')?.value || '2026';
@@ -4387,20 +4215,16 @@ async function exportRevenuePlanTemplate() {
 
         const {users, plans} = response.data;
 
-        // Group plans by user
         const userPlans = {};
         plans.forEach(p => {
             if (!userPlans[p.user_id]) userPlans[p.user_id] = {};
             userPlans[p.user_id][p.month] = p.planned_revenue;
         });
 
-        // Create Excel workbook
         const wb = XLSX.utils.book_new();
 
-        // Prepare data
         const data = [];
 
-        // Header row
         const header = ['STT', 'User ID', 'Họ và tên', 'Khu vực', 'Vị trí'];
         for (let m = 1; m <= 12; m++) {
             header.push(`T${m} (Tỷ VNĐ)`);
@@ -4408,7 +4232,6 @@ async function exportRevenuePlanTemplate() {
         header.push('Tổng');
         data.push(header);
 
-        // Data rows
         users.forEach((user, idx) => {
             const row = [
                 idx + 1,
@@ -4425,29 +4248,24 @@ async function exportRevenuePlanTemplate() {
                 total += parseFloat(value) || 0;
             }
 
-            // Add total with formula (optional, or just the calculated value)
             row.push(total);
             data.push(row);
         });
 
-        // Create worksheet
         const ws = XLSX.utils.aoa_to_sheet(data);
 
-        // Set column widths
         ws['!cols'] = [
-            {wch: 5},  // STT
-            {wch: 10}, // User ID
-            {wch: 25}, // Họ và tên
-            {wch: 15}, // Khu vực
-            {wch: 20}, // Vị trí
-            ...Array(12).fill({wch: 10}), // T1-T12
-            {wch: 12}  // Tổng
+            {wch: 5},
+            {wch: 10},
+            {wch: 25},
+            {wch: 15},
+            {wch: 20},
+            ...Array(12).fill({wch: 10}),
+            {wch: 12}
         ];
 
-        // Add worksheet to workbook
         XLSX.utils.book_append_sheet(wb, ws, 'Kế hoạch Doanh thu');
 
-        // Generate and download
         XLSX.writeFile(wb, `Ke_Hoach_Doanh_Thu_${year}.xlsx`);
 
         alert('✅ Tải file mẫu Excel thành công!');
@@ -4457,7 +4275,6 @@ async function exportRevenuePlanTemplate() {
     }
 }
 
-// Import revenue plan from file
 async function importRevenuePlan(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -4542,9 +4359,8 @@ async function importRevenuePlan(event) {
     event.target.value = '';
 }
 
-// Hiển thị modal thông báo lỗi và cho phép tải về file lỗi
 function showImportErrors(errors, successCount, total, year) {
-    // Xóa modal cũ nếu có
+
     document.getElementById('import-error-modal')?.remove();
 
     const modal = document.createElement('div');
@@ -4623,7 +4439,6 @@ function showImportErrors(errors, successCount, total, year) {
     document.body.appendChild(modal);
 }
 
-// Tải file Excel chứa các dòng lỗi để người dùng chỉnh sửa rồi import lại
 function downloadImportErrors(errors, year) {
     const header = ['STT', 'User ID', 'Họ và tên', 'Khu vực', 'Vị trí', 'Lý do lỗi'];
     const rows = errors.map(e => [e.stt, e.userId, e.name, e.region, e.position, e.reason]);
@@ -4633,7 +4448,6 @@ function downloadImportErrors(errors, year) {
         {wch: 5}, {wch: 10}, {wch: 25}, {wch: 35}, {wch: 35}, {wch: 35}
     ];
 
-    // Tô đỏ cột lý do lỗi
     rows.forEach((_, i) => {
         const cell = ws[XLSX.utils.encode_cell({r: i + 1, c: 3})];
         if (cell) cell.s = {font: {color: {rgb: 'DC2626'}}};
@@ -4644,7 +4458,6 @@ function downloadImportErrors(errors, year) {
     XLSX.writeFile(wb, `loi_import_ke_hoach_${year}.xlsx`);
 }
 
-// ===== ACTUAL REVENUE UPLOAD (ADMIN) =====
 function renderActualRevenueUpload(container) {
     container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-6 mt-8">
@@ -4697,11 +4510,9 @@ async function importActualRevenue(event) {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet);
 
-    // Chuẩn hóa dữ liệu
     const payload = rows.map(row => {
         let emailRaw = String(row.email || '').trim().toLowerCase();
 
-        // Cắt phần sau @ nếu có
         const email = emailRaw.includes('@')
             ? emailRaw.split('@')[0]
             : emailRaw;
@@ -4713,7 +4524,6 @@ async function importActualRevenue(event) {
             actual_value: Number(row.actual_value)
         };
     });
-
 
     console.log("IMPORT DATA:", payload);
 
@@ -4731,8 +4541,6 @@ async function importActualRevenue(event) {
 
 }
 
-
-// Change Password Modal
 function showChangePasswordModal() {
     const modal = document.createElement('div');
     modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
@@ -4812,7 +4620,6 @@ async function submitChangePassword() {
     }
 }
 
-// ===== LARK SYNC ADMIN TAB =====
 function renderLarkSyncTab(container) {
     const now = new Date();
     const month = now.getMonth() + 1;
@@ -4893,7 +4700,6 @@ async function triggerLarkSyncAll() {
     }
 }
 
-// Lock Month Management for Admin
 function renderLockMonthTab(container) {
     container.innerHTML = `
     <div class="bg-white rounded-xl shadow-xl p-6">
@@ -5013,4 +4819,3 @@ async function unlockMonth(year, month, positionId) {
         alert('Lỗi kết nối');
     }
 }
-
