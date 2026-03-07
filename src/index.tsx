@@ -134,7 +134,7 @@ function countVideosByUsernameAndMonth(
     year: number,
     month: number
 ): number {
-    const prefix = `${year}-${String(month).padStart(2, '0')}` // "2025-03"
+    const prefix = `${year}/${String(month).padStart(2, '0')}` // "2026/03"
     const usernameLower = username.toLowerCase()
 
     return rows.filter(r => {

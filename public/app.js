@@ -103,11 +103,6 @@ async function refreshUserFromDB() {
             const fresh = response.data.user;
             const merged = {...currentUser, ...fresh};
             currentUser = merged;
-
-            if (currentUser.position_id === 4) {
-                syncLarkVideoKpi(currentUser.id);
-            }
-
             localStorage.setItem('user', JSON.stringify(merged));
             return true;
         }
@@ -210,10 +205,6 @@ function setupLoginListeners() {
                 }
                 currentUser = response.data.user;
                 await renderApp();
-
-                if (currentUser.position_id === 4) {
-                    syncLarkVideoKpi(currentUser.id);
-                }
             }
         } catch (error) {
             errorDiv.classList.remove('hidden');
@@ -222,26 +213,50 @@ function setupLoginListeners() {
     });
 }
 
-async function syncLarkVideoKpi(userId) {
+async function syncLarkVideoKpi(userId, month, year) {
+    const input = document.querySelector('.kpi-input[data-template-id="34"]');
+    if (input) {
+        input.disabled = true;
+        input.value = '';
+        input.placeholder = 'Đang lấy dữ liệu từ Lark...';
+        input.style.borderColor = '#93c5fd';
+        input.style.backgroundColor = '#eff6ff';
+        input.style.cursor = 'not-allowed';
+    }
+
     try {
-        const now = new Date();
-        const month = now.getMonth() + 1;
-        const year = now.getFullYear();
         const res = await axios.post('/api/lark/sync-video-kpi', {userId, year, month});
 
         if (res.data?.success && res.data?.videoCount !== undefined) {
             const videoCount = res.data.videoCount;
-            const input = document.querySelector('.kpi-input[data-template-id="34"]');
-            if (input) {
-                input.readOnly = true;
-                input.value = videoCount;
-                input.style.borderColor = '#22c55e';
-                input.title = `Đã tự động điền ${videoCount} video từ dữ liệu Lark`;
-                input.dispatchEvent(new Event('input'));
+            const inp = document.querySelector('.kpi-input[data-template-id="34"]');
+            if (inp) {
+                inp.value = videoCount;
+                inp.placeholder = 'Nhập giá trị thực tế đạt được';
+                inp.style.borderColor = '#22c55e';
+                inp.style.backgroundColor = '#f0fdf4';
+                inp.style.cursor = 'not-allowed';
+                inp.disabled = true;
+                inp.title = `Đã tự động điền ${videoCount} video từ dữ liệu Lark`;
+                inp.dispatchEvent(new Event('input'));
+            }
+        } else {
+            const inp = document.querySelector('.kpi-input[data-template-id="34"]');
+            if (inp) {
+                inp.placeholder = 'Nhập giá trị thực tế đạt được';
+                inp.style.borderColor = '#22c55e';
+                inp.style.backgroundColor = '#f0fdf4';
             }
         }
     } catch (e) {
         console.warn('[Lark sync] Lỗi nền:', e?.message);
+        const inp = document.querySelector('.kpi-input[data-template-id="34"]');
+        if (inp) {
+            inp.placeholder = 'Nhập giá trị thực tế đạt được';
+            inp.style.borderColor = '';
+            inp.style.backgroundColor = '';
+            inp.style.cursor = '';
+        }
     }
 }
 
@@ -657,13 +672,7 @@ async function loadKpiData() {
         document.getElementById('kpi-save-section').classList.remove('hidden');
 
         if (currentUser.position_id === 4) {
-            const videoInput = document.querySelector('.kpi-input[data-template-id="34"]');
-            if (videoInput && videoInput.value && parseFloat(videoInput.value) >= 0) {
-                videoInput.style.borderColor = '#22c55e';
-                videoInput.style.backgroundColor = '#f0fdf4';
-                videoInput.readOnly = true;
-                videoInput.dispatchEvent(new Event('input'));
-            }
+            syncLarkVideoKpi(currentUser.id, parseInt(month), parseInt(year));
         }
 
         await loadKpiHistory(year);
@@ -747,6 +756,15 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) 
         const isPercentageKpi = template.kpi_name && template.kpi_name.includes('Tỷ lệ') && !isRevenueGrowthKpi;
         const placeholder = isPercentageKpi ? 'Nhập số % (ví dụ: 70 cho 70%)' : 'Nhập giá trị thực tế đạt được';
 
+        const isLarkAutoFill = currentUser.position_id === 4 && template.id === 34;
+        const inputStyle = isLarkAutoFill
+            ? 'border-color:#22c55e;background-color:#f0fdf4;cursor:not-allowed;'
+            : '';
+        const inputDisabled = isLarkAutoFill ? 'disabled' : '';
+        const inputTitle = isLarkAutoFill
+            ? 'Số video được tự động điền từ dữ liệu Lark'
+            : '';
+
         inputHtml = `
       <input 
         type="number" 
@@ -758,8 +776,12 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) 
         class="kpi-input w-full px-3 lg:px-4 py-2.5 lg:py-3 text-sm lg:text-base border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
         placeholder="${placeholder}"
         value="${value}"
+        style="${inputStyle}"
+        ${inputDisabled}
+        title="${inputTitle}"
         oninput="calculateKpiPercent(this)"
       >
+      ${isLarkAutoFill ? `<p class="mt-1 text-xs text-green-700 font-semibold"><i class="fas fa-robot mr-1"></i>Tự động điền từ Lark</p>` : ''}
       <div id="kpi-result-${template.id}" class="hidden mt-2 bg-blue-50 p-3 rounded-lg border border-blue-200">
         <span class="text-sm text-blue-800 font-semibold">
           <i class="fas fa-calculator mr-1"></i>Tỷ lệ đạt: <span id="kpi-percent-${template.id}" class="text-lg font-bold text-blue-900">0%</span>
