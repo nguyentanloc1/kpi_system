@@ -1488,16 +1488,16 @@ async function loadTrackingData() {
 
                 if (data) {
                     // For percentage KPIs, multiply by 100 to show the original input value
-                    const isPercentKpi = template.kpi_name.includes('Tỷ lệ %');
+                    //const isPercentKpi = template.kpi_name.includes('Tỷ lệ');
                     let displayValue = data.actual_value;
-                    if (isPercentKpi && displayValue < 2) {
-                        displayValue = displayValue * 100; // Convert 0.7 → 70
+                    if (template.value_type == 'percentage') {
+                        displayValue = displayValue * 100 + '%'; // Convert 0.7 → 70
                     }
                     const percent = data.completion_percent * 100;
                     const color = percent >= 100 ? 'text-green-600' : percent >= 50 ? 'text-yellow-600' : 'text-red-600';
                     html += `<td class="border border-blue-200 px-2 py-2 text-center ${color} font-semibold">${(template.value_type === 'currency')
                         ? (revenue.planned_revenue ? ((displayValue / revenue.planned_revenue) * 100).toFixed(2) + '%' : '0%')
-                        : formatLargeNumber(displayValue, template.name)}</td>`;
+                        : displayValue}</td>`;
                 } else {
                     html += `<td class="border border-blue-200 px-2 py-2 text-center text-gray-400">-</td>`;
                 }
