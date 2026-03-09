@@ -1456,7 +1456,7 @@ async function loadTrackingData() {
     try {
         // Load all monthly data for the year
         const response = await axios.get(`/api/tracking/${currentUser.id}/${year}`);
-        const {kpiData, levelData, templates} = response.data;
+        const {kpiData, levelData, templates, revenue_plan} = response.data;
 
         // Render KPI tracking section
         let html = `
@@ -1484,6 +1484,8 @@ async function loadTrackingData() {
 
             for (let month = 1; month <= 12; month++) {
                 const data = kpiData.find(d => d.month === month && d.kpi_template_id === template.id);
+                const revenue = revenue_plan.find(d => d.user_id === currentUser.id && d.month === month && d.year === Number(year));
+
                 if (data) {
                     // For percentage KPIs, multiply by 100 to show the original input value
                     const isPercentKpi = template.kpi_name.includes('Tỷ lệ %');
@@ -1493,7 +1495,9 @@ async function loadTrackingData() {
                     }
                     const percent = data.completion_percent * 100;
                     const color = percent >= 100 ? 'text-green-600' : percent >= 50 ? 'text-yellow-600' : 'text-red-600';
-                    html += `<td class="border border-blue-200 px-2 py-2 text-center ${color} font-semibold">${formatLargeNumber(displayValue, template.kpi_name)}</td>`;
+                    html += `<td class="border border-blue-200 px-2 py-2 text-center ${color} font-semibold">${(template.value_type === 'currency')
+                        ? (revenue.planned_revenue ? ((displayValue / revenue.planned_revenue) * 100).toFixed(2) + '%' : '0%')
+                        : formatLargeNumber(displayValue, template.name)}</td>`;
                 } else {
                     html += `<td class="border border-blue-200 px-2 py-2 text-center text-gray-400">-</td>`;
                 }
@@ -1574,6 +1578,7 @@ async function loadTrackingData() {
 
             for (let month = 1; month <= 12; month++) {
                 const data = levelData.find(d => d.month === month && d.kpi_template_id === template.id);
+                const revenue = revenue_plan.find(d => d.user_id === currentUser.id && d.month === month && d.year === Number(year));
                 if (data) {
                     // For percentage KPIs, multiply by 100 to show the original input value
                     const isPercentKpi = template.name.includes('Tỷ lệ %');
@@ -1583,7 +1588,9 @@ async function loadTrackingData() {
                     }
                     const percent = data.completion_percent * 100;
                     const color = percent >= 100 ? 'text-green-600' : percent >= 50 ? 'text-yellow-600' : 'text-red-600';
-                    html += `<td class="border border-purple-200 px-2 py-2 text-center ${color} font-semibold">${formatLargeNumber(displayValue, template.name)}</td>`;
+                    html += `<td class="border border-purple-200 px-2 py-2 text-center ${color} font-semibold">${(template.value_type === 'currency' && (template.name || '').includes('Tỷ lệ %'))
+                        ? (revenue.planned_revenue ? ((displayValue / revenue.planned_revenue) * 100).toFixed(2) + '%' : '0%')
+                        : formatLargeNumber(displayValue, template.name)}</td>`;
                 } else {
                     html += `<td class="border border-purple-200 px-2 py-2 text-center text-gray-400">-</td>`;
                 }

@@ -197,6 +197,14 @@ app.get('/api/tracking/:userId/:year', async (c) => {
             return c.json({error: 'Người dùng không tồn tại'}, 404)
         }
 
+        // Get Revenue Plan
+        const revenue_plan = await c.env.DB.prepare(`
+            SELECT *
+            FROM revenue_plan
+            WHERE user_id = ?
+              AND year = ?           
+        `).bind(userId, year).all()
+
         // Get KPI templates
         const kpiTemplates = await c.env.DB.prepare(`
             SELECT id, kpi_name, weight, standard_value, display_order, value_type
@@ -243,7 +251,8 @@ app.get('/api/tracking/:userId/:year', async (c) => {
             templates: {
                 kpi: kpiTemplates.results,
                 level: levelTemplates.results
-            }
+            },
+            revenue_plan:revenue_plan.results
         })
     } catch (error) {
         return c.json({error: 'Lỗi lấy dữ liệu tracking'}, 500)
@@ -366,7 +375,9 @@ app.post('/api/kpi-data', async (c) => {
                 SELECT planned_revenue
                 FROM revenue_plan
                 WHERE user_id = ?
-                `).bind(userId).first()
+                    AND month = ?
+                    AND year = ?
+                `).bind(userId, month, year).first()
                 completionPercent = (adjustedValue / plan.planned_revenue) * 100
             }else {
                 completionPercent = (adjustedValue / template.standard_value) * 100
