@@ -139,7 +139,8 @@ app.get('/api/kpi-form-data/:userId/:positionId/:year/:month', async (c) => {
                    description,
                    is_for_kpi,
                    display_order,
-                   created_at
+                   created_at,
+                   value_type
             FROM kpi_templates
             WHERE position_id = ?
               AND is_for_kpi = ?
@@ -161,7 +162,7 @@ app.get('/api/kpi-form-data/:userId/:positionId/:year/:month', async (c) => {
 
         // Get existing KPI data
         const existingData = await c.env.DB.prepare(`
-            SELECT kd.*, kt.kpi_name
+            SELECT kd.*, kt.kpi_name, kt.value_type
             FROM kpi_data kd
                      JOIN kpi_templates kt ON kd.kpi_template_id = kt.id
             WHERE kd.user_id = ?
@@ -198,7 +199,7 @@ app.get('/api/tracking/:userId/:year', async (c) => {
 
         // Get KPI templates
         const kpiTemplates = await c.env.DB.prepare(`
-            SELECT id, kpi_name, weight, standard_value, display_order
+            SELECT id, kpi_name, weight, standard_value, display_order, value_type
             FROM kpi_templates
             WHERE position_id = ?
               AND is_for_kpi = 1
@@ -207,7 +208,7 @@ app.get('/api/tracking/:userId/:year', async (c) => {
 
         // Get Level templates
         const levelTemplates = await c.env.DB.prepare(`
-            SELECT id, kpi_name as name, weight, standard_value, display_order
+            SELECT id, kpi_name as name, weight, standard_value, display_order, value_type
             FROM kpi_templates
             WHERE position_id = ?
               AND is_for_kpi = 0
@@ -297,7 +298,7 @@ app.post('/api/kpi-data', async (c) => {
                 WHERE id = ?
             `).bind(templateId).first()
 
-            console.log(`[DEBUG] Processing templateId=${templateId}, is_for_kpi=${template?.is_for_kpi}, kpi_name="${template?.kpi_name}"`)
+            console.log(`[DEBUG] Processing templateId=${templateId}, is_for_kpi=${template?.is_for_kpi}, kpi_name="${template?.kpi_name}", value_type="${template?.value_type}"`)
 
             if (!template) continue
 
@@ -333,7 +334,7 @@ app.post('/api/kpi-data', async (c) => {
             let adjustedValue = actualValueToUse
 
             // Special case: "Tỷ lệ % doanh thu tăng trưởng" - user inputs total revenue in billions, not percentage
-            const isRevenueGrowthKpi = template.kpi_name && template.kpi_name.includes('doanh thu tăng trưởng')
+            /*const isRevenueGrowthKpi = template.kpi_name && template.kpi_name.includes('doanh thu tăng trưởng')
             const isRevenueKpi = template.kpi_name && template.kpi_name.includes('doanh thu') && !template.kpi_name.includes('%')
             const isPercentageKpi = template.kpi_name && (template.kpi_name.includes('Tỷ lệ') || template.kpi_name.includes('tỷ lệ')) && !isRevenueGrowthKpi
 
@@ -346,10 +347,31 @@ app.post('/api/kpi-data', async (c) => {
             } else if (isPercentageKpi) {
                 // Percentage KPI: Convert percentage (70) to decimal (0.7)
                 adjustedValue = actualValueToUse / 100
+            }*/
+
+            //code format currency new
+
+            if (template.value_type && template.value_type == 'percentage') {
+                // Percentage KPI: Convert percentage (70) to decimal (0.7)
+                adjustedValue = actualValueToUse / 100
+            } else{
+                adjustedValue = actualValueToUse
             }
 
             // Calculate completion percentage
-            let completionPercent = (adjustedValue / template.standard_value) * 100
+            let completionPercent = 0
+            if (template.value_type && template.value_type == 'currency') {
+                // Get user planned_revenue
+                const plan = await c.env.DB.prepare(`
+                SELECT planned_revenue
+                FROM revenue_plan
+                WHERE user_id = ?
+                `).bind(userId).first()
+                completionPercent = (adjustedValue / plan.planned_revenue) * 100
+            }else {
+                completionPercent = (adjustedValue / template.standard_value) * 100
+            }
+
             // Cap based on KPI vs Level
             const maxPercent = template.is_for_kpi === 1 ? 150 : 160 // KPI max 150%, Level max 160%
             completionPercent = Math.min(completionPercent, maxPercent)
@@ -369,6 +391,7 @@ app.post('/api/kpi-data', async (c) => {
             const safeCompletionPercent = ensureSafeNumber(completionPercent, 0)
             const safeWeightedScore = ensureSafeNumber(weightedScore, 0)
             const safeAdjustedValue = ensureSafeNumber(adjustedValue, 0)
+
 
             // Insert or update (store the adjusted value with safe numeric values)
             await c.env.DB.prepare(`
@@ -400,7 +423,7 @@ app.post('/api/kpi-data', async (c) => {
 
             // Get Level templates for this position
             const levelTemplates = await c.env.DB.prepare(`
-                SELECT id, kpi_name, weight, standard_value
+                SELECT id, kpi_name, weight, standard_value, value_type
                 FROM kpi_templates
                 WHERE position_id = ?
                   AND is_for_kpi = 0
@@ -433,7 +456,7 @@ app.post('/api/kpi-data', async (c) => {
                         // Use it directly
                         const actualRevenue = ensureSafeNumber(revenueKpiData.actual_value, 0)
                         const levelTemplate1 = levelTemplates.results[0]
-                        const level1Completion = Math.min((actualRevenue / levelTemplate1.standard_value) * 100, 160)
+                        const level1Completion = Math.min((actualRevenue / (levelTemplate1.standard_value/1000000000)) * 100, 160)
                         const level1Score = (level1Completion / 100) * levelTemplate1.weight
 
                         await c.env.DB.prepare(`
@@ -455,12 +478,12 @@ app.post('/api/kpi-data', async (c) => {
                         // Level 2: Tỷ lệ % doanh thu tăng trưởng - Calculate from actual vs planned
                         const levelTemplate2 = levelTemplates.results[1]
                         // Calculate growth % = (actual / planned) - 1
-                        const growthPercent = (actualRevenue / (revenuePlan.planned_revenue * 1000000000)) - 1
+                        const growthPercent = (actualRevenue / revenuePlan.planned_revenue)
                         // Convert to percentage and cap at 160%
-                        const growthPercentValue = Math.min(growthPercent * 100, 160)
+                        const growthPercentValue = Math.min(growthPercent * 100, 150)
                         // standard_value is 1.0 (means 100% growth is standard)
                         // Completion = (actual_growth / standard_growth) * 100, capped at 160%
-                        const level2Completion = Math.min((growthPercent / levelTemplate2.standard_value) * 100, 160)
+                        const level2Completion = Math.min((actualRevenue / revenuePlan.planned_revenue) * 100, 160)
                         const level2Score = (level2Completion / 100) * levelTemplate2.weight
 
                         await c.env.DB.prepare(`
@@ -475,8 +498,8 @@ app.post('/api/kpi-data', async (c) => {
                                 updated_at = CURRENT_TIMESTAMP
                         `).bind(
                             userId, month, year, levelTemplate2.id,
-                            ensureSafeNumber(growthPercentValue), ensureSafeNumber(level2Completion), ensureSafeNumber(level2Score),
-                            ensureSafeNumber(growthPercentValue), ensureSafeNumber(level2Completion), ensureSafeNumber(level2Score)
+                            ensureSafeNumber(actualRevenue), ensureSafeNumber(level2Completion), ensureSafeNumber(level2Score),
+                            ensureSafeNumber(actualRevenue), ensureSafeNumber(level2Completion), ensureSafeNumber(level2Score)
                         ).run()
                     }
                 }
@@ -701,7 +724,7 @@ app.post('/api/kpi-data', async (c) => {
         console.log(`[Universal Auto-fill] Starting for user ${userId}, position ${user.position_id}`)
 
         const allLevelTemplates = await c.env.DB.prepare(`
-            SELECT id, kpi_name, weight, standard_value
+            SELECT id, kpi_name, weight, standard_value, value_type
             FROM kpi_templates
             WHERE position_id = ?
               AND is_for_kpi = 0
@@ -712,7 +735,7 @@ app.post('/api/kpi-data', async (c) => {
             const levelTemplate = allLevelTemplates.results[i]
 
             const matchingKpi = await c.env.DB.prepare(`
-                SELECT id
+                SELECT id, value_type
                 FROM kpi_templates
                 WHERE position_id = ?
                   AND is_for_kpi = 1
@@ -720,6 +743,13 @@ app.post('/api/kpi-data', async (c) => {
             `).bind(user.position_id, levelTemplate.kpi_name).first()
 
             if (!matchingKpi) continue
+
+            // Get revenue plan for this month
+            const revenuePlan = await c.env.DB.prepare(`
+                SELECT planned_revenue
+                FROM revenue_plan
+                WHERE user_id = ? AND year = ? AND month = ?
+            `).bind(userId, year, month).first()
 
             const kpiData = await c.env.DB.prepare(`
                 SELECT actual_value
@@ -730,10 +760,20 @@ app.post('/api/kpi-data', async (c) => {
 
             if (!kpiData || !kpiData.actual_value) continue
 
-            const levelCompletion = Math.min((kpiData.actual_value / levelTemplate.standard_value) * 100, 160)
+            let levelCompletion = 0
+
+            if(levelTemplate.value_type == 'currency') {
+                levelCompletion = Math.min((kpiData.actual_value / revenuePlan.planned_revenue) * 100, 160)
+            }else {
+                levelCompletion = Math.min((kpiData.actual_value / levelTemplate.standard_value) * 100, 160)
+            }
+
+
             const levelScore = (levelCompletion / 100) * levelTemplate.weight
 
-            console.log(`[Universal Auto-fill] "${levelTemplate.kpi_name}": ${kpiData.actual_value} → ${levelCompletion.toFixed(1)}%`)
+            console.log('hihi:', levelTemplate)
+            console.log('kpiData.actual_value:', kpiData.actual_value)
+            console.log('levelCompletion:', levelCompletion)
 
             await c.env.DB.prepare(`
                 INSERT INTO kpi_data (user_id, month, year, kpi_template_id, actual_value, completion_percent,
@@ -766,7 +806,6 @@ app.post('/api/kpi-data', async (c) => {
 app.post('/api/level-data', async (c) => {
     try {
         const {userId, year, month, levelData} = await c.req.json()
-
         // Get user info
         const user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first()
         if (!user) {
