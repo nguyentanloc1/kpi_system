@@ -8,6 +8,15 @@ let filteredUsers = [];
 let currentUserPage = 1;
 const USER_PAGE_SIZE = 25;
 
+function calculateWorkingDays(year, month) {
+    const daysInMonth = new Date(year, month, 0).getDate();
+    let sundays = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+        if (new Date(year, month - 1, d).getDay() === 0) sundays++;
+    }
+    return daysInMonth - sundays - 1;
+}
+
 function formatLargeNumber(value, kpiName = '', forceShort = false) {
     if (!value || value === '-') return '-';
     const num = parseFloat(value);
@@ -228,6 +237,8 @@ async function syncLarkVideoKpi(userId, month, year) {
 
         if (res.data?.success && res.data?.videoCount !== undefined) {
             const videoCount = res.data.videoCount;
+            const workingDays = res.data.workingDays ?? calculateWorkingDays(year, month);
+
             const inp = document.querySelector('.kpi-input[data-template-id="34"]');
             if (inp) {
                 inp.value = videoCount;
@@ -236,8 +247,14 @@ async function syncLarkVideoKpi(userId, month, year) {
                 inp.style.backgroundColor = '#f0fdf4';
                 inp.style.cursor = 'not-allowed';
                 inp.disabled = true;
-                inp.title = `Đã tự động điền ${videoCount} video từ dữ liệu Lark`;
+                inp.dataset.standard = workingDays;
+                inp.title = `Đã tự động điền ${videoCount} video | Chuẩn: ${workingDays} ngày công tháng ${month}/${year}`;
                 inp.dispatchEvent(new Event('input'));
+
+                const standardBadge = inp.closest('.flex-1')?.querySelector('.bg-green-100');
+                if (standardBadge) {
+                    standardBadge.innerHTML = `<i class="fas fa-check-circle mr-1"></i>Chuẩn: ${workingDays} ngày công`;
+                }
             }
         } else {
             const inp = document.querySelector('.kpi-input[data-template-id="34"]');
@@ -655,13 +672,13 @@ async function loadKpiData() {
 
         html += '<div>';
         leftTemplates.forEach((template, idx) => {
-            html += renderKpiInput(template, idx + 1, dataMap[template.id] || '', revenuePlan, hasRevenue, month);
+            html += renderKpiInput(template, idx + 1, dataMap[template.id] || '', revenuePlan, hasRevenue, month, year);
         });
         html += '</div>';
 
         html += '<div>';
         rightTemplates.forEach((template, idx) => {
-            html += renderKpiInput(template, half + idx + 1, dataMap[template.id] || '', revenuePlan, hasRevenue, month);
+            html += renderKpiInput(template, half + idx + 1, dataMap[template.id] || '', revenuePlan, hasRevenue, month, year);
         });
         html += '</div>';
 
@@ -682,8 +699,12 @@ async function loadKpiData() {
     }
 }
 
-function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) {
+function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month, year) {
     const isRevenueKpi = template.kpi_name && template.kpi_name.includes('doanh thu tăng trưởng');
+    const isLarkAutoFill = currentUser.position_id === 4 && template.id === 34;
+    const effectiveStandard = isLarkAutoFill
+        ? calculateWorkingDays(parseInt(year), parseInt(month))
+        : template.standard_value;
 
     let inputHtml = '';
     let infoHtml = '';
@@ -755,13 +776,12 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) 
         const isPercentageKpi = template.kpi_name && template.kpi_name.includes('Tỷ lệ') && !isRevenueGrowthKpi;
         const placeholder = isPercentageKpi ? 'Nhập số % (ví dụ: 70 cho 70%)' : 'Nhập giá trị thực tế đạt được';
 
-        const isLarkAutoFill = currentUser.position_id === 4 && template.id === 34;
         const inputStyle = isLarkAutoFill
             ? 'border-color:#22c55e;background-color:#f0fdf4;cursor:not-allowed;'
             : '';
         const inputDisabled = isLarkAutoFill ? 'disabled' : '';
         const inputTitle = isLarkAutoFill
-            ? 'Số video được tự động điền từ dữ liệu Lark'
+            ? `Chuẩn: ${effectiveStandard} ngày công (tổng ngày - Chủ nhật - 1 ngày phép)`
             : '';
 
         inputHtml = `
@@ -769,7 +789,7 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) 
         type="number" 
         step="0.01"
         data-template-id="${template.id}"
-        data-standard="${template.standard_value}"
+        data-standard="${effectiveStandard}"
         data-is-percentage="${isPercentageKpi}"
         data-type="kpi"
         class="kpi-input w-full px-3 lg:px-4 py-2.5 lg:py-3 text-sm lg:text-base border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
@@ -802,7 +822,7 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month) 
               <i class="fas fa-weight-hanging mr-1"></i>Trọng số: ${(template.weight * 100).toFixed(0)}%
             </span>
             <span class="text-xs lg:text-sm px-2 lg:px-3 py-1 bg-green-100 text-green-800 rounded-full border border-green-300 font-semibold whitespace-nowrap">
-              <i class="fas fa-check-circle mr-1"></i>Chuẩn: ${formatLargeNumber(template.standard_value, template.kpi_name)}
+              <i class="fas fa-check-circle mr-1"></i>Chuẩn: ${formatLargeNumber(isLarkAutoFill ? effectiveStandard : template.standard_value, template.kpi_name)}${isLarkAutoFill ? ' ngày công' : ''}
             </span>
           </div>
           ${inputHtml}

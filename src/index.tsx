@@ -119,12 +119,21 @@ function countVideosByUsernameAndMonth(
     }).length
 }
 
+function calculateWorkingDays(year: number, month: number): number {
+    const daysInMonth = new Date(year, month, 0).getDate()
+    let sundays = 0
+    for (let d = 1; d <= daysInMonth; d++) {
+        if (new Date(year, month - 1, d).getDay() === 0) sundays++
+    }
+    return daysInMonth - sundays - 1
+}
+
 async function runLarkSyncForUser(
     env: any,
     userId: number,
     year: number,
     month: number
-): Promise<{ success: boolean; videoCount?: number; error?: string; skipped?: boolean }> {
+): Promise<{ success: boolean; videoCount?: number; workingDays?: number; error?: string; skipped?: boolean }> {
     const user = await env.DB.prepare(
         'SELECT id, username, position_id FROM users WHERE id = ?'
     ).bind(userId).first()
@@ -160,7 +169,8 @@ async function runLarkSyncForUser(
 
     if (!tpl) return {success: false, error: 'Không tìm thấy KPI template video trong DB'}
 
-    const completionPercent = Math.min((videoCount / (tpl.standard_value as number)) * 100, 150)
+    const workingDays = calculateWorkingDays(year, month)
+    const completionPercent = Math.min((videoCount / workingDays) * 100, 150)
     const weightedScore = (completionPercent / 100) * (tpl.weight as number)
     const safeCount = ensureSafeNumber(videoCount, 0)
     const safeComp = ensureSafeNumber(completionPercent, 0)
@@ -177,7 +187,7 @@ async function runLarkSyncForUser(
             updated_at = CURRENT_TIMESTAMP
     `).bind(userId, month, year, tpl.id, safeCount, safeComp, safeWt, safeCount, safeComp, safeWt).run()
 
-    return {success: true, videoCount}
+    return {success: true, videoCount, workingDays}
 }
 
 async function calculateMonthlySummary(db: D1Database, userId: number, year: number, month: number) {
@@ -1583,7 +1593,8 @@ app.post('/api/lark/sync-video-kpi', async (c) => {
         return c.json({
             success: true,
             videoCount: result.videoCount,
-            message: `Đã tự động điền ${result.videoCount} video cho tháng ${month}/${year}`
+            workingDays: result.workingDays,
+            message: `Đã tự động điền ${result.videoCount} video cho tháng ${month}/${year} (chuẩn: ${result.workingDays} ngày công)`
         })
     } catch (error: any) {
         console.error('Lark sync error:', error)
