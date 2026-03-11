@@ -4743,7 +4743,7 @@ function renderHolidayDaysTab(container) {
           <h3 class="text-2xl font-bold text-gray-800">
             <i class="fas fa-umbrella-beach mr-2 text-orange-400"></i>Quản lý Ngày lễ
           </h3>
-          <p class="text-sm text-gray-400 mt-1">Thay đổi tự động lưu khi bạn rời khỏi ô nhập</p>
+          <p class="text-sm text-gray-400 mt-1">Thay đổi tự động lưu khi rời khỏi ô nhập</p>
         </div>
         <select id="holiday-year" class="px-4 py-2 border-2 border-gray-200 rounded-xl font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white">
           <option value="${currentYear - 1}">${currentYear - 1}</option>
