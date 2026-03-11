@@ -119,10 +119,6 @@ function countVideosByUsernameAndMonth(
     }).length
 }
 
-/**
- * Tính ngày công cơ bản (không có ngày lễ):
- * = Tổng ngày trong tháng - số Chủ nhật - 1 ngày phép
- */
 function calculateWorkingDaysBase(year: number, month: number): number {
     const daysInMonth = new Date(year, month, 0).getDate()
     let sundays = 0
@@ -132,10 +128,6 @@ function calculateWorkingDaysBase(year: number, month: number): number {
     return daysInMonth - sundays - 1
 }
 
-/**
- * Tính ngày công có trừ ngày lễ từ DB.
- * Nếu không có bản ghi ngày lễ → fallback về công thức cơ bản.
- */
 async function calculateWorkingDays(db: D1Database, year: number, month: number): Promise<number> {
     const base = calculateWorkingDaysBase(year, month)
     const row = await db.prepare(
