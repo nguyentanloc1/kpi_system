@@ -119,13 +119,30 @@ function countVideosByUsernameAndMonth(
     }).length
 }
 
-function calculateWorkingDays(year: number, month: number): number {
+/**
+ * Tính ngày công cơ bản (không có ngày lễ):
+ * = Tổng ngày trong tháng - số Chủ nhật - 1 ngày phép
+ */
+function calculateWorkingDaysBase(year: number, month: number): number {
     const daysInMonth = new Date(year, month, 0).getDate()
     let sundays = 0
     for (let d = 1; d <= daysInMonth; d++) {
         if (new Date(year, month - 1, d).getDay() === 0) sundays++
     }
     return daysInMonth - sundays - 1
+}
+
+/**
+ * Tính ngày công có trừ ngày lễ từ DB.
+ * Nếu không có bản ghi ngày lễ → fallback về công thức cơ bản.
+ */
+async function calculateWorkingDays(db: D1Database, year: number, month: number): Promise<number> {
+    const base = calculateWorkingDaysBase(year, month)
+    const row = await db.prepare(
+        'SELECT holiday_count FROM holiday_days WHERE year = ? AND month = ?'
+    ).bind(year, month).first()
+    const holidays = (row?.holiday_count as number) ?? 0
+    return Math.max(base - holidays, 0)
 }
 
 async function runLarkSyncForUser(
@@ -169,7 +186,7 @@ async function runLarkSyncForUser(
 
     if (!tpl) return {success: false, error: 'Không tìm thấy KPI template video trong DB'}
 
-    const workingDays = calculateWorkingDays(year, month)
+    const workingDays = await calculateWorkingDays(env.DB, year, month)
     const completionPercent = Math.min((videoCount / workingDays) * 100, 150)
     const weightedScore = (completionPercent / 100) * (tpl.weight as number)
     const safeCount = ensureSafeNumber(videoCount, 0)
@@ -1577,6 +1594,60 @@ app.get('/api/admin/locked-months/:year', async (c) => {
         return c.json({locks: locks.results})
     } catch (error) {
         return c.json({error: 'Lỗi lấy danh sách tháng đã khóa'}, 500)
+    }
+})
+
+app.get('/api/admin/holiday-days/:year', async (c) => {
+    try {
+        const year = parseInt(c.req.param('year'))
+        const rows = await c.env.DB.prepare(
+            'SELECT month, holiday_count, note FROM holiday_days WHERE year = ? ORDER BY month'
+        ).bind(year).all()
+        return c.json({success: true, holidays: rows.results})
+    } catch (error) {
+        return c.json({error: 'Lỗi lấy dữ liệu ngày lễ'}, 500)
+    }
+})
+
+app.post('/api/admin/holiday-days', async (c) => {
+    try {
+        const {year, month, holiday_count, note} = await c.req.json()
+        if (!year || !month || holiday_count === undefined) {
+            return c.json({error: 'Thiếu thông tin: year, month, holiday_count'}, 400)
+        }
+        if (holiday_count < 0 || holiday_count > 15) {
+            return c.json({error: 'Số ngày lễ không hợp lệ (0–15)'}, 400)
+        }
+        await c.env.DB.prepare(`
+            INSERT INTO holiday_days (year, month, holiday_count, note)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(year, month) DO UPDATE SET
+                holiday_count = excluded.holiday_count,
+                note = excluded.note,
+                updated_at = CURRENT_TIMESTAMP
+        `).bind(year, month, holiday_count, note || '').run()
+
+        const workingDays = await calculateWorkingDays(c.env.DB, year, month)
+        return c.json({
+            success: true,
+            message: `Đã cập nhật ngày lễ tháng ${month}/${year}`,
+            workingDays
+        })
+    } catch (error) {
+        return c.json({error: 'Lỗi lưu ngày lễ'}, 500)
+    }
+})
+
+app.delete('/api/admin/holiday-days/:year/:month', async (c) => {
+    try {
+        const year = parseInt(c.req.param('year'))
+        const month = parseInt(c.req.param('month'))
+        await c.env.DB.prepare(
+            'DELETE FROM holiday_days WHERE year = ? AND month = ?'
+        ).bind(year, month).run()
+        return c.json({success: true, message: `Đã xóa ngày lễ tháng ${month}/${year}`})
+    } catch (error) {
+        return c.json({error: 'Lỗi xóa ngày lễ'}, 500)
     }
 })
 
