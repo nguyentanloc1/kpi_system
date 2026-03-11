@@ -260,6 +260,20 @@ async function syncLarkVideoKpi(userId, month, year) {
                     standardBadge.innerHTML = `<i class="fas fa-check-circle mr-1"></i>Chuẩn: ${workingDays} ngày công`;
                 }
             }
+        } else if (res.data?.cacheEmpty) {
+            const inp = document.querySelector('.kpi-input[data-template-id="34"]');
+            if (inp) {
+                inp.disabled = false;
+                inp.placeholder = 'Nhập thủ công (Admin chưa đồng bộ Lark)';
+                inp.style.borderColor = '#f59e0b';
+                inp.style.backgroundColor = '#fffbeb';
+                inp.style.cursor = '';
+                inp.title = 'Dữ liệu Lark chưa được đồng bộ. Liên hệ Admin để đồng bộ trong tab "Đồng bộ Lark".';
+            }
+            const robotNote = document.querySelector('.kpi-input[data-template-id="34"] ~ p');
+            if (robotNote) {
+                robotNote.innerHTML = '<i class="fas fa-exclamation-triangle mr-1 text-amber-500"></i><span class="text-amber-600">Chưa có dữ liệu cache — Admin cần đồng bộ Lark</span>';
+            }
         } else {
             const inp = document.querySelector('.kpi-input[data-template-id="34"]');
             if (inp) {
@@ -1846,7 +1860,6 @@ function renderAdminDashboard(data, container) {
             </div>
           </div>
           
-          
           <div>
             <h4 class="text-base lg:text-lg font-bold mb-2 lg:mb-3 text-${color}-600 flex items-center">
               <i class="fas fa-star mr-2"></i>Xếp hạng Level
@@ -2066,6 +2079,9 @@ function renderAdminTab(container) {
           <button onclick="showAdminSubTab('holiday-days')" class="admin-subtab px-6 py-3 rounded-lg font-semibold transition-all" data-tab="holiday-days">
             <i class="fas fa-calendar-times mr-2"></i>Ngày lễ
           </button>
+          <button onclick="showAdminSubTab('lark-sync')" class="admin-subtab px-6 py-3 rounded-lg font-semibold transition-all" data-tab="lark-sync">
+            <i class="fas fa-database mr-2"></i>Đồng bộ Lark
+          </button>
           <button onclick="showAdminSubTab('revenue-actual')" class="admin-subtab px-6 py-3 rounded-lg font-semibold transition-all" data-tab="revenue-actual">
             <i class="fas fa-upload mr-2"></i>Upload Doanh thu
           </button>
@@ -2135,6 +2151,8 @@ function showAdminSubTab(tabName) {
         renderLockMonthTab(content);
     } else if (tabName === 'holiday-days') {
         renderHolidayDaysTab(content);
+    } else if (tabName === 'lark-sync') {
+        renderLarkSyncTab(content);
     }
 }
 
@@ -4818,7 +4836,7 @@ async function loadHolidayDays() {
 
               <div class="flex items-center gap-2 mb-3">
                 <span class="font-bold text-gray-700 text-sm">${monthNames[m-1]}</span>
-                ${isCurrentMonth ? '<span class="text-xs px-1.5 py-0.5 bg-blue-500 text-white rounded-full leading-none">nay</span>' : ''}
+                ${isCurrentMonth ? '<span class="text-xs px-1.5 py-1 bg-blue-500 text-white rounded-full leading-none">hiện tại</span>' : ''}
               </div>
 
               <div class="flex items-baseline gap-1 mb-3">
@@ -4943,5 +4961,169 @@ async function deleteHolidayDay(year, month) {
         }
     } catch (err) {
         alert('Lỗi kết nối');
+    }
+}
+
+function renderLarkSyncTab(container) {
+    container.innerHTML = `
+    <div class="bg-white rounded-xl shadow-xl p-6">
+      <div class="mb-6">
+        <h3 class="text-2xl font-bold text-gray-800">
+          <i class="fas fa-database mr-2 text-blue-500"></i>Đồng bộ dữ liệu Lark
+        </h3>
+        <p class="text-sm text-gray-400 mt-1">
+          Kéo dữ liệu video từ Lark Sheet về database nội bộ.
+        </p>
+      </div>
+
+      <div id="lark-sync-status" class="mb-6">
+        <div class="text-center py-6 text-gray-300">
+          <i class="fas fa-spinner fa-spin text-3xl mb-2"></i>
+          <p class="text-sm">Đang tải trạng thái...</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button
+          id="lark-sync-btn"
+          onclick="triggerLarkFullSync()"
+          class="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all"
+        >
+          <i class="fas fa-sync mr-2"></i>Đồng bộ ngay
+        </button>
+        <button
+          onclick="loadLarkSyncStatus()"
+          class="px-4 py-3 bg-gray-100 text-gray-600 rounded-xl font-semibold hover:bg-gray-200 transition-all"
+        >
+          <i class="fas fa-refresh mr-2"></i>Làm mới
+        </button>
+      </div>
+
+      <div id="lark-sync-log" class="hidden mt-4"></div>
+    </div>
+  `;
+    loadLarkSyncStatus();
+}
+
+async function loadLarkSyncStatus() {
+    const statusEl = document.getElementById('lark-sync-status');
+    if (!statusEl) return;
+
+    try {
+        const res = await fetch('/api/admin/lark/sync-status');
+        const data = await res.json();
+        const meta = data.meta || {};
+        const stats = data.cacheStats || {};
+
+        const statusColor = {
+            idle: 'text-gray-500',
+            running: 'text-blue-500',
+            done: 'text-emerald-600',
+            error: 'text-red-500'
+        }[meta.status] || 'text-gray-500';
+
+        const statusLabel = {
+            idle: 'Chưa sync',
+            running: '<i class="fas fa-spinner fa-spin mr-1"></i>Đang sync...',
+            done: 'Hoàn tất',
+            error: 'Lỗi'
+        }[meta.status] || 'Chưa sync';
+
+        const lastSynced = meta.last_synced_at
+            ? new Date(meta.last_synced_at).toLocaleString('vi-VN')
+            : 'Chưa có';
+
+        statusEl.innerHTML = `
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="p-4 bg-blue-50 rounded-xl border border-blue-100">
+            <p class="text-xs text-blue-400 font-semibold uppercase tracking-wide mb-1">Tổng bản ghi</p>
+            <p class="text-2xl font-black text-blue-700">${(stats.total ?? 0).toLocaleString('vi-VN')}</p>
+            <p class="text-xs text-blue-400 mt-1">video trong cache</p>
+          </div>
+          <div class="p-4 bg-purple-50 rounded-xl border border-purple-100">
+            <p class="text-xs text-purple-400 font-semibold uppercase tracking-wide mb-1">Giám sát</p>
+            <p class="text-2xl font-black text-purple-700">${stats.unique_emails ?? 0}</p>
+            <p class="text-xs text-purple-400 mt-1">tài khoản có dữ liệu</p>
+          </div>
+          <div class="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+            <p class="text-xs text-emerald-400 font-semibold uppercase tracking-wide mb-1">Lần sync gần nhất</p>
+            <p class="text-sm font-bold text-emerald-700 leading-tight">${lastSynced}</p>
+            <p class="text-xs text-emerald-400 mt-1">${meta.new_rows_added ?? 0} dòng mới thêm</p>
+          </div>
+          <div class="p-4 bg-gray-50 rounded-xl border border-gray-200">
+            <p class="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Trạng thái</p>
+            <p class="text-lg font-black ${statusColor}">${statusLabel}</p>
+            <p class="text-xs text-gray-400 mt-1">${stats.oldest ? `Từ ${stats.oldest.slice(0,7)}` : '—'} ${stats.newest ? `→ ${stats.newest.slice(0,7)}` : ''}</p>
+          </div>
+        </div>
+        `;
+    } catch (err) {
+        statusEl.innerHTML = '<p class="text-red-500 text-sm"><i class="fas fa-exclamation-triangle mr-1"></i>Lỗi tải trạng thái</p>';
+    }
+}
+
+async function triggerLarkFullSync() {
+    const btn = document.getElementById('lark-sync-btn');
+    const logEl = document.getElementById('lark-sync-log');
+    if (!btn || !logEl) return;
+
+    if (!confirm('Bắt đầu đồng bộ dữ liệu từ Lark?\nQuá trình có thể mất vài phút nếu sheet lớn.')) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang đồng bộ...';
+    btn.className = btn.className.replace('from-blue-600 to-purple-600', 'from-gray-400 to-gray-500');
+
+    logEl.classList.remove('hidden');
+    logEl.innerHTML = `
+      <div class="p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700">
+        <i class="fas fa-spinner fa-spin mr-2"></i>
+        Đang kéo dữ liệu từ Lark Sheet theo batch 500 dòng... Vui lòng đợi.
+      </div>
+    `;
+
+    try {
+        const res = await fetch('/api/admin/lark/full-sync', {method: 'POST'});
+        const data = await res.json();
+
+        if (data.success) {
+            logEl.innerHTML = `
+            <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <p class="font-bold text-emerald-700 mb-2"><i class="fas fa-check-circle mr-2"></i>Đồng bộ thành công!</p>
+              <div class="grid grid-cols-3 gap-3 text-center mt-3">
+                <div class="bg-white rounded-lg p-3 border border-emerald-100">
+                  <p class="text-2xl font-black text-emerald-600">${(data.newRows ?? 0).toLocaleString('vi-VN')}</p>
+                  <p class="text-xs text-gray-500 mt-1">Dòng mới thêm</p>
+                </div>
+                <div class="bg-white rounded-lg p-3 border border-gray-100">
+                  <p class="text-2xl font-black text-gray-400">${(data.skippedRows ?? 0).toLocaleString('vi-VN')}</p>
+                  <p class="text-xs text-gray-500 mt-1">Đã có, bỏ qua</p>
+                </div>
+                <div class="bg-white rounded-lg p-3 border border-blue-100">
+                  <p class="text-2xl font-black text-blue-600">${(data.totalProcessed ?? 0).toLocaleString('vi-VN')}</p>
+                  <p class="text-xs text-gray-500 mt-1">Tổng xử lý</p>
+                </div>
+              </div>
+            </div>
+            `;
+            await loadLarkSyncStatus();
+        } else {
+            logEl.innerHTML = `
+            <div class="p-4 bg-red-50 border border-red-200 rounded-xl text-sm">
+              <p class="font-bold text-red-700 mb-1"><i class="fas fa-exclamation-triangle mr-2"></i>Đồng bộ thất bại</p>
+              <p class="text-red-600">${data.error || 'Lỗi không xác định'}</p>
+              ${data.totalProcessed > 0 ? `<p class="text-gray-500 mt-2 text-xs">Đã xử lý được ${data.totalProcessed} dòng trước khi lỗi. Dữ liệu đã đồng bộ được giữ lại.</p>` : ''}
+            </div>
+            `;
+        }
+    } catch (err) {
+        logEl.innerHTML = `
+          <div class="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+            <i class="fas fa-wifi mr-2"></i>Lỗi kết nối. Vui lòng thử lại.
+          </div>
+        `;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sync mr-2"></i>Đồng bộ ngay';
+        btn.className = btn.className.replace('from-gray-400 to-gray-500', 'from-blue-600 to-purple-600');
     }
 }

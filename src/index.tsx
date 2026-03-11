@@ -137,12 +137,157 @@ async function calculateWorkingDays(db: D1Database, year: number, month: number)
     return Math.max(base - holidays, 0)
 }
 
+const LARK_BATCH_SIZE = 500
+
+async function* fetchLarkSheetBatches(
+    token: string,
+    spreadsheetToken: string,
+    sheetId: string,
+    channelEmailMap: Map<string, string>
+): AsyncGenerator<Array<{ channel: string; email: string; video_create_time: string }>> {
+
+    const headerRange = `${sheetId}!A1:AZ1`
+    const headerRes = await fetch(
+        `https://open.larksuite.com/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${headerRange}`,
+        {headers: {'Authorization': `Bearer ${token}`}}
+    )
+    if (!headerRes.ok) throw new Error(`Lark header error: ${headerRes.status}`)
+    const headerData: any = await headerRes.json()
+    if (headerData.code !== 0) throw new Error(`Lark header failed: ${headerData.msg}`)
+
+    const headers: string[] = (headerData.data?.valueRange?.values?.[0] ?? [])
+        .map((h: any) => String(h ?? '').trim())
+    const channelIdx = headers.indexOf('channel')
+    const dateIdx = headers.indexOf('video_create_time')
+    if (channelIdx === -1 || dateIdx === -1) {
+        throw new Error('Không tìm thấy cột "channel" hoặc "video_create_time"')
+    }
+
+    const metaRes = await fetch(
+        `https://open.larksuite.com/open-apis/sheets/v3/spreadsheets/${spreadsheetToken}/sheets/${sheetId}`,
+        {headers: {'Authorization': `Bearer ${token}`}}
+    )
+    if (!metaRes.ok) throw new Error(`Lark sheet meta error: ${metaRes.status}`)
+    const metaData: any = await metaRes.json()
+    const totalRows: number = metaData.data?.sheet?.grid_properties?.row_count ?? 5000
+
+    let startRow = 2
+    while (startRow <= totalRows) {
+        const endRow = Math.min(startRow + LARK_BATCH_SIZE - 1, totalRows)
+        const range = `${sheetId}!A${startRow}:AZ${endRow}`
+
+        const batchRes = await fetch(
+            `https://open.larksuite.com/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${range}`,
+            {headers: {'Authorization': `Bearer ${token}`}}
+        )
+        if (!batchRes.ok) throw new Error(`Lark batch error at row ${startRow}: ${batchRes.status}`)
+        const batchData: any = await batchRes.json()
+        if (batchData.code !== 0) throw new Error(`Lark batch failed: ${batchData.msg}`)
+
+        const batchRows: any[][] = batchData.data?.valueRange?.values ?? []
+        if (batchRows.length === 0) break
+
+        const parsed: Array<{ channel: string; email: string; video_create_time: string }> = []
+        for (const row of batchRows) {
+            const channel = String(row[channelIdx] ?? '').trim()
+            const dateVal = String(row[dateIdx] ?? '').trim()
+            if (!channel || !dateVal) continue
+
+            const email = channelEmailMap.get(channel.toLowerCase())
+            if (!email) continue
+
+            parsed.push({channel, email, video_create_time: dateVal})
+        }
+
+        if (parsed.length > 0) yield parsed
+
+        startRow += LARK_BATCH_SIZE
+    }
+}
+
+async function runLarkFullSync(env: any): Promise<{
+    newRows: number
+    skippedRows: number
+    totalProcessed: number
+    error?: string
+}> {
+    await env.DB.prepare(
+        `UPDATE lark_sync_meta SET status = 'running', last_synced_at = CURRENT_TIMESTAMP WHERE id = 1`
+    ).run()
+
+    let newRows = 0
+    let skippedRows = 0
+    let totalProcessed = 0
+
+    try {
+        const larkToken = await getLarkAccessToken(env.LARK_APP_ID, env.LARK_APP_SECRET)
+
+        const channelEmailMap = await fetchChannelEmailMapping(
+            larkToken, env.LARK_SPREADSHEET_TOKEN, env.LARK_SHEET_ID_MAPPING
+        )
+
+        for await (const batch of fetchLarkSheetBatches(
+            larkToken, env.LARK_SPREADSHEET_TOKEN, env.LARK_SHEET_ID, channelEmailMap
+        )) {
+            const D1_CHUNK = 100
+            for (let i = 0; i < batch.length; i += D1_CHUNK) {
+                const chunk = batch.slice(i, i + D1_CHUNK)
+                const stmts = chunk.map(r =>
+                    env.DB.prepare(
+                        `INSERT OR IGNORE INTO lark_video_cache (channel, email, video_create_time)
+                         VALUES (?, ?, ?)`
+                    ).bind(r.channel, r.email, r.video_create_time)
+                )
+                const results = await env.DB.batch(stmts)
+                for (const res of results) {
+                    if ((res.meta?.changes ?? 0) > 0) newRows++
+                    else skippedRows++
+                }
+            }
+            totalProcessed += batch.length
+        }
+
+        await env.DB.prepare(
+            `UPDATE lark_sync_meta
+             SET status = 'done', last_row_count = ?, new_rows_added = ?, last_synced_at = CURRENT_TIMESTAMP
+             WHERE id = 1`
+        ).bind(totalProcessed, newRows).run()
+
+        return {newRows, skippedRows, totalProcessed}
+
+    } catch (err: any) {
+        await env.DB.prepare(
+            `UPDATE lark_sync_meta SET status = 'error' WHERE id = 1`
+        ).run()
+        return {newRows, skippedRows, totalProcessed, error: err.message}
+    }
+}
+
+async function countVideosFromCache(
+    db: D1Database,
+    username: string,
+    year: number,
+    month: number
+): Promise<number> {
+    const prefix = `${year}/${String(month).padStart(2, '0')}`
+    const email = `${username.toLowerCase()}@`
+
+    const row = await db.prepare(`
+        SELECT COUNT(*) as cnt
+        FROM lark_video_cache
+        WHERE email LIKE ?
+          AND video_create_time LIKE ?
+    `).bind(`${email}%`, `${prefix}%`).first()
+
+    return (row?.cnt as number) ?? 0
+}
+
 async function runLarkSyncForUser(
     env: any,
     userId: number,
     year: number,
     month: number
-): Promise<{ success: boolean; videoCount?: number; workingDays?: number; error?: string; skipped?: boolean }> {
+): Promise<{ success: boolean; videoCount?: number; workingDays?: number; error?: string; skipped?: boolean; cacheEmpty?: boolean }> {
     const user = await env.DB.prepare(
         'SELECT id, username, position_id FROM users WHERE id = ?'
     ).bind(userId).first()
@@ -150,14 +295,14 @@ async function runLarkSyncForUser(
     if (!user) return {success: false, error: 'Không tìm thấy user'}
     if ((user.position_id as number) !== 4) return {success: true, skipped: true}
 
-    const larkToken = await getLarkAccessToken(env.LARK_APP_ID, env.LARK_APP_SECRET)
+    const cacheCheck = await env.DB.prepare(
+        `SELECT COUNT(*) as cnt FROM lark_video_cache`
+    ).first()
+    if ((cacheCheck?.cnt as number) === 0) {
+        return {success: false, cacheEmpty: true, error: 'Chưa có dữ liệu cache. Admin cần đồng bộ Lark trước.'}
+    }
 
-    const [rows, channelEmailMap] = await Promise.all([
-        fetchLarkSheetRows(larkToken, env.LARK_SPREADSHEET_TOKEN, env.LARK_SHEET_ID),
-        fetchChannelEmailMapping(larkToken, env.LARK_SPREADSHEET_TOKEN, env.LARK_SHEET_ID_MAPPING),
-    ])
-
-    const videoCount = countVideosByUsernameAndMonth(rows, channelEmailMap, user.username as string, year, month)
+    const videoCount = await countVideosFromCache(env.DB, user.username as string, year, month)
 
     const template = await env.DB.prepare(`
         SELECT id, standard_value, weight
@@ -1643,6 +1788,58 @@ app.delete('/api/admin/holiday-days/:year/:month', async (c) => {
     }
 })
 
+app.get('/api/admin/lark/sync-status', async (c) => {
+    try {
+        const meta = await c.env.DB.prepare(
+            `SELECT * FROM lark_sync_meta WHERE id = 1`
+        ).first()
+
+        const cacheStats = await c.env.DB.prepare(
+            `SELECT COUNT(*) as total,
+                    COUNT(DISTINCT email) as unique_emails,
+                    MIN(video_create_time) as oldest,
+                    MAX(video_create_time) as newest
+             FROM lark_video_cache`
+        ).first()
+
+        return c.json({success: true, meta, cacheStats})
+    } catch (error) {
+        return c.json({error: 'Lỗi lấy trạng thái sync'}, 500)
+    }
+})
+
+app.post('/api/admin/lark/full-sync', async (c) => {
+    try {
+        const meta = await c.env.DB.prepare(
+            `SELECT status FROM lark_sync_meta WHERE id = 1`
+        ).first()
+        if (meta?.status === 'running') {
+            return c.json({error: 'Đang sync, vui lòng đợi hoàn tất'}, 409)
+        }
+
+        const result = await runLarkFullSync(c.env)
+
+        if (result.error) {
+            return c.json({
+                success: false,
+                error: result.error,
+                totalProcessed: result.totalProcessed,
+                newRows: result.newRows
+            }, 200)
+        }
+
+        return c.json({
+            success: true,
+            newRows: result.newRows,
+            skippedRows: result.skippedRows,
+            totalProcessed: result.totalProcessed,
+            message: `Đồng bộ xong: ${result.newRows} dòng mới, ${result.skippedRows} dòng đã có`
+        })
+    } catch (error: any) {
+        return c.json({error: error.message ?? 'Lỗi sync Lark'}, 500)
+    }
+})
+
 app.post('/api/lark/sync-video-kpi', async (c) => {
     try {
         const {userId, year, month} = await c.req.json()
@@ -1651,6 +1848,7 @@ app.post('/api/lark/sync-video-kpi', async (c) => {
         const result = await runLarkSyncForUser(c.env, userId, year, month)
 
         if (result.skipped) return c.json({success: true, skipped: true, reason: 'Chỉ áp dụng cho Giám sát'})
+        if (result.cacheEmpty) return c.json({success: false, cacheEmpty: true, error: result.error}, 200)
         if (!result.success) return c.json({success: false, error: result.error}, 200)
 
         return c.json({
