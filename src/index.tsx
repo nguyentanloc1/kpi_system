@@ -84,7 +84,8 @@ app.get('/api/kpi-templates/:positionId', async (c) => {
                    description,
                    is_for_kpi,
                    display_order,
-                   created_at
+                   created_at,
+                   value_type
             FROM kpi_templates
             WHERE position_id = ?
               AND is_for_kpi = ?
@@ -267,7 +268,7 @@ app.post('/api/kpi-data', async (c) => {
 
         // Get user info to check position
         const user = await c.env.DB.prepare(`
-            SELECT position_id, start_date
+            SELECT position_id, start_date, region_id
             FROM users
             WHERE id = ?
         `).bind(userId).first()
@@ -465,9 +466,17 @@ app.post('/api/kpi-data', async (c) => {
                         // Level 1: Tổng số doanh thu
                         // actual_value is stored as VND (e.g., 20e9 for 20 billion)
                         // Use it directly
+
                         const actualRevenue = ensureSafeNumber(revenueKpiData.actual_value, 0)
                         const levelTemplate1 = levelTemplates.results[0]
-                        const level1Completion = Math.min((actualRevenue / (levelTemplate1.standard_value/1000000000)) * 100, 160)
+
+                        let standardValue = levelTemplate1.standard_value
+                        console.log('111',standardValue, levelTemplate1.kpi_name, user.region_id)
+                        if(levelTemplate1.kpi_name.includes('Tổng số doanh thu') && user.region_id == 3){
+                            standardValue = levelTemplate1.standard_value*0.7
+                        }
+
+                        const level1Completion = Math.min((actualRevenue / (standardValue/1000000000)) * 100, 160)
                         const level1Score = (level1Completion / 100) * levelTemplate1.weight
 
                         await c.env.DB.prepare(`
@@ -772,19 +781,19 @@ app.post('/api/kpi-data', async (c) => {
             if (!kpiData || !kpiData.actual_value) continue
 
             let levelCompletion = 0
+            let standardValue = levelTemplate.standard_value
+
+            if(levelTemplate.kpi_name.includes('Tổng số doanh thu') && user.region_id == 3){
+                standardValue = levelTemplate.standard_value*0.7
+            }
 
             if(levelTemplate.value_type == 'currency') {
                 levelCompletion = Math.min((kpiData.actual_value / revenuePlan.planned_revenue) * 100, 160)
             }else {
-                levelCompletion = Math.min((kpiData.actual_value / levelTemplate.standard_value) * 100, 160)
+                levelCompletion = Math.min((kpiData.actual_value / standardValue) * 100, 160)
             }
 
-
             const levelScore = (levelCompletion / 100) * levelTemplate.weight
-
-            console.log('hihi:', levelTemplate)
-            console.log('kpiData.actual_value:', kpiData.actual_value)
-            console.log('levelCompletion:', levelCompletion)
 
             await c.env.DB.prepare(`
                 INSERT INTO kpi_data (user_id, month, year, kpi_template_id, actual_value, completion_percent,
