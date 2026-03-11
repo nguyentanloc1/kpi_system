@@ -287,7 +287,6 @@ function renderMainPage() {
     <div class="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       <header class="bg-white shadow-lg sticky top-0 z-50">
         <div class="container mx-auto px-6 py-4">
-          <!-- Mobile Header -->
           <div class="lg:hidden">
             <div class="flex items-center justify-between mb-3">
               <div class="flex items-center space-x-2">
@@ -321,7 +320,6 @@ function renderMainPage() {
             </div>
           </div>
           
-          <!-- Desktop Header -->
           <div class="hidden lg:flex items-center justify-between">
             <div class="flex items-center space-x-4">
               <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
@@ -359,7 +357,6 @@ function renderMainPage() {
             </div>
           </div>
           
-          <!-- Desktop Tabs -->
           <div class="hidden lg:flex space-x-2 mt-6 border-b border-gray-200">
             ${!isAdmin ? `
               <button onclick="switchTab('commitment')" id="tab-commitment" class="px-6 py-3 font-semibold transition-all duration-300 rounded-t-lg">
@@ -391,12 +388,10 @@ function renderMainPage() {
         </div>
       </header>
       
-      <!-- Main Content with padding for mobile bottom nav -->
       <main class="container mx-auto px-3 lg:px-6 py-4 lg:py-8 pb-20 lg:pb-8">
         <div id="tab-content"></div>
       </main>
       
-      <!-- Mobile Bottom Navigation (Fixed at bottom) -->
       <nav class="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-2xl z-50">
         <div class="grid ${!isAdmin ? 'grid-cols-5' : 'grid-cols-1'}">
           ${!isAdmin ? `
@@ -487,13 +482,11 @@ function switchTab(tab) {
 function renderKpiTab(container) {
     container.innerHTML = `
     <div class="bg-white rounded-xl lg:rounded-2xl shadow-lg lg:shadow-xl p-4 lg:p-8">
-      <!-- Header Section -->
       <div class="mb-4 lg:mb-6">
         <h2 class="text-xl lg:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-3 lg:mb-4">
           <i class="fas fa-edit mr-2"></i>Nhập chỉ số KPI
         </h2>
         
-        <!-- Mobile: Stacked layout -->
         <div class="lg:hidden space-y-3">
           <div class="grid grid-cols-2 gap-3">
             <div>
@@ -516,7 +509,6 @@ function renderKpiTab(container) {
           </button>
         </div>
         
-        <!-- Desktop: Horizontal layout -->
         <div class="hidden lg:flex items-end space-x-4">
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1">Tháng</label>
@@ -551,7 +543,6 @@ function renderKpiTab(container) {
         </button>
         <div id="kpi-save-message" class="mt-3 lg:mt-4"></div>
         
-        <!-- KPI Summary Box -->
         <div id="kpi-summary" class="mt-4 lg:mt-6 hidden bg-gradient-to-r from-blue-50 to-purple-50 p-4 lg:p-6 rounded-lg lg:rounded-xl border-2 border-blue-300 shadow-lg">
           <h3 class="text-lg lg:text-xl font-bold text-blue-800 mb-3 lg:mb-4 flex items-center">
             <i class="fas fa-chart-pie mr-2"></i>Tổng kết KPI
@@ -564,7 +555,6 @@ function renderKpiTab(container) {
           </div>
         </div>
         
-        <!-- KPI History Table -->
         <div id="kpi-history" class="mt-6 lg:mt-8 hidden">
           <h3 class="text-lg lg:text-xl font-bold text-blue-800 mb-3 lg:mb-4 flex items-center">
             <i class="fas fa-history mr-2"></i>Lịch sử nhập KPI các tháng
@@ -1099,7 +1089,6 @@ async function loadLevelHistory(year) {
 function renderLevelTab(container) {
     container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-4 md:p-8">
-      <!-- Header Section -->
       <div class="mb-6">
         <h2 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
           <i class="fas fa-star mr-2"></i>Level
@@ -1107,7 +1096,6 @@ function renderLevelTab(container) {
         <p class="text-xs md:text-sm text-gray-500">Level được tự động tính từ dữ liệu KPI đã nhập</p>
       </div>
       
-      <!-- Month/Year Selector - Responsive -->
       <div class="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-xl border-2 border-purple-200 mb-6">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div class="flex flex-col sm:flex-row gap-3 flex-1">
@@ -1134,13 +1122,11 @@ function renderLevelTab(container) {
         </div>
       </div>
       
-      <!-- Level Data Container -->
       <div id="level-data-container" class="text-center py-2 md:py-2 text-gray-500">
         <i class="fas fa-info-circle text-3xl md:text-4xl mb-3 md:mb-4 text-purple-400"></i>
         <p class="text-sm md:text-lg px-4">Chọn tháng/năm và nhấn <strong>"Tải dữ liệu"</strong> để xem Level</p>
       </div>
       
-      <!-- Level Summary Box -->
       <div id="level-summary" class="mt-6 hidden bg-gradient-to-r from-purple-50 to-pink-50 p-4 md:p-6 rounded-xl border-2 border-purple-300 shadow-lg">
         <h3 class="text-lg md:text-xl font-bold text-purple-800 mb-4 flex items-center">
           <i class="fas fa-trophy mr-2"></i>Tổng kết Level
@@ -1157,7 +1143,6 @@ function renderLevelTab(container) {
         </div>
       </div>
       
-      <!-- Level History Table -->
       <div id="level-history" class="mt-6 md:mt-8 hidden">
         <h3 class="text-lg md:text-xl font-bold text-purple-800 mb-4 flex items-center">
           <i class="fas fa-history mr-2"></i>Lịch sử Level các tháng
@@ -1206,20 +1191,16 @@ async function loadLevelDataNew() {
             html += `
         <div class="bg-gradient-to-r from-purple-50 to-pink-50 p-4 md:p-6 rounded-xl hover:shadow-lg transition-all border-2 ${hasData ? 'border-green-300' : 'border-gray-200'}">
           <div class="flex items-start space-x-3 md:space-x-4">
-            <!-- Number Badge -->
             <div class="flex-shrink-0 w-10 h-10 md:w-14 md:h-14 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center text-white font-bold text-lg md:text-2xl shadow-lg">
               ${idx + 1}
             </div>
             
-            <!-- Content -->
             <div class="flex-1 min-w-0">
-              <!-- Header -->
               <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
                 <h3 class="font-bold text-gray-800 text-sm md:text-lg leading-tight">${template.name}</h3>
                 ${hasData ? '<span class="text-xs px-2 py-1 bg-green-500 text-white rounded-full whitespace-nowrap self-start"><i class="fas fa-check mr-1"></i>Tự động</span>' : ''}
               </div>
               
-              <!-- Meta Info -->
               <div class="flex flex-wrap items-center gap-2 mb-3 md:mb-4">
                 <span class="text-xs md:text-sm px-2 md:px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full border border-yellow-300 font-semibold whitespace-nowrap">
                   <i class="fas fa-weight-hanging mr-1"></i>Trọng số: ${(template.weight * 100).toFixed(0)}%
@@ -1229,7 +1210,6 @@ async function loadLevelDataNew() {
                 </span>
               </div>
               
-              <!-- Data Display -->
               ${hasData ? `
                 <div class="grid grid-cols-3 gap-2 md:gap-3">
                   <div class="bg-white p-2 md:p-3 rounded-lg border-2 border-blue-200 shadow-sm">
@@ -1691,13 +1671,11 @@ async function loadTrackingData() {
 function renderDashboardTab(container) {
     container.innerHTML = `
     <div class="bg-white rounded-xl lg:rounded-2xl shadow-lg lg:shadow-xl p-4 lg:p-8">
-      <!-- Header Section -->
       <div class="mb-4 lg:mb-6">
         <h2 class="text-xl lg:text-2xl font-bold bg-gradient-to-r from-green-600 to-teal-600 bg-clip-text text-transparent mb-3 lg:mb-4">
           <i class="fas fa-chart-bar mr-2"></i>Dashboard - Xếp hạng KPI & Level
         </h2>
         
-        <!-- Mobile: Stacked layout -->
         <div class="lg:hidden space-y-3">
           <div class="grid grid-cols-2 gap-3">
             <div>
@@ -1720,7 +1698,6 @@ function renderDashboardTab(container) {
           </button>
         </div>
         
-        <!-- Desktop: Horizontal layout -->
         <div class="hidden lg:flex items-end space-x-4">
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1">Tháng</label>
@@ -1839,9 +1816,7 @@ function renderAdminDashboard(data, container) {
           <span class="ml-2 lg:ml-4 text-xs lg:text-sm font-normal text-gray-500">(${regionUsers.length} nhân viên)</span>
         </h3>
         
-        <!-- Mobile: Stacked, Desktop: 2 Columns -->
         <div class="dashboard-grid grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
-          <!-- Left: KPI Ranking -->
           <div>
             <h4 class="text-base lg:text-lg font-bold mb-2 lg:mb-3 text-${color}-600 flex items-center">
               <i class="fas fa-trophy mr-2"></i>Xếp hạng KPI
@@ -1871,7 +1846,7 @@ function renderAdminDashboard(data, container) {
             </div>
           </div>
           
-          <!-- Right: Level Ranking -->
+          
           <div>
             <h4 class="text-base lg:text-lg font-bold mb-2 lg:mb-3 text-${color}-600 flex items-center">
               <i class="fas fa-star mr-2"></i>Xếp hạng Level
@@ -1945,9 +1920,7 @@ function renderTwoColumnDashboard(data, container) {
           <span class="ml-2 lg:ml-3 text-xs lg:text-sm font-normal px-2 lg:px-3 py-1 bg-white rounded-full text-gray-600">${users.length} người</span>
         </h2>
         
-        <!-- Mobile: Stacked, Desktop: 2 Columns -->
         <div class="dashboard-grid grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8">
-          <!-- Left: KPI Ranking -->
           <div>
             <h3 class="text-base lg:text-lg font-bold mb-3 lg:mb-4 text-blue-700 flex items-center bg-white px-3 lg:px-4 py-2 lg:py-3 rounded-lg shadow-sm">
               <i class="fas fa-trophy mr-2"></i>Xếp hạng KPI
@@ -1979,7 +1952,6 @@ function renderTwoColumnDashboard(data, container) {
             </div>
           </div>
           
-          <!-- Right: Level Ranking -->
           <div>
             <h3 class="text-base lg:text-lg font-bold mb-3 lg:mb-4 text-purple-700 flex items-center bg-white px-3 lg:px-4 py-2 lg:py-3 rounded-lg shadow-sm">
               <i class="fas fa-star mr-2"></i>Xếp hạng Level
@@ -2065,7 +2037,6 @@ function getLevelColor(level) {
 function renderAdminTab(container) {
     container.innerHTML = `
     <div class="space-y-6">
-      <!-- Sub-tabs for Admin -->
       <div class="bg-white rounded-2xl shadow-xl p-4">
         <div class="flex flex-wrap gap-2">
           <button onclick="showAdminSubTab('overview')" class="admin-subtab px-6 py-3 rounded-lg font-semibold transition-all" data-tab="overview">
@@ -2099,10 +2070,8 @@ function renderAdminTab(container) {
             <i class="fas fa-upload mr-2"></i>Upload Doanh thu
           </button>
           
-          <!-- Separator -->
           <div class="w-full border-t border-gray-300 my-2"></div>
           
-          <!-- KPI Detail Tabs -->
           <div class="w-full text-sm text-gray-600 font-semibold">📊 Thống kê chỉ số trọng điểm</div>
           <button onclick="showAdminSubTab('ptgd-kpi')" class="admin-subtab px-4 py-2 rounded-lg text-sm transition-all" data-tab="ptgd-kpi">
             <i class="fas fa-chart-line mr-1"></i>PTGĐ/GĐKDCC - Doanh thu
@@ -2119,7 +2088,6 @@ function renderAdminTab(container) {
         </div>
       </div>
 
-      <!-- Tab Contents -->
       <div id="admin-subtab-content"></div>
     </div>
   `;
@@ -2173,7 +2141,6 @@ function showAdminSubTab(tabName) {
 function renderAdminOverview(container) {
     container.innerHTML = `
     <div class="space-y-6">
-      <!-- Statistics Cards -->
       <div class="bg-white rounded-2xl shadow-xl p-6">
         <h3 class="text-xl font-bold text-gray-800 mb-4">
           <i class="fas fa-chart-bar mr-2 text-blue-600"></i>Thống kê nhân sự
@@ -2185,7 +2152,6 @@ function renderAdminOverview(container) {
         </div>
       </div>
 
-      <!-- KPI Templates Reference -->
       <div class="bg-white rounded-2xl shadow-xl p-6">
         <h3 class="text-xl font-bold text-gray-800 mb-4">
           <i class="fas fa-table mr-2 text-green-600"></i>Bảng KPI & Level Templates
@@ -2218,14 +2184,12 @@ function renderAdminUsers(container) {
         </button>
       </div>
 
-      <!-- Edit User Modal (hidden by default) -->
       <div id="edit-user-modal"
         class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       
         <div
           class="bg-white w-full max-w-3xl mx-4 rounded-2xl shadow-2xl p-8 max-h-[90vh] overflow-y-auto">
       
-          <!-- HEADER -->
           <div class="flex items-center justify-between mb-6">
             <h3 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
               <i class="fas fa-user-edit text-blue-600"></i>
@@ -2237,7 +2201,6 @@ function renderAdminUsers(container) {
             </button>
           </div>
       
-          <!-- THÔNG TIN TÀI KHOẢN -->
           <div class="mb-8">
             <h4 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">
               Thông tin tài khoản
@@ -2283,7 +2246,6 @@ function renderAdminUsers(container) {
             </div>
           </div>
       
-          <!-- THÔNG TIN CÔNG VIỆC -->
           <div class="mb-8">
             <h4 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">
               Thông tin công việc
@@ -2351,7 +2313,6 @@ function renderAdminUsers(container) {
             </div>
           </div>
       
-          <!-- ẢNH COVER KPI -->
           <div class="mb-8">
             <h4 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">
               Ảnh Cover KPI
@@ -2374,7 +2335,6 @@ function renderAdminUsers(container) {
             </div>
           </div>
       
-          <!-- CTA -->
           <div class="flex gap-4">
             <button onclick="saveEditUser()"
               class="flex-1 py-3 rounded-lg font-semibold text-white
@@ -2392,7 +2352,6 @@ function renderAdminUsers(container) {
         </div>
       </div>
       
-      <!-- Create User Form (hidden by default) -->
       <div id="create-user-form" class="hidden mb-8 p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border-2 border-blue-200">
         <h3 class="text-xl font-bold text-gray-800 mb-4">
           <i class="fas fa-user-plus mr-2"></i>Tạo tài khoản mới
@@ -2455,13 +2414,11 @@ function renderAdminUsers(container) {
         </div>
       </div>
       
-      <!-- Search and Filter Section -->
       <div class="mb-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
         <h3 class="text-lg font-bold text-gray-800 mb-4">
           <i class="fas fa-search mr-2 text-blue-600"></i>Tìm kiếm & Lọc
         </h3>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <!-- Search Box -->
           <div class="md:col-span-2">
             <label class="block text-sm font-semibold text-gray-700 mb-2">
               <i class="fas fa-user mr-1"></i>Tìm theo tên hoặc username
@@ -2475,7 +2432,6 @@ function renderAdminUsers(container) {
             >
           </div>
           
-          <!-- Filter by Region -->
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-2">
               <i class="fas fa-map-marker-alt mr-1"></i>Khối
@@ -2489,7 +2445,6 @@ function renderAdminUsers(container) {
             </select>
           </div>
           
-          <!-- Filter by Position -->
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-2">
               <i class="fas fa-briefcase mr-1"></i>Vị trí
@@ -2504,7 +2459,6 @@ function renderAdminUsers(container) {
           </div>
         </div>
         
-        <!-- Filter Summary -->
         <div id="filter-summary" class="mt-3 text-sm text-gray-600 font-medium">
           <i class="fas fa-info-circle mr-1"></i>
           <span id="filter-count">0</span> người dùng
@@ -2517,7 +2471,7 @@ function renderAdminUsers(container) {
         <i class="fas fa-spinner fa-spin text-4xl mb-4"></i>
         <p>Đang tải danh sách người dùng...</p>
       </div>
-    </div> <!-- end bg-white -->
+    </div>
   `;
 
     loadAdminMetadata();
@@ -2580,7 +2534,6 @@ async function loadKpiTemplates() {
             ${posName}
           </h4>
           <div class="grid md:grid-cols-2 gap-4">
-            <!-- KPI -->
             <div>
               <h5 class="font-semibold text-blue-600 mb-2">KPI Chỉ số</h5>
               <table class="w-full text-sm">
@@ -2602,7 +2555,6 @@ async function loadKpiTemplates() {
                 </tbody>
               </table>
             </div>
-            <!-- Level -->
             <div>
               <h5 class="font-semibold text-green-600 mb-2">Level Chỉ số</h5>
               <table class="w-full text-sm">
@@ -3273,14 +3225,12 @@ function renderCommitmentTab(container) {
             </p>
           </div>
 
-          <!-- Upload Form -->
           <div class="bg-gradient-to-br from-orange-50 to-red-50 rounded-xl p-6 border-2 border-orange-200 shadow-lg">
             <label class="block mb-4 text-sm font-semibold text-gray-700">
               <i class="fas fa-file-upload mr-2 text-orange-600"></i>
               Chọn file từ máy tính (tối đa 2MB)
             </label>
             
-            <!-- File Input (Hidden) -->
             <input 
               type="file" 
               id="user-cover-file" 
@@ -3289,7 +3239,6 @@ function renderCommitmentTab(container) {
               onchange="handleFileSelect(event)"
             />
             
-            <!-- Custom Upload Button -->
             <button 
               onclick="document.getElementById('user-cover-file').click()"
               class="w-full px-6 py-4 bg-white border-2 border-dashed border-orange-400 rounded-lg hover:border-orange-600 hover:bg-orange-50 transition-all duration-300 mb-4"
@@ -3301,7 +3250,6 @@ function renderCommitmentTab(container) {
               </div>
             </button>
 
-            <!-- Selected File Info -->
             <div id="selected-file-info" class="hidden mb-4 p-3 bg-white rounded-lg border border-orange-300">
               <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-3">
@@ -3317,14 +3265,11 @@ function renderCommitmentTab(container) {
               </div>
             </div>
             
-            <!-- Preview Area -->
             <div id="user-cover-preview" class="hidden mb-4">
               <p class="text-sm text-gray-600 mb-2">
                 <i class="fas fa-eye mr-2"></i>Preview:
               </p>
-              <div id="preview-content" class="w-full rounded-lg border-2 border-orange-300 shadow-md bg-white" style="min-height: 300px;">
-                <!-- Image or PDF preview will be inserted here -->
-              </div>
+              <div id="preview-content" class="w-full rounded-lg border-2 border-orange-300 shadow-md bg-white" style="min-height: 300px;"></div>
             </div>
 
             <button 
@@ -3579,7 +3524,6 @@ function renderRecruitmentChart(chartData) {
     const currentUserRank = currentUserIndex >= 0 ? currentUserIndex + 1 : null;
 
     container.innerHTML = `
-    <!-- Summary Cards -->
     <div class="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
       <div class="p-4 bg-gradient-to-r from-green-50 to-teal-50 rounded-lg border-2 border-green-200">
         <div class="flex items-center space-x-3">
@@ -3631,7 +3575,6 @@ function renderRecruitmentChart(chartData) {
     </div>
 
     ${currentUserData ? `
-    <!-- Current User Status -->
     <div class="mb-6 p-6 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200">
       <h3 class="text-lg font-bold text-gray-800 mb-4">
         <i class="fas fa-user-circle mr-2 text-purple-600"></i>Thống kê của bạn
@@ -3664,9 +3607,7 @@ function renderRecruitmentChart(chartData) {
     </div>
     ` : ''}
 
-    <!-- Top 10 and Bottom 10 Tables -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <!-- Top 10 -->
       <div class="bg-white rounded-xl border-2 border-green-200 overflow-hidden">
         <div class="bg-gradient-to-r from-green-500 to-teal-600 p-4">
           <h3 class="text-lg font-bold text-white">
@@ -3715,7 +3656,6 @@ function renderRecruitmentChart(chartData) {
         </div>
       </div>
 
-      <!-- Need Improvement (< 15) -->
       <div class="bg-white rounded-xl border-2 border-red-200 overflow-hidden">
         <div class="bg-gradient-to-r from-red-500 to-pink-600 p-4">
           <h3 class="text-lg font-bold text-white">
@@ -4798,7 +4738,6 @@ function renderHolidayDaysTab(container) {
     const currentYear = new Date().getFullYear();
     container.innerHTML = `
     <div class="bg-white rounded-xl shadow-xl p-6">
-      <!-- Header -->
       <div class="flex items-center justify-between mb-2">
         <div>
           <h3 class="text-2xl font-bold text-gray-800">
@@ -4813,7 +4752,6 @@ function renderHolidayDaysTab(container) {
         </select>
       </div>
 
-      <!-- Formula pill -->
       <div class="inline-flex items-center gap-2 mb-6 px-4 py-2 bg-orange-50 border border-orange-200 rounded-full text-sm text-orange-800">
         <i class="fas fa-calculator text-orange-400"></i>
         <span>Ngày công = Tổng ngày − Chủ nhật − 1 phép − <strong>Ngày lễ</strong></span>
@@ -4871,7 +4809,6 @@ async function loadHolidayDays() {
             html += `
             <div id="holiday-card-${m}" class="relative rounded-2xl border-2 ${cardStyle} p-4 transition-all duration-200" >
 
-              <!-- Nút xóa — chỉ hiện khi có ngày lễ -->
               ${hasHoliday ? `
               <button
                 onclick="deleteHolidayDay(${year}, ${m})"
@@ -4879,19 +4816,16 @@ async function loadHolidayDays() {
                 class="absolute top-2.5 right-2.5 w-6 h-6 flex items-center justify-center rounded-full bg-orange-100 text-orange-400 hover:bg-red-100 hover:text-red-500 transition-all text-xs"
               ><i class="fas fa-times"></i></button>` : ''}
 
-              <!-- Tên tháng + badge tháng hiện tại -->
               <div class="flex items-center gap-2 mb-3">
                 <span class="font-bold text-gray-700 text-sm">${monthNames[m-1]}</span>
                 ${isCurrentMonth ? '<span class="text-xs px-1.5 py-0.5 bg-blue-500 text-white rounded-full leading-none">nay</span>' : ''}
               </div>
 
-              <!-- Số ngày công (lớn, nổi bật) -->
               <div class="flex items-baseline gap-1 mb-3">
                 <span id="working-days-preview-${m}" class="text-3xl font-black ${wdTextColor}">${workingDays}</span>
                 <span class="text-xs text-gray-400 font-medium">ngày công</span>
               </div>
 
-              <!-- Ô nhập ngày lễ -->
               <div class="mb-2">
                 <label class="block text-xs text-gray-400 mb-1 font-medium">Ngày lễ</label>
                 <div class="flex items-center gap-2">
@@ -4908,7 +4842,6 @@ async function loadHolidayDays() {
                 </div>
               </div>
 
-              <!-- Ghi chú -->
               <div>
                 <label class="block text-xs text-gray-400 mb-1 font-medium">Ghi chú</label>
                 <input
@@ -4921,7 +4854,6 @@ async function loadHolidayDays() {
                 >
               </div>
 
-              <!-- Saving indicator -->
               <div id="holiday-saving-${m}" class="hidden mt-2 text-xs text-blue-400 text-right">
                 <i class="fas fa-circle-notch fa-spin mr-1"></i>Đang lưu...
               </div>
