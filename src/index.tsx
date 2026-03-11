@@ -101,24 +101,6 @@ async function fetchChannelEmailMapping(
     return map
 }
 
-function countVideosByUsernameAndMonth(
-    rows: Array<{ channel: string; video_create_time: string }>,
-    channelEmailMap: Map<string, string>,
-    username: string,
-    year: number,
-    month: number
-): number {
-    const prefix = `${year}/${String(month).padStart(2, '0')}`
-    const usernameLower = username.toLowerCase()
-
-    return rows.filter(r => {
-        if (!r.video_create_time.startsWith(prefix)) return false
-        const email = channelEmailMap.get(r.channel.toLowerCase())
-        if (!email) return false
-        return email.split('@')[0] === usernameLower
-    }).length
-}
-
 function calculateWorkingDaysBase(year: number, month: number): number {
     const daysInMonth = new Date(year, month, 0).getDate()
     let sundays = 0
