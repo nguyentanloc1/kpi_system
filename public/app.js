@@ -1179,14 +1179,16 @@ async function loadLevelDataNew() {
                 <div class="grid grid-cols-3 gap-2 md:gap-3">
                   <div class="bg-white p-2 md:p-3 rounded-lg border-2 border-blue-200 shadow-sm">
                     <p class="text-[10px] md:text-xs text-gray-600 mb-1 font-semibold">Giá trị</p>
-                    <p class="text-sm md:text-lg font-bold text-blue-700 truncate" title="${formatLargeNumber(data.value, template.name)}">${formatLargeNumber(data.value, template.name)}</p>
+                    <p class="text-sm md:text-lg font-bold text-blue-700 truncate" title="${template.value_type}">
+                        ${template.value_type == 'currency' ||template.name.includes('Tỷ lệ % doanh thu tăng trưởng so với kế hoạch tháng') ? data.value : formatLargeNumber(data.value, template.name)}
+                    </p>
                   </div>
                   <div class="bg-white p-2 md:p-3 rounded-lg border-2 border-green-200 shadow-sm">
                     <p class="text-[10px] md:text-xs text-gray-600 mb-1 font-semibold">% Hoàn thành</p>
                     <p class="text-sm md:text-lg font-bold ${data.percent >= 100 ? 'text-green-600' : 'text-orange-600'}">${data.percent.toFixed(1)}%</p>
                   </div>
                   <div class="bg-white p-2 md:p-3 rounded-lg border-2 border-purple-200 shadow-sm">
-                    <p class="text-[10px] md:text-xs text-gray-600 mb-1 font-semibold">Tỷ lệ Đạt</p>
+                    <p class="text-[10px] md:text-xs text-gray-600 mb-1 font-semibold">Tỷ lệ Quy đổi</p>
                     <p class="text-sm md:text-lg font-bold text-purple-700">${(data.score * 100).toFixed(1)}%</p>
                   </div>
                 </div>
@@ -1581,16 +1583,21 @@ async function loadTrackingData() {
                 const revenue = revenue_plan.find(d => d.user_id === currentUser.id && d.month === month && d.year === Number(year));
                 if (data) {
                     // For percentage KPIs, multiply by 100 to show the original input value
-                    //const isPercentKpi = template.name.includes('Tỷ lệ %');
+                    const isPercentKpi = template.name.includes('Tỷ lệ %');
                     let displayValue = data.actual_value;
+                    //console.log('ahihi' + template.id, displayValue, 'type = ' + template.value_type)
                     if (template.value_type == 'percentage') {
                         displayValue = displayValue * 100 + '%'; // Convert 0.7 → 70
                     }
+                    if (isPercentKpi) {
+                        displayValue = displayValue/revenue.planned_revenue * 100 + '%';
+                    }
+                    // format số
+                    displayValue = formatValue(displayValue);
+
                     const percent = data.completion_percent * 100;
                     const color = percent >= 100 ? 'text-green-600' : percent >= 50 ? 'text-yellow-600' : 'text-red-600';
-                    html += `<td class="border border-purple-200 px-2 py-2 text-center ${color} font-semibold">${(template.value_type === 'currency' && (template.name || '').includes('Tỷ lệ %'))
-                        ? (revenue.planned_revenue ? ((displayValue / revenue.planned_revenue) * 100).toFixed(2) + '%' : '0%')
-                        : parseFloat(displayValue.toFixed(2))}</td>`;
+                    html += `<td class="border border-purple-200 px-2 py-2 text-center ${color} font-semibold">${displayValue}</td>`;
                 } else {
                     html += `<td class="border border-purple-200 px-2 py-2 text-center text-gray-400">-</td>`;
                 }
@@ -1654,6 +1661,14 @@ async function loadTrackingData() {
         console.error('Error loading tracking data:', error);
         container.innerHTML = `<div class="text-center py-12 text-red-500"><i class="fas fa-exclamation-triangle mr-2"></i>Lỗi tải dữ liệu</div>`;
     }
+}
+
+function formatValue(value) {
+    if (typeof value === 'string' && value.includes('%')) {
+        const num = parseFloat(value);
+        return parseFloat(num.toFixed(2)) + '%';
+    }
+    return parseFloat(Number(value).toFixed(2));
 }
 
 // ===== DASHBOARD TAB =====
