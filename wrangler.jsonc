@@ -12,5 +12,12 @@
       "database_name": "webapp-production",
       "database_id": "local-db-for-development"
     }
-  ]
+  ],
+  "vars": {
+    "LARK_APP_ID": "cli_a92d11e673f85e19",
+    "LARK_SPREADSHEET_TOKEN": "VGLHwdTaUiPAHVkjORhjH9E7pbv",
+    "LARK_APP_SECRET": "EU4mGdpuKQV49kjrpZCln2ltYz4JjrL4",
+    "LARK_SHEET_ID": "2Xayqj",
+    "LARK_SHEET_ID_MAPPING": "5qtHtd"
+  }
 }

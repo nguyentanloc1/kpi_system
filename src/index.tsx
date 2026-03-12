@@ -3,23 +3,382 @@ import {cors} from 'hono/cors'
 import {serveStatic} from 'hono/cloudflare-workers'
 
 type Bindings = {
-    DB: D1Database;
+    DB: D1Database
+    LARK_APP_ID: string
+    LARK_APP_SECRET: string
+    LARK_SPREADSHEET_TOKEN: string
+    LARK_SHEET_ID: string
+    LARK_SHEET_ID_MAPPING: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
 
-// Helper function to ensure safe numeric values for database insertion
 function ensureSafeNumber(value: any, defaultValue: number = 0): number {
     const num = Number(value)
     return (isNaN(num) || num === null || num === undefined) ? defaultValue : num
 }
 
-// Enable CORS
+async function getLarkAccessToken(appId: string, appSecret: string): Promise<string> {
+    const res = await fetch('https://open.larksuite.com/open-apis/auth/v3/app_access_token/internal', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({app_id: appId, app_secret: appSecret}),
+    })
+    if (!res.ok) throw new Error(`Lark auth error: ${res.status}`)
+    const data: any = await res.json()
+    if (data.code !== 0) throw new Error(`Lark auth failed: ${data.msg}`)
+    return data.app_access_token
+}
+
+async function fetchSheetValues(token: string, spreadsheetToken: string, sheetId: string): Promise<any[][]> {
+    const metaRes = await fetch(
+        `https://open.larksuite.com/open-apis/sheets/v3/spreadsheets/${spreadsheetToken}/sheets/${sheetId}`,
+        {headers: {'Authorization': `Bearer ${token}`}}
+    )
+    if (!metaRes.ok) throw new Error(`Lark sheet meta error: ${metaRes.status}`)
+    const metaData: any = await metaRes.json()
+    if (metaData.code !== 0) throw new Error(`Lark sheet meta failed: ${metaData.msg}`)
+    const rowCount: number = metaData.data?.sheet?.grid_properties?.row_count ?? 2000
+
+    const range = `${sheetId}!A1:AA${rowCount}`
+    const dataRes = await fetch(
+        `https://open.larksuite.com/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${range}`,
+        {headers: {'Authorization': `Bearer ${token}`}}
+    )
+    if (!dataRes.ok) throw new Error(`Lark sheet read error: ${dataRes.status}`)
+    const sheetData: any = await dataRes.json()
+    if (sheetData.code !== 0) throw new Error(`Lark sheet read failed: ${sheetData.msg}`)
+    return sheetData.data?.valueRange?.values ?? []
+}
+
+async function fetchChannelEmailMapping(
+    token: string,
+    spreadsheetToken: string,
+    mappingSheetId: string
+): Promise<Map<string, string>> {
+    const values = await fetchSheetValues(token, spreadsheetToken, mappingSheetId)
+    const map = new Map<string, string>()
+    if (values.length < 2) return map
+
+    const headers: string[] = (values[0] ?? []).map((h: any) => String(h ?? '').trim())
+    const channelIdx = headers.findIndex(h => h === 'Kênh tiktok')
+    const emailIdx = headers.findIndex(h => h.toLowerCase() === 'email')
+
+    if (channelIdx === -1 || emailIdx === -1) return map
+
+    for (let i = 1; i < values.length; i++) {
+        const row = values[i] ?? []
+        const channel = String(row[channelIdx] ?? '').trim().toLowerCase()
+        const email = String(row[emailIdx] ?? '').trim().toLowerCase()
+        if (channel && email) map.set(channel, email)
+    }
+    return map
+}
+
+function calculateWorkingDaysBase(year: number, month: number): number {
+    const daysInMonth = new Date(year, month, 0).getDate()
+    let sundays = 0
+    for (let d = 1; d <= daysInMonth; d++) {
+        if (new Date(year, month - 1, d).getDay() === 0) sundays++
+    }
+    return daysInMonth - sundays - 1
+}
+
+async function calculateWorkingDays(db: D1Database, year: number, month: number): Promise<number> {
+    const base = calculateWorkingDaysBase(year, month)
+    const row = await db.prepare(
+        'SELECT holiday_count FROM holiday_days WHERE year = ? AND month = ?'
+    ).bind(year, month).first()
+    const holidays = (row?.holiday_count as number) ?? 0
+    return Math.max(base - holidays, 0)
+}
+
+const LARK_BATCH_SIZE = 500
+
+async function* fetchLarkSheetBatches(
+    token: string,
+    spreadsheetToken: string,
+    sheetId: string,
+    channelEmailMap: Map<string, string>
+): AsyncGenerator<Array<{ channel: string; email: string; video_create_time: string }>> {
+
+    const headerRange = `${sheetId}!A1:AA1`
+    const headerRes = await fetch(
+        `https://open.larksuite.com/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${headerRange}`,
+        {headers: {'Authorization': `Bearer ${token}`}}
+    )
+    if (!headerRes.ok) throw new Error(`Lark header error: ${headerRes.status}`)
+    const headerData: any = await headerRes.json()
+    if (headerData.code !== 0) throw new Error(`Lark header failed: ${headerData.msg}`)
+
+    const headers: string[] = (headerData.data?.valueRange?.values?.[0] ?? [])
+        .map((h: any) => String(h ?? '').trim())
+    const channelIdx = headers.indexOf('channel')
+    const dateIdx = headers.indexOf('video_create_time')
+    if (channelIdx === -1 || dateIdx === -1) {
+        throw new Error('Không tìm thấy cột "channel" hoặc "video_create_time"')
+    }
+
+    const metaRes = await fetch(
+        `https://open.larksuite.com/open-apis/sheets/v3/spreadsheets/${spreadsheetToken}/sheets/${sheetId}`,
+        {headers: {'Authorization': `Bearer ${token}`}}
+    )
+    if (!metaRes.ok) throw new Error(`Lark sheet meta error: ${metaRes.status}`)
+    const metaData: any = await metaRes.json()
+    const totalRows: number = metaData.data?.sheet?.grid_properties?.row_count ?? 5000
+
+    let startRow = 2
+    while (startRow <= totalRows) {
+        const endRow = Math.min(startRow + LARK_BATCH_SIZE - 1, totalRows)
+        const range = `${sheetId}!A${startRow}:AA${endRow}`
+
+        const batchRes = await fetch(
+            `https://open.larksuite.com/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${range}`,
+            {headers: {'Authorization': `Bearer ${token}`}}
+        )
+        if (!batchRes.ok) throw new Error(`Lark batch error at row ${startRow}: ${batchRes.status}`)
+        const batchData: any = await batchRes.json()
+        if (batchData.code !== 0) throw new Error(`Lark batch failed: ${batchData.msg}`)
+
+        const batchRows: any[][] = batchData.data?.valueRange?.values ?? []
+        if (batchRows.length === 0) break
+
+        const parsed: Array<{ channel: string; email: string; video_create_time: string }> = []
+        for (const row of batchRows) {
+            const channel = String(row[channelIdx] ?? '').trim()
+            const dateVal = String(row[dateIdx] ?? '').trim()
+            if (!channel || !dateVal) continue
+
+            const email = channelEmailMap.get(channel.toLowerCase())
+            if (!email) continue
+
+            parsed.push({channel, email, video_create_time: dateVal})
+        }
+
+        if (parsed.length > 0) yield parsed
+
+        startRow += LARK_BATCH_SIZE
+    }
+}
+
+async function runLarkFullSync(env: any): Promise<{
+    newRows: number
+    skippedRows: number
+    totalProcessed: number
+    error?: string
+}> {
+    await env.DB.prepare(
+        `UPDATE lark_sync_meta SET status = 'running', last_synced_at = CURRENT_TIMESTAMP WHERE id = 1`
+    ).run()
+
+    let newRows = 0
+    let skippedRows = 0
+    let totalProcessed = 0
+
+    try {
+        const larkToken = await getLarkAccessToken(env.LARK_APP_ID, env.LARK_APP_SECRET)
+
+        const channelEmailMap = await fetchChannelEmailMapping(
+            larkToken, env.LARK_SPREADSHEET_TOKEN, env.LARK_SHEET_ID_MAPPING
+        )
+
+        for await (const batch of fetchLarkSheetBatches(
+            larkToken, env.LARK_SPREADSHEET_TOKEN, env.LARK_SHEET_ID, channelEmailMap
+        )) {
+            const D1_CHUNK = 100
+            for (let i = 0; i < batch.length; i += D1_CHUNK) {
+                const chunk = batch.slice(i, i + D1_CHUNK)
+                const stmts = chunk.map(r =>
+                    env.DB.prepare(
+                        `INSERT OR IGNORE INTO lark_video_cache (channel, email, video_create_time)
+                         VALUES (?, ?, ?)`
+                    ).bind(r.channel, r.email, r.video_create_time)
+                )
+                const results = await env.DB.batch(stmts)
+                for (const res of results) {
+                    if ((res.meta?.changes ?? 0) > 0) newRows++
+                    else skippedRows++
+                }
+            }
+            totalProcessed += batch.length
+        }
+
+        await env.DB.prepare(
+            `UPDATE lark_sync_meta
+             SET status = 'done', last_row_count = ?, new_rows_added = ?, last_synced_at = CURRENT_TIMESTAMP
+             WHERE id = 1`
+        ).bind(totalProcessed, newRows).run()
+
+        return {newRows, skippedRows, totalProcessed}
+
+    } catch (err: any) {
+        await env.DB.prepare(
+            `UPDATE lark_sync_meta SET status = 'error' WHERE id = 1`
+        ).run()
+        return {newRows, skippedRows, totalProcessed, error: err.message}
+    }
+}
+
+async function countVideosFromCache(
+    db: D1Database,
+    username: string,
+    year: number,
+    month: number
+): Promise<number> {
+    const prefix = `${year}/${String(month).padStart(2, '0')}`
+    const email = `${username.toLowerCase()}@`
+
+    const row = await db.prepare(`
+        SELECT COUNT(*) as cnt
+        FROM lark_video_cache
+        WHERE email LIKE ?
+          AND video_create_time LIKE ?
+    `).bind(`${email}%`, `${prefix}%`).first()
+
+    return (row?.cnt as number) ?? 0
+}
+
+async function runLarkSyncForUser(
+    env: any,
+    userId: number,
+    year: number,
+    month: number
+): Promise<{ success: boolean; videoCount?: number; workingDays?: number; error?: string; skipped?: boolean; cacheEmpty?: boolean }> {
+    const user = await env.DB.prepare(
+        'SELECT id, username, position_id FROM users WHERE id = ?'
+    ).bind(userId).first()
+
+    if (!user) return {success: false, error: 'Không tìm thấy user'}
+    if ((user.position_id as number) !== 4) return {success: true, skipped: true}
+
+    const cacheCheck = await env.DB.prepare(
+        `SELECT COUNT(*) as cnt FROM lark_video_cache`
+    ).first()
+    if ((cacheCheck?.cnt as number) === 0) {
+        return {success: false, cacheEmpty: true, error: 'Chưa có dữ liệu cache. Admin cần đồng bộ Lark trước.'}
+    }
+
+    const videoCount = await countVideosFromCache(env.DB, user.username as string, year, month)
+
+    const template = await env.DB.prepare(`
+        SELECT id, standard_value, weight
+        FROM kpi_templates
+        WHERE id = 34
+          AND position_id = 4
+          AND is_for_kpi = 1 LIMIT 1
+    `).first()
+
+    const tpl = template ?? await env.DB.prepare(`
+        SELECT id, standard_value, weight
+        FROM kpi_templates
+        WHERE position_id = 4
+          AND is_for_kpi = 1
+          AND kpi_name LIKE '%video post%'
+        ORDER BY display_order LIMIT 1
+    `).first()
+
+    if (!tpl) return {success: false, error: 'Không tìm thấy KPI template video trong DB'}
+
+    const workingDays = await calculateWorkingDays(env.DB, year, month)
+    const completionPercent = Math.min((videoCount / workingDays) * 100, 150)
+    const weightedScore = (completionPercent / 100) * (tpl.weight as number)
+    const safeCount = ensureSafeNumber(videoCount, 0)
+    const safeComp = ensureSafeNumber(completionPercent, 0)
+    const safeWt = ensureSafeNumber(weightedScore, 0)
+
+    await env.DB.prepare(`
+        INSERT INTO kpi_data (user_id, month, year, kpi_template_id, actual_value, completion_percent, weighted_score)
+        VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id)
+        DO
+        UPDATE SET
+            actual_value = ?,
+            completion_percent = ?,
+            weighted_score = ?,
+            updated_at = CURRENT_TIMESTAMP
+    `).bind(userId, month, year, tpl.id, safeCount, safeComp, safeWt, safeCount, safeComp, safeWt).run()
+
+    return {success: true, videoCount, workingDays}
+}
+
+async function calculateMonthlySummary(db: D1Database, userId: number, year: number, month: number) {
+    const user = await db.prepare('SELECT position_id FROM users WHERE id = ?').bind(userId).first()
+    const positionId = user?.position_id || 0
+
+    const kpiScore = await db.prepare(`
+        SELECT SUM(weighted_score) as total
+        FROM kpi_data kd
+                 JOIN kpi_templates kt ON kd.kpi_template_id = kt.id
+        WHERE kd.user_id = ?
+          AND kd.year = ?
+          AND kd.month = ?
+          AND kt.is_for_kpi = 1
+    `).bind(userId, year, month).first()
+
+    const totalKpiScore = kpiScore?.total || 0
+    const kpiPercent = totalKpiScore * 100
+    let kpiLevel = 'Cần Cải Thiện'
+    if (kpiPercent >= 120) kpiLevel = 'Xuất sắc'
+    else if (kpiPercent >= 90) kpiLevel = 'Giỏi'
+    else if (kpiPercent >= 70) kpiLevel = 'Khá'
+    else if (kpiPercent >= 50) kpiLevel = 'Trung Bình'
+
+    const levelScore = await db.prepare(`
+        SELECT SUM(weighted_score) as total
+        FROM kpi_data kd
+                 JOIN kpi_templates kt ON kd.kpi_template_id = kt.id
+        WHERE kd.user_id = ?
+          AND kd.year = ?
+          AND kd.month = ?
+          AND kt.is_for_kpi = 0
+    `).bind(userId, year, month).first()
+
+    const totalLevelScore = levelScore?.total || 0
+    const levelPercent = totalLevelScore * 100
+    let performanceLevel = 'Xem xét lại'
+
+    if (positionId === 1 || positionId === 5) {
+        if (levelPercent >= 155) performanceLevel = 'Level 4'
+        else if (levelPercent >= 131) performanceLevel = 'Level 3'
+        else if (levelPercent > 100) performanceLevel = 'Level 2'
+        else if (levelPercent >= 50) performanceLevel = 'Level 1'
+    } else if (positionId === 2 || positionId === 3) {
+        if (levelPercent >= 140) performanceLevel = 'Level 5'
+        else if (levelPercent >= 121) performanceLevel = 'Level 4'
+        else if (levelPercent >= 101) performanceLevel = 'Level 3'
+        else if (levelPercent >= 81) performanceLevel = 'Level 2'
+        else if (levelPercent >= 50) performanceLevel = 'Level 1'
+    } else if (positionId === 4) {
+        if (levelPercent >= 150) performanceLevel = 'Level 5'
+        else if (levelPercent >= 131) performanceLevel = 'Level 4'
+        else if (levelPercent >= 101) performanceLevel = 'Level 3'
+        else if (levelPercent >= 76) performanceLevel = 'Level 2'
+        else if (levelPercent >= 50) performanceLevel = 'Level 1'
+    } else {
+        if (levelPercent >= 155) performanceLevel = 'Level 4'
+        else if (levelPercent >= 131) performanceLevel = 'Level 3'
+        else if (levelPercent > 100) performanceLevel = 'Level 2'
+        else if (levelPercent >= 50) performanceLevel = 'Level 1'
+    }
+
+    await db.prepare(`
+        INSERT INTO monthly_summary (user_id, month, year, total_kpi_score, kpi_level, total_level_score,
+                                     performance_level)
+        VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year)
+        DO
+        UPDATE SET
+            total_kpi_score = ?,
+            kpi_level = ?,
+            total_level_score = ?,
+            performance_level = ?,
+            updated_at = CURRENT_TIMESTAMP
+    `).bind(
+        userId, month, year, totalKpiScore, kpiLevel, totalLevelScore, performanceLevel,
+        totalKpiScore, kpiLevel, totalLevelScore, performanceLevel
+    ).run()
+}
+
 app.use('/api/*', cors())
 
-// ===== Authentication API =====
-
-// Login
 app.post('/api/login', async (c) => {
     try {
         const {username, password} = await c.req.json()
@@ -42,11 +401,8 @@ app.post('/api/login', async (c) => {
               AND u.password = ?
         `).bind(username, password).first()
 
-        if (!result) {
-            return c.json({error: 'Sai tên đăng nhập hoặc mật khẩu'}, 401)
-        }
+        if (!result) return c.json({error: 'Sai tên đăng nhập hoặc mật khẩu'}, 401)
 
-        // Get admin regions if admin user
         let adminRegions = []
         if (username.startsWith('admin')) {
             const regions = await c.env.DB.prepare(`
@@ -59,17 +415,12 @@ app.post('/api/login', async (c) => {
             adminRegions = regions.results
         }
 
-        return c.json({
-            success: true,
-            user: result,
-            adminRegions: adminRegions
-        })
+        return c.json({success: true, user: result, adminRegions})
     } catch (error) {
         return c.json({error: 'Lỗi đăng nhập'}, 500)
     }
 })
 
-// Get KPI templates for a position
 app.get('/api/kpi-templates/:positionId', async (c) => {
     try {
         const positionId = c.req.param('positionId')
@@ -98,13 +449,8 @@ app.get('/api/kpi-templates/:positionId', async (c) => {
     }
 })
 
-// Get user's KPI data for a month
 app.get('/api/kpi-data/:userId/:year/:month', async (c) => {
     try {
-        const userId = c.req.param('userId')
-        const year = c.req.param('year')
-        const month = c.req.param('month')
-
         const results = await c.env.DB.prepare(`
             SELECT kd.*, kt.kpi_name, kt.weight, kt.standard_value, kt.is_for_kpi
             FROM kpi_data kd
@@ -113,7 +459,7 @@ app.get('/api/kpi-data/:userId/:year/:month', async (c) => {
               AND kd.year = ?
               AND kd.month = ?
             ORDER BY kt.is_for_kpi DESC, kt.display_order
-        `).bind(userId, year, month).all()
+        `).bind(c.req.param('userId'), c.req.param('year'), c.req.param('month')).all()
 
         return c.json({data: results.results})
     } catch (error) {
@@ -121,7 +467,6 @@ app.get('/api/kpi-data/:userId/:year/:month', async (c) => {
     }
 })
 
-// Get KPI templates with revenue plan (for special revenue KPIs)
 app.get('/api/kpi-form-data/:userId/:positionId/:year/:month', async (c) => {
     try {
         const userId = c.req.param('userId')
@@ -130,7 +475,6 @@ app.get('/api/kpi-form-data/:userId/:positionId/:year/:month', async (c) => {
         const month = c.req.param('month')
         const isForKpi = c.req.query('type') === 'level' ? 0 : 1
 
-        // Get KPI templates
         const templates = await c.env.DB.prepare(`
             SELECT id,
                    position_id,
@@ -148,20 +492,17 @@ app.get('/api/kpi-form-data/:userId/:positionId/:year/:month', async (c) => {
             ORDER BY display_order
         `).bind(positionId, isForKpi).all()
 
-        // Get revenue plan for this user and year
-        const revenuePlan = await c.env.DB.prepare(`
+        const revenuePlanRows = await c.env.DB.prepare(`
             SELECT month, planned_revenue
             FROM revenue_plan
             WHERE user_id = ? AND year = ?
         `).bind(userId, year).all()
 
-        // Create revenue plan map
-        const revenuePlanMap = {}
-        revenuePlan.results.forEach(p => {
+        const revenuePlanMap: any = {}
+        revenuePlanRows.results.forEach((p: any) => {
             revenuePlanMap[p.month] = p.planned_revenue
         })
 
-        // Get existing KPI data
         const existingData = await c.env.DB.prepare(`
             SELECT kd.*, kt.kpi_name, kt.value_type
             FROM kpi_data kd
@@ -181,22 +522,13 @@ app.get('/api/kpi-form-data/:userId/:positionId/:year/:month', async (c) => {
     }
 })
 
-// Get tracking data for all months in a year
 app.get('/api/tracking/:userId/:year', async (c) => {
     try {
         const userId = c.req.param('userId')
         const year = c.req.param('year')
 
-        // Get user info
-        const user = await c.env.DB.prepare(`
-            SELECT position_id
-            FROM users
-            WHERE id = ?
-        `).bind(userId).first()
-
-        if (!user) {
-            return c.json({error: 'Người dùng không tồn tại'}, 404)
-        }
+        const user = await c.env.DB.prepare('SELECT position_id FROM users WHERE id = ?').bind(userId).first()
+        if (!user) return c.json({error: 'Người dùng không tồn tại'}, 404)
 
         // Get Revenue Plan
         const revenue_plan = await c.env.DB.prepare(`
@@ -215,7 +547,6 @@ app.get('/api/tracking/:userId/:year', async (c) => {
             ORDER BY display_order
         `).bind(user.position_id).all()
 
-        // Get Level templates
         const levelTemplates = await c.env.DB.prepare(`
             SELECT id, kpi_name as name, weight, standard_value, display_order, value_type
             FROM kpi_templates
@@ -224,7 +555,6 @@ app.get('/api/tracking/:userId/:year', async (c) => {
             ORDER BY display_order
         `).bind(user.position_id).all()
 
-        // Get all KPI data for the year
         const kpiData = await c.env.DB.prepare(`
             SELECT kd.*, kt.is_for_kpi
             FROM kpi_data kd
@@ -235,7 +565,6 @@ app.get('/api/tracking/:userId/:year', async (c) => {
             ORDER BY kd.month, kt.display_order
         `).bind(userId, year).all()
 
-        // Get all Level data for the year
         const levelData = await c.env.DB.prepare(`
             SELECT kd.*, kt.is_for_kpi
             FROM kpi_data kd
@@ -260,7 +589,6 @@ app.get('/api/tracking/:userId/:year', async (c) => {
     }
 })
 
-// Submit KPI data
 app.post('/api/kpi-data', async (c) => {
     try {
         const data = await c.req.json()
@@ -277,24 +605,19 @@ app.post('/api/kpi-data', async (c) => {
             return c.json({error: 'Không tìm thấy user'}, 404)
         }
 
-        // Check if month is locked
-        const lockCheck = await c.env.DB.prepare(`
-            SELECT id
-            FROM lock_months
-            WHERE year = ? AND month = ? AND position_id = ?
-        `).bind(year, month, user.position_id).first()
+        const user = await c.env.DB.prepare('SELECT position_id, start_date FROM users WHERE id = ?').bind(userId).first()
+        if (!user) return c.json({error: 'Không tìm thấy user'}, 404)
 
-        if (lockCheck) {
-            return c.json({
-                error: 'Tháng này đã được duyệt và khóa. Không thể chỉnh sửa!'
-            }, 403)
-        }
+        const lockCheck = await c.env.DB.prepare(
+            'SELECT id FROM lock_months WHERE year = ? AND month = ? AND position_id = ?'
+        ).bind(year, month, user.position_id).first()
+        if (lockCheck) return c.json({error: 'Tháng này đã được duyệt và khóa. Không thể chỉnh sửa!'}, 403)
 
-        const isGiamSat = user && user.position_id === 4 // position_id = 4 là Giám sát
+        const isGiamSat = user.position_id === 4
 
-        // Calculate scores and insert/update
         for (const item of kpiData) {
             const {templateId, actualValue} = item
+            if (actualValue === undefined || actualValue === null || isNaN(actualValue)) continue
 
             // Skip if actualValue is invalid
             if (actualValue === undefined || actualValue === null || isNaN(actualValue)) {
@@ -312,32 +635,19 @@ app.post('/api/kpi-data', async (c) => {
 
             if (!template) continue
 
-            // FOR LEVEL DATA: Try to get actual_value from corresponding KPI first
             let actualValueToUse = actualValue
 
             if (template.is_for_kpi === 0) {
-                console.log(`[DEBUG] This is LEVEL data for "${template.kpi_name}"`)
-                // This is Level data - try to sync from KPI
                 const kpiTemplate = await c.env.DB.prepare(
                     'SELECT id FROM kpi_templates WHERE kpi_name = ? AND is_for_kpi = 1'
                 ).bind(template.kpi_name).first()
 
-                console.log(`[DEBUG] KPI Template found:`, kpiTemplate)
-
                 if (kpiTemplate) {
-                    const kpiData = await c.env.DB.prepare(
+                    const kpiDataRow = await c.env.DB.prepare(
                         'SELECT actual_value FROM kpi_data WHERE user_id = ? AND year = ? AND month = ? AND kpi_template_id = ?'
                     ).bind(userId, year, month, kpiTemplate.id).first()
-
-                    console.log(`[DEBUG] KPI Data found:`, kpiData)
-
-                    if (kpiData && kpiData.actual_value !== null) {
-                        actualValueToUse = kpiData.actual_value
-                        console.log(`[AUTO-SYNC] Level "${template.kpi_name}": Using KPI value ${actualValueToUse} instead of input ${actualValue}`)
-                    }
+                    if (kpiDataRow && kpiDataRow.actual_value !== null) actualValueToUse = kpiDataRow.actual_value
                 }
-            } else {
-                console.log(`[DEBUG] This is KPI data for "${template.kpi_name}"`)
             }
 
             // Adjust actual value based on KPI type
@@ -387,53 +697,32 @@ app.post('/api/kpi-data', async (c) => {
             // Cap based on KPI vs Level
             const maxPercent = template.is_for_kpi === 1 ? 150 : 160 // KPI max 150%, Level max 160%
             completionPercent = Math.min(completionPercent, maxPercent)
-
-            // Calculate weighted score
             const weightedScore = (completionPercent / 100) * template.weight
 
-            // Ensure no NaN or null values before inserting
-            if (isNaN(completionPercent) || isNaN(weightedScore) ||
-                completionPercent === null || weightedScore === null ||
-                adjustedValue === null || adjustedValue === undefined) {
-                console.error(`Skipping invalid KPI data: templateId=${templateId}, actualValue=${actualValue}, adjustedValue=${adjustedValue}, completionPercent=${completionPercent}, weightedScore=${weightedScore}`)
-                continue
-            }
+            if (isNaN(completionPercent) || isNaN(weightedScore) || adjustedValue == null) continue
 
-            // Ensure values are safe numbers
-            const safeCompletionPercent = ensureSafeNumber(completionPercent, 0)
-            const safeWeightedScore = ensureSafeNumber(weightedScore, 0)
-            const safeAdjustedValue = ensureSafeNumber(adjustedValue, 0)
+            const safeAdj = ensureSafeNumber(adjustedValue, 0)
+            const safeComp = ensureSafeNumber(completionPercent, 0)
+            const safeWt = ensureSafeNumber(weightedScore, 0)
 
 
             // Insert or update (store the adjusted value with safe numeric values)
             await c.env.DB.prepare(`
                 INSERT INTO kpi_data (user_id, month, year, kpi_template_id, actual_value, completion_percent,
                                       weighted_score)
-                VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id) 
-        DO
-                UPDATE SET
-                    actual_value = ?,
-                    completion_percent = ?,
-                    weighted_score = ?,
-                    updated_at = CURRENT_TIMESTAMP
-            `).bind(
-                userId, month, year, templateId, safeAdjustedValue, safeCompletionPercent, safeWeightedScore,
-                safeAdjustedValue, safeCompletionPercent, safeWeightedScore
-            ).run()
+                VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id)
+                DO
+                UPDATE SET actual_value = ?, completion_percent = ?, weighted_score = ?, updated_at = CURRENT_TIMESTAMP
+            `).bind(userId, month, year, templateId, safeAdj, safeComp, safeWt, safeAdj, safeComp, safeWt).run()
         }
 
-        // Auto-fill Level data for positions with revenue tracking
-        const hasRevenue = [1, 2, 3, 5].includes(user.position_id); // PTGĐ, GĐKD, TLKD, GĐKDCC
+        const hasRevenue = [1, 2, 3, 5].includes(user.position_id)
 
         if (hasRevenue) {
-            // Get revenue plan for this month
-            const revenuePlan = await c.env.DB.prepare(`
-                SELECT planned_revenue
-                FROM revenue_plan
-                WHERE user_id = ? AND year = ? AND month = ?
-            `).bind(userId, year, month).first()
+            const revenuePlan = await c.env.DB.prepare(
+                'SELECT planned_revenue FROM revenue_plan WHERE user_id = ? AND year = ? AND month = ?'
+            ).bind(userId, year, month).first()
 
-            // Get Level templates for this position
             const levelTemplates = await c.env.DB.prepare(`
                 SELECT id, kpi_name, weight, standard_value, value_type
                 FROM kpi_templates
@@ -443,8 +732,6 @@ app.post('/api/kpi-data', async (c) => {
             `).bind(user.position_id).all()
 
             if (levelTemplates.results.length >= 2 && revenuePlan) {
-                // Level 1: Tổng số doanh thu - Get directly from KPI "Tổng doanh thu thực tế"
-                // Find the actual revenue KPI data
                 const revenueKpiTemplate = await c.env.DB.prepare(`
                     SELECT id
                     FROM kpi_templates
@@ -482,17 +769,12 @@ app.post('/api/kpi-data', async (c) => {
                         await c.env.DB.prepare(`
                             INSERT INTO kpi_data (user_id, month, year, kpi_template_id, actual_value,
                                                   completion_percent, weighted_score)
-                            VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id) 
-              DO
-                            UPDATE SET
-                                actual_value = ?,
-                                completion_percent = ?,
-                                weighted_score = ?,
-                                updated_at = CURRENT_TIMESTAMP
-                        `).bind(
-                            userId, month, year, levelTemplate1.id,
-                            ensureSafeNumber(actualRevenue), ensureSafeNumber(level1Completion), ensureSafeNumber(level1Score),
-                            ensureSafeNumber(actualRevenue), ensureSafeNumber(level1Completion), ensureSafeNumber(level1Score)
+                            VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id)
+                            DO
+                            UPDATE SET actual_value = ?, completion_percent = ?, weighted_score = ?, updated_at = CURRENT_TIMESTAMP
+                        `).bind(userId, month, year, lt1.id,
+                            ensureSafeNumber(actualRevenue), ensureSafeNumber(l1Comp), ensureSafeNumber(l1Score),
+                            ensureSafeNumber(actualRevenue), ensureSafeNumber(l1Comp), ensureSafeNumber(l1Score)
                         ).run()
 
                         // Level 2: Tỷ lệ % doanh thu tăng trưởng - Calculate from actual vs planned
@@ -524,10 +806,8 @@ app.post('/api/kpi-data', async (c) => {
                     }
                 }
 
-                // Level 3: Số lượng cấp giám đốc trở lên đạt chuẩn - Get from KPI
-                // Find KPI with "nhân sự" and "đạt chuẩn"
                 if (levelTemplates.results.length >= 3) {
-                    const personnelKpiTemplate = await c.env.DB.prepare(`
+                    const personnelKpiTpl = await c.env.DB.prepare(`
                         SELECT id
                         FROM kpi_templates
                         WHERE position_id = ?
@@ -536,89 +816,51 @@ app.post('/api/kpi-data', async (c) => {
                           AND kpi_name LIKE '%đạt chuẩn%'
                     `).bind(user.position_id).first()
 
-                    if (personnelKpiTemplate) {
-                        const personnelKpiData = await c.env.DB.prepare(`
-                            SELECT actual_value
-                            FROM kpi_data
-                            WHERE user_id = ? AND year = ? AND month = ?
-                              AND kpi_template_id = ?
-                        `).bind(userId, year, month, personnelKpiTemplate.id).first()
+                    if (personnelKpiTpl) {
+                        const personnelKpiData = await c.env.DB.prepare(
+                            'SELECT actual_value FROM kpi_data WHERE user_id = ? AND year = ? AND month = ? AND kpi_template_id = ?'
+                        ).bind(userId, year, month, personnelKpiTpl.id).first()
 
-                        if (personnelKpiData && personnelKpiData.actual_value !== null) {
-                            const levelTemplate3 = levelTemplates.results[2]
-                            const level3Completion = Math.min((personnelKpiData.actual_value / levelTemplate3.standard_value) * 100, 160)
-                            const level3Score = (level3Completion / 100) * levelTemplate3.weight
+                        if (personnelKpiData?.actual_value !== null) {
+                            const lt3 = levelTemplates.results[2]
+                            const l3Comp = Math.min((personnelKpiData.actual_value / lt3.standard_value) * 100, 160)
+                            const l3Score = (l3Comp / 100) * lt3.weight
 
                             await c.env.DB.prepare(`
                                 INSERT INTO kpi_data (user_id, month, year, kpi_template_id, actual_value,
                                                       completion_percent, weighted_score)
-                                VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id) 
-                DO
-                                UPDATE SET
-                                    actual_value = ?,
-                                    completion_percent = ?,
-                                    weighted_score = ?,
-                                    updated_at = CURRENT_TIMESTAMP
-                            `).bind(
-                                userId, month, year, levelTemplate3.id,
-                                ensureSafeNumber(personnelKpiData.actual_value), ensureSafeNumber(level3Completion), ensureSafeNumber(level3Score),
-                                ensureSafeNumber(personnelKpiData.actual_value), ensureSafeNumber(level3Completion), ensureSafeNumber(level3Score)
+                                VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id)
+                                DO
+                                UPDATE SET actual_value = ?, completion_percent = ?, weighted_score = ?, updated_at = CURRENT_TIMESTAMP
+                            `).bind(userId, month, year, lt3.id,
+                                ensureSafeNumber(personnelKpiData.actual_value), ensureSafeNumber(l3Comp), ensureSafeNumber(l3Score),
+                                ensureSafeNumber(personnelKpiData.actual_value), ensureSafeNumber(l3Comp), ensureSafeNumber(l3Score)
                             ).run()
                         }
                     }
                 }
             }
 
-            // Level 4: Số năm thâm niên - Auto-calculate from start_date
             if (user.start_date && levelTemplates.results.length >= 4) {
-                const startDate = new Date(user.start_date)
-                const now = new Date()
-                const yearsOfExperience = (now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25)
+                const yearsExp = (Date.now() - new Date(user.start_date).getTime()) / (1000 * 60 * 60 * 24 * 365.25)
+                const expTpl = levelTemplates.results[3]
+                const expComp = ensureSafeNumber(Math.min((yearsExp / expTpl.standard_value) * 100, 160), 0)
+                const expScore = ensureSafeNumber((expComp / 100) * expTpl.weight, 0)
 
-                const experienceTemplate = levelTemplates.results[3]
-                const completionPercent = ensureSafeNumber(Math.min((yearsOfExperience / experienceTemplate.standard_value) * 100, 160), 0)
-                const weightedScore = ensureSafeNumber((completionPercent / 100) * experienceTemplate.weight, 0)
-
-                // Always insert with safe values
                 await c.env.DB.prepare(`
                     INSERT INTO kpi_data (user_id, month, year, kpi_template_id, actual_value, completion_percent,
                                           weighted_score)
-                    VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id) 
-            DO
-                    UPDATE SET
-                        actual_value = ?,
-                        completion_percent = ?,
-                        weighted_score = ?,
-                        updated_at = CURRENT_TIMESTAMP
-                `).bind(
-                    userId, month, year, experienceTemplate.id,
-                    ensureSafeNumber(yearsOfExperience), ensureSafeNumber(completionPercent), ensureSafeNumber(weightedScore),
-                    ensureSafeNumber(yearsOfExperience), ensureSafeNumber(completionPercent), ensureSafeNumber(weightedScore)
+                    VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id)
+                    DO
+                    UPDATE SET actual_value = ?, completion_percent = ?, weighted_score = ?, updated_at = CURRENT_TIMESTAMP
+                `).bind(userId, month, year, expTpl.id,
+                    ensureSafeNumber(yearsExp), expComp, expScore,
+                    ensureSafeNumber(yearsExp), expComp, expScore
                 ).run()
             }
         }
 
-        // Nếu là Giám sát, tự động fill Level từ KPI
         if (isGiamSat) {
-            // Map KPI template IDs sang Level template IDs cho Giám sát
-            const kpiToLevelMap = {
-                // KPI ID -> Level ID cho position_id = 4
-                // Lấy từ kpi_templates: is_for_kpi=1 -> is_for_kpi=0
-                // Template 1: Số lượng lao động tiềm năng tư vấn
-                // Template 2: Số lượng lao động mới tuyển dụng
-                // Template 3: Số lượng lao động quản lý
-            }
-
-            // Get KPI templates for Giám sát
-            const kpiTemplates = await c.env.DB.prepare(`
-                SELECT id, kpi_name
-                FROM kpi_templates
-                WHERE position_id = 4
-                  AND is_for_kpi = 1
-                ORDER BY display_order
-            `).all()
-
-            // Get Level templates for Giám sát
             const levelTemplates = await c.env.DB.prepare(`
                 SELECT id, kpi_name
                 FROM kpi_templates
@@ -627,121 +869,71 @@ app.post('/api/kpi-data', async (c) => {
                 ORDER BY display_order
             `).all()
 
-            // Auto-fill first 3 Level templates from KPI (không bao gồm "Số năm kinh nghiệm")
             for (let i = 0; i < 3 && i < levelTemplates.results.length; i++) {
-                const levelTemplate = levelTemplates.results[i]
+                const levelTpl = levelTemplates.results[i]
 
-                // Find KPI template with SAME NAME
-                const kpiTemplate = await c.env.DB.prepare(`
+                const kpiTpl = await c.env.DB.prepare(`
                     SELECT id
                     FROM kpi_templates
                     WHERE position_id = ?
                       AND is_for_kpi = 1
                       AND kpi_name = ?
-                `).bind(user.position_id, levelTemplate.kpi_name).first()
+                `).bind(user.position_id, levelTpl.kpi_name).first()
 
-                if (!kpiTemplate) {
-                    console.log(`[Auto-fill Level] No matching KPI found for Level "${levelTemplate.kpi_name}"`)
-                    continue
-                }
+                if (!kpiTpl) continue
 
-                // Get KPI data
-                const kpiDataRow = await c.env.DB.prepare(`
-                    SELECT actual_value, completion_percent, weighted_score
-                    FROM kpi_data
-                    WHERE user_id = ? AND year = ? AND month = ?
-                      AND kpi_template_id = ?
-                `).bind(userId, year, month, kpiTemplate.id).first()
+                const kpiRow = await c.env.DB.prepare(
+                    'SELECT actual_value, completion_percent, weighted_score FROM kpi_data WHERE user_id = ? AND year = ? AND month = ? AND kpi_template_id = ?'
+                ).bind(userId, year, month, kpiTpl.id).first()
 
-                if (kpiDataRow && levelTemplate) {
-                    // Validate that KPI data has all required fields
-                    if (!kpiDataRow.actual_value || !kpiDataRow.completion_percent) {
-                        continue // Skip if KPI data is incomplete
-                    }
+                if (!kpiRow?.actual_value || !kpiRow?.completion_percent) continue
 
-                    // Get full Level template info including standard_value
-                    const levelTemplateInfo = await c.env.DB.prepare(`
-                        SELECT weight, standard_value
-                        FROM kpi_templates
-                        WHERE id = ?
-                    `).bind(levelTemplate.id).first()
+                const levelTplInfo = await c.env.DB.prepare(
+                    'SELECT weight, standard_value FROM kpi_templates WHERE id = ?'
+                ).bind(levelTpl.id).first()
 
-                    // Recalculate completion_percent for Level (max 160%)
-                    let levelCompletionPercent = (kpiDataRow.actual_value / levelTemplateInfo.standard_value) * 100
-                    levelCompletionPercent = Math.min(levelCompletionPercent, 160) // Max 160% for Level
+                let levelComp = (kpiRow.actual_value / levelTplInfo.standard_value) * 100
+                levelComp = Math.min(levelComp, 160)
+                const levelScore = (levelComp / 100) * levelTplInfo.weight
 
-                    // Recalculate weighted_score with Level template's weight
-                    const newWeightedScore = (levelCompletionPercent / 100) * levelTemplateInfo.weight
+                if (isNaN(levelComp) || isNaN(levelScore)) continue
 
-                    // Ensure no NaN values
-                    if (isNaN(levelCompletionPercent) || isNaN(newWeightedScore)) {
-                        continue
-                    }
-
-                    console.log(`[Auto-fill Level] "${levelTemplate.kpi_name}": actual_value=${kpiDataRow.actual_value}, completion=${levelCompletionPercent.toFixed(2)}%`)
-
-                    // Insert Level data with 160% max
-                    await c.env.DB.prepare(`
-                        INSERT INTO kpi_data (user_id, month, year, kpi_template_id, actual_value, completion_percent,
-                                              weighted_score)
-                        VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id) 
-            DO
-                        UPDATE SET
-                            actual_value = ?,
-                            completion_percent = ?,
-                            weighted_score = ?,
-                            updated_at = CURRENT_TIMESTAMP
-                    `).bind(
-                        userId, month, year, levelTemplate.id,
-                        ensureSafeNumber(kpiDataRow.actual_value), ensureSafeNumber(levelCompletionPercent), ensureSafeNumber(newWeightedScore),
-                        ensureSafeNumber(kpiDataRow.actual_value), ensureSafeNumber(levelCompletionPercent), ensureSafeNumber(newWeightedScore)
-                    ).run()
-                }
+                await c.env.DB.prepare(`
+                    INSERT INTO kpi_data (user_id, month, year, kpi_template_id, actual_value, completion_percent,
+                                          weighted_score)
+                    VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id)
+                    DO
+                    UPDATE SET actual_value = ?, completion_percent = ?, weighted_score = ?, updated_at = CURRENT_TIMESTAMP
+                `).bind(userId, month, year, levelTpl.id,
+                    ensureSafeNumber(kpiRow.actual_value), ensureSafeNumber(levelComp), ensureSafeNumber(levelScore),
+                    ensureSafeNumber(kpiRow.actual_value), ensureSafeNumber(levelComp), ensureSafeNumber(levelScore)
+                ).run()
             }
 
-            // Tính số năm kinh nghiệm (Level template thứ 4)
             if (user.start_date && levelTemplates.results.length >= 4) {
-                const startDate = new Date(user.start_date)
-                const now = new Date()
-                const yearsOfExperience = (now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25)
+                const yearsExp = (Date.now() - new Date(user.start_date).getTime()) / (1000 * 60 * 60 * 24 * 365.25)
+                const expTpl = levelTemplates.results[3]
+                const expTplInfo = await c.env.DB.prepare(
+                    'SELECT weight, standard_value FROM kpi_templates WHERE id = ?'
+                ).bind(expTpl.id).first()
 
-                const experienceTemplate = levelTemplates.results[3] // "Số năm kinh nghiệm"
+                if (expTplInfo?.weight && expTplInfo?.standard_value) {
+                    const expComp = ensureSafeNumber(Math.min((yearsExp / expTplInfo.standard_value) * 100, 160), 0)
+                    const expScore = ensureSafeNumber((expComp / 100) * expTplInfo.weight, 0)
 
-                // Get full template info with weight
-                const expTemplateInfo = await c.env.DB.prepare(`
-                    SELECT weight, standard_value
-                    FROM kpi_templates
-                    WHERE id = ?
-                `).bind(experienceTemplate.id).first()
-
-                if (!expTemplateInfo || !expTemplateInfo.weight || !expTemplateInfo.standard_value) {
-                    // Skip if template data is incomplete
-                } else {
-                    const completionPercent = ensureSafeNumber(Math.min((yearsOfExperience / expTemplateInfo.standard_value) * 100, 160), 0) // Max 160% for Level
-                    const weightedScore = ensureSafeNumber((completionPercent / 100) * expTemplateInfo.weight, 0)
-
-                    // Always insert with safe values
                     await c.env.DB.prepare(`
                         INSERT INTO kpi_data (user_id, month, year, kpi_template_id, actual_value, completion_percent,
                                               weighted_score)
-                        VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id) 
-            DO
-                        UPDATE SET
-                            actual_value = ?,
-                            completion_percent = ?,
-                            weighted_score = ?,
-                            updated_at = CURRENT_TIMESTAMP
-                    `).bind(
-                        userId, month, year, experienceTemplate.id,
-                        ensureSafeNumber(yearsOfExperience), ensureSafeNumber(completionPercent), ensureSafeNumber(weightedScore),
-                        ensureSafeNumber(yearsOfExperience), ensureSafeNumber(completionPercent), ensureSafeNumber(weightedScore)
+                        VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id)
+                        DO
+                        UPDATE SET actual_value = ?, completion_percent = ?, weighted_score = ?, updated_at = CURRENT_TIMESTAMP
+                    `).bind(userId, month, year, expTpl.id,
+                        ensureSafeNumber(yearsExp), expComp, expScore,
+                        ensureSafeNumber(yearsExp), expComp, expScore
                     ).run()
                 }
             }
         }
-
-        // UNIVERSAL Auto-fill Level from KPI for ALL positions
-        console.log(`[Universal Auto-fill] Starting for user ${userId}, position ${user.position_id}`)
 
         const allLevelTemplates = await c.env.DB.prepare(`
             SELECT id, kpi_name, weight, standard_value, value_type
@@ -752,7 +944,7 @@ app.post('/api/kpi-data', async (c) => {
         `).bind(user.position_id).all()
 
         for (let i = 0; i < 3 && i < allLevelTemplates.results.length; i++) {
-            const levelTemplate = allLevelTemplates.results[i]
+            const lt = allLevelTemplates.results[i]
 
             const matchingKpi = await c.env.DB.prepare(`
                 SELECT id, value_type
@@ -778,7 +970,9 @@ app.post('/api/kpi-data', async (c) => {
                   AND kpi_template_id = ?
             `).bind(userId, year, month, matchingKpi.id).first()
 
-            if (!kpiData || !kpiData.actual_value) continue
+            const kpiRow = await c.env.DB.prepare(
+                'SELECT actual_value FROM kpi_data WHERE user_id = ? AND year = ? AND month = ? AND kpi_template_id = ?'
+            ).bind(userId, year, month, matchKpi.id).first()
 
             let levelCompletion = 0
             let standardValue = levelTemplate.standard_value
@@ -798,23 +992,16 @@ app.post('/api/kpi-data', async (c) => {
             await c.env.DB.prepare(`
                 INSERT INTO kpi_data (user_id, month, year, kpi_template_id, actual_value, completion_percent,
                                       weighted_score)
-                VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id) 
-        DO
-                UPDATE SET
-                    actual_value = ?,
-                    completion_percent = ?,
-                    weighted_score = ?,
-                    updated_at = CURRENT_TIMESTAMP
-            `).bind(
-                userId, month, year, levelTemplate.id,
-                kpiData.actual_value, levelCompletion, levelScore,
-                kpiData.actual_value, levelCompletion, levelScore
+                VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id)
+                DO
+                UPDATE SET actual_value = ?, completion_percent = ?, weighted_score = ?, updated_at = CURRENT_TIMESTAMP
+            `).bind(userId, month, year, lt.id,
+                kpiRow.actual_value, ltComp, ltScore,
+                kpiRow.actual_value, ltComp, ltScore
             ).run()
         }
 
-        // Calculate total scores and update monthly_summary
         await calculateMonthlySummary(c.env.DB, userId, year, month)
-
         return c.json({success: true, message: 'Lưu dữ liệu thành công'})
     } catch (error) {
         console.error('Error saving KPI:', error)
@@ -822,110 +1009,62 @@ app.post('/api/kpi-data', async (c) => {
     }
 })
 
-// Save Level data (manual input)
 app.post('/api/level-data', async (c) => {
     try {
         const {userId, year, month, levelData} = await c.req.json()
         // Get user info
         const user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first()
-        if (!user) {
-            return c.json({error: 'User not found'}, 404)
-        }
+        if (!user) return c.json({error: 'User not found'}, 404)
 
-        // Check if month is locked
-        const lockCheck = await c.env.DB.prepare(`
-            SELECT id
-            FROM lock_months
-            WHERE year = ? AND month = ? AND position_id = ?
-        `).bind(year, month, user.position_id).first()
+        const lockCheck = await c.env.DB.prepare(
+            'SELECT id FROM lock_months WHERE year = ? AND month = ? AND position_id = ?'
+        ).bind(year, month, user.position_id).first()
+        if (lockCheck) return c.json({error: 'Tháng này đã được duyệt và khóa. Không thể chỉnh sửa!'}, 403)
 
-        if (lockCheck) {
-            return c.json({
-                error: 'Tháng này đã được duyệt và khóa. Không thể chỉnh sửa!'
-            }, 403)
-        }
-
-        // Process each Level input
         for (const item of levelData) {
             const {templateId, actualValue} = item
 
-            // Get template info
-            const template = await c.env.DB.prepare(
-                'SELECT * FROM kpi_templates WHERE id = ?'
-            ).bind(templateId).first()
-
+            const template = await c.env.DB.prepare('SELECT * FROM kpi_templates WHERE id = ?').bind(templateId).first()
             if (!template) continue
 
-            // For Level indicators, try to get actual_value from corresponding KPI first
             let actualValueToUse = actualValue
 
-            // Find corresponding KPI template with same name
             const kpiTemplate = await c.env.DB.prepare(
                 'SELECT id FROM kpi_templates WHERE kpi_name = ? AND is_for_kpi = 1'
             ).bind(template.kpi_name).first()
 
-            console.log(`[Level Auto-sync] Template: ${template.kpi_name}, Level templateId: ${templateId}, KPI template found:`, kpiTemplate?.id)
-
             if (kpiTemplate) {
-                // Check if KPI data exists for this month
-                const kpiData = await c.env.DB.prepare(
+                const kpiRow = await c.env.DB.prepare(
                     'SELECT actual_value FROM kpi_data WHERE user_id = ? AND year = ? AND month = ? AND kpi_template_id = ?'
                 ).bind(userId, year, month, kpiTemplate.id).first()
-
-                console.log(`[Level Auto-sync] KPI data found:`, kpiData?.actual_value, `Original input: ${actualValue}`)
-
-                if (kpiData && kpiData.actual_value !== null) {
-                    // Use actual_value from KPI data
-                    actualValueToUse = kpiData.actual_value
-                    console.log(`[Level Auto-sync] Using KPI value: ${actualValueToUse}`)
-                }
+                if (kpiRow?.actual_value !== null) actualValueToUse = kpiRow.actual_value
             }
 
-            // Adjust input based on indicator type
+            const isRevenueGrowthLevel = template.kpi_name?.includes('doanh thu tăng trưởng')
             let adjustedValue = actualValueToUse
 
-            // 1. Tỷ lệ % doanh thu tăng trưởng: input in billions (tỷ), convert to VND (same as KPI)
-            const isRevenueGrowthLevel = template.kpi_name && template.kpi_name.includes('doanh thu tăng trưởng')
+            if (isRevenueGrowthLevel || (template.kpi_name?.includes('doanh thu') && !template.kpi_name?.includes('%'))) {
+                adjustedValue = actualValueToUse * 1000000000
+            } else if ((template.kpi_name?.includes('Tỷ lệ %') || template.kpi_name?.includes('tỷ lệ %')) && !isRevenueGrowthLevel) {
+                adjustedValue = actualValueToUse / 100
+            }
 
-            if (isRevenueGrowthLevel) {
-                adjustedValue = actualValueToUse * 1000000000 // Convert tỷ to VND
-            }
-            // 2. Tổng số doanh thu: input in billions (tỷ), convert to VND
-            else if (template.kpi_name.includes('doanh thu') && !template.kpi_name.includes('%')) {
-                adjustedValue = actualValueToUse * 1000000000 // Convert tỷ to VND
-            }
-            // 3. Tỷ lệ % indicators: input is percentage, convert to decimal
-            else if ((template.kpi_name.includes('Tỷ lệ %') || template.kpi_name.includes('tỷ lệ %')) && !isRevenueGrowthLevel) {
-                adjustedValue = actualValueToUse / 100 // Convert 50 to 0.5
-            }
-            // 4. Count/years indicators: use as-is
-
-            // Calculate completion percent and weighted score
-            // Level max is 160% (not 150% like KPI)
             const completionPercent = ensureSafeNumber(Math.min((adjustedValue / template.standard_value) * 100, 160), 0)
             const weightedScore = ensureSafeNumber((completionPercent / 100) * template.weight, 0)
 
-            // Insert or update Level data
             await c.env.DB.prepare(`
                 INSERT INTO kpi_data (user_id, month, year, kpi_template_id, actual_value, completion_percent,
                                       weighted_score)
-                VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id) 
-        DO
-                UPDATE SET
-                    actual_value = ?,
-                    completion_percent = ?,
-                    weighted_score = ?,
-                    updated_at = CURRENT_TIMESTAMP
-            `).bind(
-                userId, month, year, templateId,
+                VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id)
+                DO
+                UPDATE SET actual_value = ?, completion_percent = ?, weighted_score = ?, updated_at = CURRENT_TIMESTAMP
+            `).bind(userId, month, year, templateId,
                 ensureSafeNumber(adjustedValue), ensureSafeNumber(completionPercent), ensureSafeNumber(weightedScore),
                 ensureSafeNumber(adjustedValue), ensureSafeNumber(completionPercent), ensureSafeNumber(weightedScore)
             ).run()
         }
 
-        // Calculate total scores and update monthly_summary
         await calculateMonthlySummary(c.env.DB, userId, year, month)
-
         return c.json({success: true, message: 'Lưu dữ liệu thành công'})
     } catch (error) {
         console.error('Error saving Level:', error)
@@ -933,204 +1072,74 @@ app.post('/api/level-data', async (c) => {
     }
 })
 
-// Get monthly summary for a user
 app.get('/api/summary/:userId/:year/:month', async (c) => {
     try {
-        const userId = c.req.param('userId')
-        const year = c.req.param('year')
-        const month = c.req.param('month')
-
-        const summary = await c.env.DB.prepare(`
-            SELECT *
-            FROM monthly_summary
-            WHERE user_id = ? AND year = ? AND month = ?
-        `).bind(userId, year, month).first()
-
+        const summary = await c.env.DB.prepare(
+            'SELECT * FROM monthly_summary WHERE user_id = ? AND year = ? AND month = ?'
+        ).bind(c.req.param('userId'), c.req.param('year'), c.req.param('month')).first()
         return c.json({summary})
     } catch (error) {
         return c.json({error: 'Lỗi lấy tổng hợp'}, 500)
     }
 })
 
-// Get all monthly summaries for a user in a year
 app.get('/api/monthly-summary/:userId/:year', async (c) => {
     try {
-        const userId = c.req.param('userId')
-        const year = c.req.param('year')
-
-        const summaries = await c.env.DB.prepare(`
-            SELECT *
-            FROM monthly_summary
-            WHERE user_id = ? AND year = ?
-            ORDER BY month ASC
-        `).bind(userId, year).all()
-
+        const summaries = await c.env.DB.prepare(
+            'SELECT * FROM monthly_summary WHERE user_id = ? AND year = ? ORDER BY month ASC'
+        ).bind(c.req.param('userId'), c.req.param('year')).all()
         return c.json({summaries: summaries.results})
     } catch (error) {
         return c.json({error: 'Lỗi lấy lịch sử tháng'}, 500)
     }
 })
 
-// Get dashboard data (all users, all regions)
 app.get('/api/dashboard/:userId/:year/:month', async (c) => {
     try {
         const userId = c.req.param('userId')
         const year = c.req.param('year')
         const month = c.req.param('month')
 
-        // Get current user info to determine access level
-        const currentUser = await c.env.DB.prepare(`
-            SELECT id, username, position_id, region_id
-            FROM users
-            WHERE id = ?
-        `).bind(userId).first()
+        const currentUser = await c.env.DB.prepare(
+            'SELECT id, username, position_id, region_id FROM users WHERE id = ?'
+        ).bind(userId).first()
+        if (!currentUser) return c.json({error: 'User not found'}, 404)
 
-        if (!currentUser) {
-            return c.json({error: 'User not found'}, 404)
-        }
+        const baseSelect = `
+            SELECT u.id,
+                   u.full_name,
+                   u.username,
+                   u.position_id,
+                   u.region_id,
+                   r.name         as region_name,
+                   p.display_name as position_name,
+                   ms.total_kpi_score,
+                   ms.kpi_level,
+                   ms.total_level_score,
+                   ms.performance_level,
+                   rp.planned_revenue
+            FROM users u
+                     JOIN regions r ON u.region_id = r.id
+                     JOIN positions p ON u.position_id = p.id
+                     LEFT JOIN monthly_summary ms ON u.id = ms.user_id AND ms.year = ? AND ms.month = ?
+                     LEFT JOIN revenue_plan rp ON u.id = rp.user_id AND rp.year = ? AND rp.month = ?
+        `
+        const bindings = [year, month, year, month]
 
         let query = ''
-        let bindings: any[] = []
-
-        // Admin: See all users grouped by 4 regions
         if (currentUser.username === 'admin') {
-            query = `
-                SELECT u.id,
-                       u.full_name,
-                       u.username,
-                       u.position_id,
-                       u.region_id,
-                       r.name         as region_name,
-                       p.display_name as position_name,
-                       ms.total_kpi_score,
-                       ms.kpi_level,
-                       ms.total_level_score,
-                       ms.performance_level,
-                       rp.planned_revenue
-                FROM users u
-                         JOIN regions r ON u.region_id = r.id
-                         JOIN positions p ON u.position_id = p.id
-                         LEFT JOIN monthly_summary ms ON u.id = ms.user_id
-                    AND ms.year = ? AND ms.month = ?
-                         LEFT JOIN revenue_plan rp ON u.id = rp.user_id
-                    AND rp.year = ? AND rp.month = ?
-                WHERE u.username NOT IN ('admin', 'admin1', 'admin2', 'admin3')
-                ORDER BY r.id, p.id, ms.total_kpi_score DESC NULLS LAST
-            `
-            bindings = [year, month, year, month]
-        }
-        // PTGĐ & GĐKDCC (position_id = 1 or 5): See all 5 positions (1,2,3,4,5)
-        else if (currentUser.position_id === 1 || currentUser.position_id === 5) {
-            query = `
-                SELECT u.id,
-                       u.full_name,
-                       u.username,
-                       u.position_id,
-                       u.region_id,
-                       r.name         as region_name,
-                       p.display_name as position_name,
-                       ms.total_kpi_score,
-                       ms.kpi_level,
-                       ms.total_level_score,
-                       ms.performance_level,
-                       rp.planned_revenue
-                FROM users u
-                         JOIN regions r ON u.region_id = r.id
-                         JOIN positions p ON u.position_id = p.id
-                         LEFT JOIN monthly_summary ms ON u.id = ms.user_id
-                    AND ms.year = ? AND ms.month = ?
-                         LEFT JOIN revenue_plan rp ON u.id = rp.user_id
-                    AND rp.year = ? AND rp.month = ?
-                WHERE u.position_id IN (1, 2, 3, 4, 5)
-                  AND u.username NOT IN ('admin', 'admin1', 'admin2', 'admin3')
-                ORDER BY p.id, ms.total_kpi_score DESC NULLS LAST, r.id
-            `
-            bindings = [year, month, year, month]
-        }
-        // GĐKD (position_id = 2): See positions 2, 3, 4 (GĐKD, TLKD, GS)
-        else if (currentUser.position_id === 2) {
-            query = `
-                SELECT u.id,
-                       u.full_name,
-                       u.username,
-                       u.position_id,
-                       u.region_id,
-                       r.name         as region_name,
-                       p.display_name as position_name,
-                       ms.total_kpi_score,
-                       ms.kpi_level,
-                       ms.total_level_score,
-                       ms.performance_level,
-                       rp.planned_revenue
-                FROM users u
-                         JOIN regions r ON u.region_id = r.id
-                         JOIN positions p ON u.position_id = p.id
-                         LEFT JOIN monthly_summary ms ON u.id = ms.user_id
-                    AND ms.year = ? AND ms.month = ?
-                         LEFT JOIN revenue_plan rp ON u.id = rp.user_id
-                    AND rp.year = ? AND rp.month = ?
-                WHERE u.position_id IN (2, 3, 4)
-                ORDER BY p.id, ms.total_kpi_score DESC NULLS LAST, r.id
-            `
-            bindings = [year, month, year, month]
-        }
-        // TLKD (position_id = 3): See positions 3, 4 (TLKD, GS)
-        else if (currentUser.position_id === 3) {
-            query = `
-                SELECT u.id,
-                       u.full_name,
-                       u.username,
-                       u.position_id,
-                       u.region_id,
-                       r.name         as region_name,
-                       p.display_name as position_name,
-                       ms.total_kpi_score,
-                       ms.kpi_level,
-                       ms.total_level_score,
-                       ms.performance_level,
-                       rp.planned_revenue
-                FROM users u
-                         JOIN regions r ON u.region_id = r.id
-                         JOIN positions p ON u.position_id = p.id
-                         LEFT JOIN monthly_summary ms ON u.id = ms.user_id
-                    AND ms.year = ? AND ms.month = ?
-                         LEFT JOIN revenue_plan rp ON u.id = rp.user_id
-                    AND rp.year = ? AND rp.month = ?
-                WHERE u.position_id IN (3, 4)
-                ORDER BY p.id, ms.total_kpi_score DESC NULLS LAST, r.id
-            `
-            bindings = [year, month, year, month]
-        }
-        // Giám sát (position_id = 4): See only position 4 (GS)
-        else if (currentUser.position_id === 4) {
-            query = `
-                SELECT u.id,
-                       u.full_name,
-                       u.username,
-                       u.position_id,
-                       u.region_id,
-                       r.name         as region_name,
-                       p.display_name as position_name,
-                       ms.total_kpi_score,
-                       ms.kpi_level,
-                       ms.total_level_score,
-                       ms.performance_level,
-                       rp.planned_revenue
-                FROM users u
-                         JOIN regions r ON u.region_id = r.id
-                         JOIN positions p ON u.position_id = p.id
-                         LEFT JOIN monthly_summary ms ON u.id = ms.user_id
-                    AND ms.year = ? AND ms.month = ?
-                         LEFT JOIN revenue_plan rp ON u.id = rp.user_id
-                    AND rp.year = ? AND rp.month = ?
-                WHERE u.position_id = 4
-                ORDER BY ms.total_kpi_score DESC NULLS LAST, r.id
-            `
-            bindings = [year, month, year, month]
+            query = baseSelect + `WHERE u.username NOT IN ('admin','admin1','admin2','admin3') ORDER BY r.id, p.id, ms.total_kpi_score DESC NULLS LAST`
+        } else if (currentUser.position_id === 1 || currentUser.position_id === 5) {
+            query = baseSelect + `WHERE u.position_id IN (1,2,3,4,5) AND u.username NOT IN ('admin','admin1','admin2','admin3') ORDER BY p.id, ms.total_kpi_score DESC NULLS LAST, r.id`
+        } else if (currentUser.position_id === 2) {
+            query = baseSelect + `WHERE u.position_id IN (2,3,4) ORDER BY p.id, ms.total_kpi_score DESC NULLS LAST, r.id`
+        } else if (currentUser.position_id === 3) {
+            query = baseSelect + `WHERE u.position_id IN (3,4) ORDER BY p.id, ms.total_kpi_score DESC NULLS LAST, r.id`
+        } else if (currentUser.position_id === 4) {
+            query = baseSelect + `WHERE u.position_id = 4 ORDER BY ms.total_kpi_score DESC NULLS LAST, r.id`
         }
 
         const results = await c.env.DB.prepare(query).bind(...bindings).all()
-
         return c.json({
             dashboard: results.results,
             isAdmin: currentUser.username === 'admin',
@@ -1142,32 +1151,16 @@ app.get('/api/dashboard/:userId/:year/:month', async (c) => {
     }
 })
 
-// ===== Admin APIs =====
-
-// Get all users (for admin management)
 app.get('/api/admin/users', async (c) => {
     try {
-        // Get userId from query (from currentUser in frontend)
         const userId = c.req.query('userId')
         const username = c.req.query('username')
 
         let regionFilter = ''
-        let allowedRegions = []
-
-        // Check if admin and get allowed regions
-        if (username && username.startsWith('admin') && userId) {
-            const regions = await c.env.DB.prepare(`
-                SELECT region_id
-                FROM admin_regions
-                WHERE user_id = ?
-            `).bind(userId).all()
-
-            allowedRegions = regions.results.map(r => r.region_id)
-
-            if (allowedRegions.length > 0 && username !== 'admin') {
-                // Filter by allowed regions (not for main admin)
-                regionFilter = `AND u.region_id IN (${allowedRegions.join(',')})`
-            }
+        if (username?.startsWith('admin') && userId) {
+            const regions = await c.env.DB.prepare('SELECT region_id FROM admin_regions WHERE user_id = ?').bind(userId).all()
+            const allowed = regions.results.map((r: any) => r.region_id)
+            if (allowed.length > 0 && username !== 'admin') regionFilter = `AND u.region_id IN (${allowed.join(',')})`
         }
 
         const results = await c.env.DB.prepare(`
@@ -1200,54 +1193,28 @@ app.get('/api/admin/users', async (c) => {
     }
 })
 
-// Get regions and positions for dropdowns
 app.get('/api/admin/metadata', async (c) => {
     try {
-        const regions = await c.env.DB.prepare(`
-            SELECT id, name
-            FROM regions
-            ORDER BY id
-        `).all()
-
-        const positions = await c.env.DB.prepare(`
-            SELECT id, name, display_name, level
-            FROM positions
-            ORDER BY id
-        `).all()
-
-        return c.json({
-            regions: regions.results,
-            positions: positions.results
-        })
+        const regions = await c.env.DB.prepare('SELECT id, name FROM regions ORDER BY id').all()
+        const positions = await c.env.DB.prepare('SELECT id, name, display_name, level FROM positions ORDER BY id').all()
+        return c.json({regions: regions.results, positions: positions.results})
     } catch (error) {
         return c.json({error: 'Lỗi lấy metadata'}, 500)
     }
 })
 
-// Get admin statistics
 app.get('/api/admin/statistics', async (c) => {
     try {
         const userId = c.req.query('userId')
         const username = c.req.query('username')
 
         let regionFilter = ''
-
-        // Check if admin and get allowed regions
-        if (username && username.startsWith('admin') && userId) {
-            const regions = await c.env.DB.prepare(`
-                SELECT region_id
-                FROM admin_regions
-                WHERE user_id = ?
-            `).bind(userId).all()
-
-            const allowedRegions = regions.results.map(r => r.region_id)
-
-            if (allowedRegions.length > 0 && username !== 'admin') {
-                regionFilter = `AND region_id IN (${allowedRegions.join(',')})`
-            }
+        if (username?.startsWith('admin') && userId) {
+            const regions = await c.env.DB.prepare('SELECT region_id FROM admin_regions WHERE user_id = ?').bind(userId).all()
+            const allowed = regions.results.map((r: any) => r.region_id)
+            if (allowed.length > 0 && username !== 'admin') regionFilter = `AND region_id IN (${allowed.join(',')})`
         }
 
-        // Count by position (excluding admins)
         const positionCounts = await c.env.DB.prepare(`
             SELECT p.id, p.display_name, COUNT(u.id) as count
             FROM positions p
@@ -1264,7 +1231,6 @@ app.get('/api/admin/statistics', async (c) => {
     }
 })
 
-// Get all KPI templates (for reference table)
 app.get('/api/admin/kpi-templates', async (c) => {
     try {
         const templates = await c.env.DB.prepare(`
@@ -1281,52 +1247,35 @@ app.get('/api/admin/kpi-templates', async (c) => {
                      JOIN positions p ON kt.position_id = p.id
             ORDER BY kt.position_id, kt.is_for_kpi DESC, kt.display_order
         `).all()
-
         return c.json({templates: templates.results})
     } catch (error) {
-        console.error('Error fetching KPI templates:', error)
         return c.json({error: 'Lỗi lấy KPI templates'}, 500)
     }
 })
 
-// Get dashboard data by position for a year (12 months)
 app.get('/api/admin/dashboard/:positionIds/:year', async (c) => {
     try {
-        const positionIdsStr = c.req.param('positionIds') // e.g., "1,5" or "2"
+        const positionIds = c.req.param('positionIds').split(',').map(id => parseInt(id))
         const year = c.req.param('year')
         const userId = c.req.query('userId')
         const username = c.req.query('username')
 
-        const positionIds = positionIdsStr.split(',').map(id => parseInt(id))
-
         let regionFilter = ''
-
-        // Check if admin and get allowed regions
-        if (username && username.startsWith('admin') && userId) {
-            const regions = await c.env.DB.prepare(`
-                SELECT region_id
-                FROM admin_regions
-                WHERE user_id = ?
-            `).bind(userId).all()
-
-            const allowedRegions = regions.results.map(r => r.region_id)
-
-            if (allowedRegions.length > 0 && username !== 'admin') {
-                regionFilter = `AND u.region_id IN (${allowedRegions.join(',')})`
-            }
+        if (username?.startsWith('admin') && userId) {
+            const regions = await c.env.DB.prepare('SELECT region_id FROM admin_regions WHERE user_id = ?').bind(userId).all()
+            const allowed = regions.results.map((r: any) => r.region_id)
+            if (allowed.length > 0 && username !== 'admin') regionFilter = `AND u.region_id IN (${allowed.join(',')})`
         }
 
-        // Get all users for these positions
         const users = await c.env.DB.prepare(`
             SELECT u.id, u.full_name, u.username, r.name as region_name
             FROM users u
                      JOIN regions r ON u.region_id = r.id
             WHERE u.position_id IN (${positionIds.join(',')}) ${regionFilter}
-        AND u.username NOT LIKE 'admin%'
+              AND u.username NOT LIKE 'admin%'
             ORDER BY r.id, u.full_name
         `).all()
 
-        // Get KPI templates for these positions
         const templates = await c.env.DB.prepare(`
             SELECT id, kpi_name, weight, standard_value, is_for_kpi, display_order, position_id
             FROM kpi_templates
@@ -1334,67 +1283,42 @@ app.get('/api/admin/dashboard/:positionIds/:year', async (c) => {
             ORDER BY position_id, is_for_kpi DESC, display_order
         `).all()
 
-        // Get monthly summary for all users for the year
         const monthlyData = await c.env.DB.prepare(`
             SELECT user_id, month, total_kpi_score, kpi_level, total_level_score, performance_level
             FROM monthly_summary
-            WHERE year = ? AND user_id IN (${users.results.map(u => u.id).join(',') || '0'})
+            WHERE year = ? AND user_id IN (${users.results.map((u: any) => u.id).join(',') || '0'})
         `).bind(year).all()
 
-        // Organize data
-        const result = {
-            users: users.results,
-            templates: templates.results,
-            monthlyData: monthlyData.results
-        }
-
-        return c.json(result)
+        return c.json({users: users.results, templates: templates.results, monthlyData: monthlyData.results})
     } catch (error) {
-        console.error('Error fetching dashboard data:', error)
         return c.json({error: 'Lỗi lấy dữ liệu dashboard'}, 500)
     }
 })
 
-// Get KPI detail data for specific KPIs
 app.get('/api/admin/kpi-detail/:positionIds/:year/:kpiIds', async (c) => {
     try {
-        const positionIdsStr = c.req.param('positionIds')
+        const positionIds = c.req.param('positionIds').split(',').map(id => parseInt(id))
         const year = c.req.param('year')
-        const kpiIdsStr = c.req.param('kpiIds')
+        const kpiIds = c.req.param('kpiIds').split(',').map(id => parseInt(id))
         const userId = c.req.query('userId')
         const username = c.req.query('username')
 
-        const positionIds = positionIdsStr.split(',').map(id => parseInt(id))
-        const kpiIds = kpiIdsStr.split(',').map(id => parseInt(id))
-
         let regionFilter = ''
-
-        // Check if admin and get allowed regions
-        if (username && username.startsWith('admin') && userId) {
-            const regions = await c.env.DB.prepare(`
-                SELECT region_id
-                FROM admin_regions
-                WHERE user_id = ?
-            `).bind(userId).all()
-
-            const allowedRegions = regions.results.map(r => r.region_id)
-
-            if (allowedRegions.length > 0 && username !== 'admin') {
-                regionFilter = `AND u.region_id IN (${allowedRegions.join(',')})`
-            }
+        if (username?.startsWith('admin') && userId) {
+            const regions = await c.env.DB.prepare('SELECT region_id FROM admin_regions WHERE user_id = ?').bind(userId).all()
+            const allowed = regions.results.map((r: any) => r.region_id)
+            if (allowed.length > 0 && username !== 'admin') regionFilter = `AND u.region_id IN (${allowed.join(',')})`
         }
 
-        // Get users
         const users = await c.env.DB.prepare(`
             SELECT u.id, u.full_name, u.username, r.name as region_name
             FROM users u
                      JOIN regions r ON u.region_id = r.id
             WHERE u.position_id IN (${positionIds.join(',')}) ${regionFilter}
-        AND u.username NOT LIKE 'admin%'
+              AND u.username NOT LIKE 'admin%'
             ORDER BY r.id, u.full_name
         `).all()
 
-        // Get KPI templates
         const kpiTemplates = await c.env.DB.prepare(`
             SELECT id, kpi_name, weight, standard_value, is_for_kpi
             FROM kpi_templates
@@ -1402,30 +1326,21 @@ app.get('/api/admin/kpi-detail/:positionIds/:year/:kpiIds', async (c) => {
             ORDER BY display_order
         `).all()
 
-        // Get KPI data for all users for the year
         const kpiData = await c.env.DB.prepare(`
             SELECT user_id, kpi_template_id, month, actual_value
             FROM kpi_data
             WHERE year = ?
-              AND user_id IN (${users.results.map(u => u.id).join(',') || '0'})
+              AND user_id IN (${users.results.map((u: any) => u.id).join(',') || '0'})
               AND kpi_template_id IN (${kpiIds.join(',')})
             ORDER BY user_id, kpi_template_id, month
         `).bind(year).all()
 
-        const result = {
-            users: users.results,
-            kpiTemplates: kpiTemplates.results,
-            kpiData: kpiData.results
-        }
-
-        return c.json(result)
+        return c.json({users: users.results, kpiTemplates: kpiTemplates.results, kpiData: kpiData.results})
     } catch (error) {
-        console.error('Error fetching KPI detail data:', error)
         return c.json({error: 'Lỗi lấy dữ liệu KPI chi tiết'}, 500)
     }
 })
 
-// Get revenue plan for all users with revenue-related positions
 app.get('/api/admin/revenue-plan/:year', async (c) => {
     try {
         const year = c.req.param('year')
@@ -1433,239 +1348,141 @@ app.get('/api/admin/revenue-plan/:year', async (c) => {
         const username = c.req.query('username')
 
         let regionFilter = ''
-
-        // Check if admin and get allowed regions
-        if (username && username.startsWith('admin') && userId) {
-            const regions = await c.env.DB.prepare(`
-                SELECT region_id
-                FROM admin_regions
-                WHERE user_id = ?
-            `).bind(userId).all()
-
-            const allowedRegions = regions.results.map(r => r.region_id)
-
-            if (allowedRegions.length > 0 && username !== 'admin') {
-                regionFilter = `AND u.region_id IN (${allowedRegions.join(',')})`
-            }
+        if (username?.startsWith('admin') && userId) {
+            const regions = await c.env.DB.prepare('SELECT region_id FROM admin_regions WHERE user_id = ?').bind(userId).all()
+            const allowed = regions.results.map((r: any) => r.region_id)
+            if (allowed.length > 0 && username !== 'admin') regionFilter = `AND u.region_id IN (${allowed.join(',')})`
         }
 
-        // Get users with revenue positions (PTGĐ, GĐKDCC, GĐKD, TLKD)
         const users = await c.env.DB.prepare(`
-            SELECT u.id,
-                   u.full_name,
-                   u.username,
-                   r.name         as region_name,
-                   p.display_name as position_name
+            SELECT u.id, u.full_name, u.username, r.name as region_name, p.display_name as position_name
             FROM users u
                      JOIN regions r ON u.region_id = r.id
                      JOIN positions p ON u.position_id = p.id
-            WHERE u.position_id IN (1, 2, 3, 5) ${regionFilter}
-        AND u.username NOT LIKE 'admin%'
+            WHERE u.position_id IN (1, 2, 3, 5) ${regionFilter} AND u.username NOT LIKE 'admin%'
             ORDER BY r.id, p.id, u.full_name
         `).all()
 
-        // Get existing plans
         const plans = await c.env.DB.prepare(`
             SELECT user_id, month, planned_revenue
             FROM revenue_plan
-            WHERE year = ? AND user_id IN (${users.results.map(u => u.id).join(',') || '0'})
+            WHERE year = ? AND user_id IN (${users.results.map((u: any) => u.id).join(',') || '0'})
         `).bind(year).all()
 
-        return c.json({
-            users: users.results,
-            plans: plans.results
-        })
+        return c.json({users: users.results, plans: plans.results})
     } catch (error) {
-        console.error('Error fetching revenue plan:', error)
         return c.json({error: 'Lỗi lấy kế hoạch doanh thu'}, 500)
     }
 })
 
-// Save revenue plan
 app.post('/api/admin/revenue-plan', async (c) => {
     try {
-        const body = await c.req.json()
-        const {user_id, year, plans} = body
+        const {user_id, year, plans} = await c.req.json()
 
-        if (!user_id) {
-            return c.json({error: 'Thiếu user_id'}, 400)
-        }
-        if (!year) {
-            return c.json({error: 'Thiếu year'}, 400)
-        }
-        if (!plans || !Array.isArray(plans)) {
-            return c.json({error: 'Dữ liệu plans không hợp lệ'}, 400)
-        }
-        if (plans.length === 0) {
-            return c.json({error: 'Danh sách plans trống'}, 400)
-        }
+        if (!user_id) return c.json({error: 'Thiếu user_id'}, 400)
+        if (!year) return c.json({error: 'Thiếu year'}, 400)
+        if (!Array.isArray(plans) || plans.length === 0) return c.json({error: 'Dữ liệu plans không hợp lệ'}, 400)
 
-        // Kiểm tra user tồn tại
-        const user = await c.env.DB.prepare('SELECT id, full_name FROM users WHERE id = ?')
-            .bind(user_id).first()
-        if (!user) {
-            return c.json({error: `Không tìm thấy người dùng với ID ${user_id}`}, 404)
-        }
+        const user = await c.env.DB.prepare('SELECT id, full_name FROM users WHERE id = ?').bind(user_id).first()
+        if (!user) return c.json({error: `Không tìm thấy người dùng với ID ${user_id}`}, 404)
 
-        // Validate từng plan
         for (const plan of plans) {
-            if (!plan.month || plan.month < 1 || plan.month > 12) {
-                return c.json({error: `Tháng không hợp lệ: ${plan.month} (user: ${user.full_name})`}, 400)
-            }
-            if (plan.planned_revenue < 0) {
-                return c.json({error: `Doanh thu tháng ${plan.month} không được âm (user: ${user.full_name})`}, 400)
-            }
+            if (!plan.month || plan.month < 1 || plan.month > 12) return c.json({error: `Tháng không hợp lệ: ${plan.month}`}, 400)
+            if (plan.planned_revenue < 0) return c.json({error: `Doanh thu tháng ${plan.month} không được âm`}, 400)
         }
 
-        await c.env.DB.prepare('DELETE FROM revenue_plan WHERE user_id = ? AND year = ?')
-            .bind(user_id, year).run()
+        await c.env.DB.prepare('DELETE FROM revenue_plan WHERE user_id = ? AND year = ?').bind(user_id, year).run()
 
         for (const plan of plans) {
             if (plan.planned_revenue > 0) {
-                await c.env.DB.prepare(`
-                    INSERT INTO revenue_plan (user_id, year, month, planned_revenue)
-                    VALUES (?, ?, ?, ?)
-                `).bind(user_id, year, plan.month, plan.planned_revenue).run()
+                await c.env.DB.prepare(
+                    'INSERT INTO revenue_plan (user_id, year, month, planned_revenue) VALUES (?, ?, ?, ?)'
+                ).bind(user_id, year, plan.month, plan.planned_revenue).run()
             }
         }
 
         return c.json({success: true, message: `Đã lưu kế hoạch năm ${year} cho ${user.full_name}`})
     } catch (error) {
-        console.error('Error saving revenue plan:', error)
         const msg = error instanceof Error ? error.message : String(error)
         return c.json({error: `Lỗi lưu kế hoạch: ${msg}`}, 500)
     }
 })
 
-app.post("/api/admin/import-actual-revenue", async (c) => {
+app.post('/api/admin/import-actual-revenue', async (c) => {
     try {
-        const body = await c.req.json()
-        const rows = body.rows
+        const {rows} = await c.req.json()
+        if (!Array.isArray(rows) || rows.length === 0) return c.json({
+            success: false,
+            message: 'Invalid rows data'
+        }, 400)
 
-        if (!Array.isArray(rows) || rows.length === 0) {
-            return c.json({success: false, message: 'Invalid rows data'}, 400)
-        }
         const db = c.env.DB
-
-        const KPI_TEMPLATE_ID = 1 // doanh thu thực tế
-
-        const results = {
-            success: 0,
-            updated: 0,
-            inserted: 0,
-            skipped: []
-        }
+        const KPI_TEMPLATE_ID = 1
+        const results = {success: 0, updated: 0, inserted: 0, skipped: [] as any[]}
 
         for (const row of rows) {
-
             const {actual_value, email, month, year} = row
             if (!email || !month || !year || actual_value == null) continue
 
-            // 1. Tìm user
-            const user = await db
-                .prepare("SELECT id FROM users WHERE username = ?")
-                .bind(email)
-                .first()
-
+            const user = await db.prepare('SELECT id FROM users WHERE username = ?').bind(email).first()
             if (!user) {
-                results.skipped.push({email, reason: "USER_NOT_FOUND"})
+                results.skipped.push({email, reason: 'USER_NOT_FOUND'});
                 continue
             }
 
-            // 2. Kiểm tra kpi_data
-            const existing = await db.prepare(`
-                SELECT id
-                FROM kpi_data
-                WHERE user_id = ?
-                          AND month = ?
-                          AND year = ?
-                  AND kpi_template_id = ?
-            `)
-                .bind(user.id, month, year, KPI_TEMPLATE_ID)
-                .first()
+            const existing = await db.prepare(
+                'SELECT id FROM kpi_data WHERE user_id = ? AND month = ? AND year = ? AND kpi_template_id = ?'
+            ).bind(user.id, month, year, KPI_TEMPLATE_ID).first()
 
             if (existing) {
-                // UPDATE
-                await db.prepare(`
-                    UPDATE kpi_data
-                    SET actual_value       = ?,
-                        completion_percent = 0,
-                        weighted_score     = 0,
-                        updated_at         = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                `).bind(actual_value, existing.id).run()
-
+                await db.prepare(
+                    'UPDATE kpi_data SET actual_value = ?, completion_percent = 0, weighted_score = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+                ).bind(actual_value, existing.id).run()
                 results.updated++
             } else {
-                // INSERT
-                await db.prepare(`
-                    INSERT INTO kpi_data
-                    (user_id, month, year, kpi_template_id, actual_value, completion_percent, weighted_score)
-                    VALUES (?, ?, ?, ?, ?, 0, 0)
-                `)
-                    .bind(user.id, month, year, KPI_TEMPLATE_ID, actual_value)
-                    .run()
-
+                await db.prepare(
+                    'INSERT INTO kpi_data (user_id, month, year, kpi_template_id, actual_value, completion_percent, weighted_score) VALUES (?, ?, ?, ?, ?, 0, 0)'
+                ).bind(user.id, month, year, KPI_TEMPLATE_ID, actual_value).run()
                 results.inserted++
             }
-
             results.success++
         }
 
         return c.json({success: true, results})
     } catch (error) {
-        console.error('Error saving revenue actual:', error)
         return c.json({error: 'Lỗi lưu doanh thu'}, 500)
     }
 })
 
-
-// Get potential managers for a position
 app.get('/api/admin/potential-managers/:regionId/:positionId', async (c) => {
-  try {
-    const regionId = c.req.param('regionId')
-    const positionId = parseInt(c.req.param('positionId'))
+    try {
+        const regionId = c.req.param('regionId')
+        const positionId = parseInt(c.req.param('positionId'))
 
-        const selectedPosition = await c.env.DB.prepare(`
-            SELECT level
-            FROM positions
-            WHERE id = ?
-        `).bind(positionId).first()
+        const selectedPosition = await c.env.DB.prepare('SELECT level FROM positions WHERE id = ?').bind(positionId).first()
+        if (!selectedPosition || selectedPosition.level <= 1) return c.json({managers: []})
 
-        if (!selectedPosition) {
-            return c.json({managers: []})
-        }
+        const results = await c.env.DB.prepare(`
+            SELECT u.id, u.full_name, u.username, p.level, p.display_name as position_name
+            FROM users u
+                     JOIN positions p ON u.position_id = p.id
+            WHERE u.region_id = ?
+              AND p.level < ?
+              AND u.position_id != ?
+              AND u.username NOT IN ('admin','admin1','admin2','admin3')
+            ORDER BY p.level DESC, u.full_name
+        `).bind(regionId, selectedPosition.level, positionId).all()
 
-        const selectedLevel = selectedPosition.level
-
-    if (selectedLevel <= 1) {
-      return c.json({ managers: [] })
+        return c.json({managers: results.results})
+    } catch (error) {
+        return c.json({error: 'Lỗi lấy danh sách quản lý'}, 500)
     }
-    
-    const results = await c.env.DB.prepare(`
-      SELECT u.id, u.full_name, u.username, p.level, p.display_name as position_name
-      FROM users u
-      JOIN positions p ON u.position_id = p.id
-      WHERE u.region_id = ?
-        AND p.level < ?
-        AND u.position_id != ?
-        AND u.username NOT IN ('admin', 'admin1', 'admin2', 'admin3')
-      ORDER BY p.level DESC, u.full_name
-    `).bind(regionId, selectedLevel, positionId).all()
-    
-    return c.json({ managers: results.results })
-  } catch (error) {
-    return c.json({ error: 'Lỗi lấy danh sách quản lý' }, 500)
-  }
 })
 
-// Create new user (admin only)
 app.post('/api/admin/users', async (c) => {
     try {
         const body = await c.req.json()
-        // Support both camelCase and snake_case
-        const username = body.username
-        const password = body.password
+        const {username, password} = body
         const full_name = body.fullName || body.full_name
         const region_id = body.regionId || body.region_id
         const position_id = body.positionId || body.position_id
@@ -1673,439 +1490,147 @@ app.post('/api/admin/users', async (c) => {
         const team = body.team || null
         const manager = body.manager || null
 
-        // Check if username already exists
-        const existing = await c.env.DB.prepare(`
-            SELECT id
-            FROM users
-            WHERE username = ?
-        `).bind(username).first()
+        const existing = await c.env.DB.prepare('SELECT id FROM users WHERE username = ?').bind(username).first()
+        if (existing) return c.json({error: 'Tên đăng nhập đã tồn tại'}, 400)
 
-        if (existing) {
-            return c.json({error: 'Tên đăng nhập đã tồn tại'}, 400)
-        }
+        const result = await c.env.DB.prepare(
+            'INSERT INTO users (username, password, full_name, region_id, position_id, start_date, team, manager_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        ).bind(username, password, full_name, region_id, position_id, start_date, team, manager).run()
 
-        // Insert new user
-        const result = await c.env.DB.prepare(`
-            INSERT INTO users (username, password, full_name, region_id, position_id, start_date, team, manager_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(username, password, full_name, region_id, position_id, start_date, team, manager).run()
-
-        return c.json({
-            success: true,
-            message: 'Tạo tài khoản thành công',
-            userId: result.meta.last_row_id
-        })
+        return c.json({success: true, message: 'Tạo tài khoản thành công', userId: result.meta.last_row_id})
     } catch (error) {
-        console.error('Error creating user:', error)
         return c.json({error: 'Lỗi tạo tài khoản'}, 500)
     }
 })
 
-// Update user info (admin only)
 app.put('/api/admin/users/:userId', async (c) => {
     try {
         const userId = c.req.param('userId')
         const body = await c.req.json()
+        const updates: string[] = []
+        const bindings: any[] = []
 
-        // Build dynamic update query
-        const updates = []
-        const bindings = []
-
-        // Full name
         if (body.full_name || body.fullName) {
-            updates.push('full_name = ?')
+            updates.push('full_name = ?');
             bindings.push(body.full_name || body.fullName)
         }
-
-        // Password (optional - only update if provided)
-        if (body.password && body.password.trim() !== '') {
-            updates.push('password = ?')
+        if (body.password?.trim()) {
+            updates.push('password = ?');
             bindings.push(body.password)
         }
-
-        // Region
         if (body.region_id || body.regionId) {
-            updates.push('region_id = ?')
+            updates.push('region_id = ?');
             bindings.push(body.region_id || body.regionId)
         }
-
-        // Position
         if (body.position_id || body.positionId) {
-            updates.push('position_id = ?')
+            updates.push('position_id = ?');
             bindings.push(body.position_id || body.positionId)
         }
-
-        // manager
         if (body.manager_id || body.managerId) {
-            updates.push('manager_id = ?')
+            updates.push('manager_id = ?');
             bindings.push(body.manager_id || body.managerId)
         }
-
-        // Team
         if (body.hasOwnProperty('team')) {
-            updates.push('team = ?')
+            updates.push('team = ?');
             bindings.push(body.team || null)
         }
-
-        // Start date
         if (body.start_date || body.startDate) {
-            updates.push('start_date = ?')
+            updates.push('start_date = ?');
             bindings.push(body.start_date || body.startDate)
         }
-
-        // Cover image URL
         if (body.hasOwnProperty('cover_image_url')) {
-            updates.push('cover_image_url = ?')
+            updates.push('cover_image_url = ?');
             bindings.push(body.cover_image_url || null)
         }
 
-        if (updates.length === 0) {
-            return c.json({error: 'Không có thông tin để cập nhật'}, 400)
-        }
+        if (updates.length === 0) return c.json({error: 'Không có thông tin để cập nhật'}, 400)
 
-        // Add userId at the end
         bindings.push(userId)
-
-        const query = `UPDATE users
-                       SET ${updates.join(', ')}
-                       WHERE id = ?`
-        await c.env.DB.prepare(query).bind(...bindings).run()
-
+        await c.env.DB.prepare(`UPDATE users
+                                SET ${updates.join(', ')}
+                                WHERE id = ?`).bind(...bindings).run()
         return c.json({success: true, message: 'Cập nhật thành công'})
     } catch (error) {
-        console.error('Error updating user:', error)
         return c.json({error: 'Lỗi cập nhật thông tin'}, 500)
     }
 })
 
-// Delete user (admin only)
 app.delete('/api/admin/users/:userId', async (c) => {
     try {
         const userId = c.req.param('userId')
 
-        // Check if user has subordinates
-        const subordinates = await c.env.DB.prepare(`
-            SELECT COUNT(*) as count
-            FROM users
-            WHERE manager_id = ?
-        `).bind(userId).first()
+        const subordinates = await c.env.DB.prepare('SELECT COUNT(*) as count FROM users WHERE manager_id = ?').bind(userId).first()
+        if (subordinates && subordinates.count > 0) return c.json({error: 'Không thể xóa vì còn nhân viên cấp dưới'}, 400)
 
-        if (subordinates && subordinates.count > 0) {
-            return c.json({error: 'Không thể xóa vì còn nhân viên cấp dưới'}, 400)
-        }
-
-        // Delete user's KPI data first
-        await c.env.DB.prepare(`
-            DELETE
-            FROM kpi_data
-            WHERE user_id = ?
-        `).bind(userId).run()
-
-        // Delete user's monthly summary
-        await c.env.DB.prepare(`
-            DELETE
-            FROM monthly_summary
-            WHERE user_id = ?
-        `).bind(userId).run()
-
-        // Delete user
-        await c.env.DB.prepare(`
-            DELETE
-            FROM users
-            WHERE id = ?
-        `).bind(userId).run()
+        await c.env.DB.prepare('DELETE FROM kpi_data WHERE user_id = ?').bind(userId).run()
+        await c.env.DB.prepare('DELETE FROM monthly_summary WHERE user_id = ?').bind(userId).run()
+        await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId).run()
 
         return c.json({success: true, message: 'Xóa tài khoản thành công'})
     } catch (error) {
-        console.error('Error deleting user:', error)
         return c.json({error: 'Lỗi xóa tài khoản'}, 500)
     }
 })
 
-// Get single user profile (used for refreshing currentUser from DB on page load)
 app.get('/api/users/:userId', async (c) => {
     try {
-        const userId = c.req.param('userId')
-
         const result = await c.env.DB.prepare(`
             SELECT u.*, r.name as region_name, p.name as position_name, p.display_name as position_display
             FROM users u
                      LEFT JOIN regions r ON u.region_id = r.id
                      LEFT JOIN positions p ON u.position_id = p.id
             WHERE u.id = ?
-        `).bind(userId).first()
+        `).bind(c.req.param('userId')).first()
 
-        if (!result) {
-            return c.json({error: 'Không tìm thấy người dùng'}, 404)
-        }
-
-        // Remove password from response
+        if (!result) return c.json({error: 'Không tìm thấy người dùng'}, 404)
         const {password, ...safeUser} = result as any
-
         return c.json({user: safeUser})
     } catch (error) {
-        console.error('Error fetching user profile:', error)
         return c.json({error: 'Lỗi lấy thông tin người dùng'}, 500)
     }
 })
 
-// Upload user cover file (multipart/form-data)
 app.post('/api/users/upload-cover', async (c) => {
     try {
         const formData = await c.req.formData()
         const file = formData.get('file') as File
         const userId = formData.get('userId') as string
 
-        if (!file) {
-            return c.json({error: 'Không có file được upload'}, 400)
-        }
+        if (!file) return c.json({error: 'Không có file được upload'}, 400)
 
-        // Validate file type
         const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf']
-        if (!validTypes.includes(file.type)) {
-            return c.json({error: 'Định dạng file không hợp lệ. Chỉ chấp nhận PNG, JPG hoặc PDF'}, 400)
-        }
+        if (!validTypes.includes(file.type)) return c.json({error: 'Định dạng file không hợp lệ. Chỉ chấp nhận PNG, JPG hoặc PDF'}, 400)
+        if (file.size > 2 * 1024 * 1024) return c.json({error: 'File quá lớn. Vui lòng chọn file nhỏ hơn 2MB'}, 400)
 
-        // Validate file size (2MB max for base64 to avoid stack overflow)
-        const maxSize = 2 * 1024 * 1024
-        if (file.size > maxSize) {
-            return c.json({error: 'File quá lớn. Vui lòng chọn file nhỏ hơn 2MB hoặc sử dụng URL từ GenSpark AI Drive'}, 400)
-        }
-
-        // Convert file to base64 data URL using chunked approach to avoid stack overflow
-        const arrayBuffer = await file.arrayBuffer()
-        const bytes = new Uint8Array(arrayBuffer)
-
-        // Convert to base64 in chunks to avoid Maximum call stack size exceeded
+        const bytes = new Uint8Array(await file.arrayBuffer())
         let base64 = ''
         const chunkSize = 8192
         for (let i = 0; i < bytes.length; i += chunkSize) {
-            const chunk = bytes.slice(i, i + chunkSize)
-            base64 += String.fromCharCode.apply(null, Array.from(chunk))
+            base64 += String.fromCharCode.apply(null, Array.from(bytes.slice(i, i + chunkSize)))
         }
         base64 = btoa(base64)
 
         const dataUrl = `data:${file.type};base64,${base64}`
-
-        // Update user's cover_image_url
-        await c.env.DB.prepare(`
-            UPDATE users
-            SET cover_image_url = ?
-            WHERE id = ?
-        `).bind(dataUrl, userId).run()
-
-        return c.json({
-            success: true,
-            message: 'Upload thành công',
-            coverUrl: dataUrl
-        })
+        await c.env.DB.prepare('UPDATE users SET cover_image_url = ? WHERE id = ?').bind(dataUrl, userId).run()
+        return c.json({success: true, message: 'Upload thành công', coverUrl: dataUrl})
     } catch (error) {
-        console.error('Error uploading cover:', error)
         return c.json({error: `Lỗi upload file: ${error.message}`}, 500)
     }
 })
 
-// Update user's own cover image (non-admin)
 app.put('/api/users/:userId/cover', async (c) => {
     try {
-        const userId = c.req.param('userId')
         const body = await c.req.json()
-
-        if (!body.cover_image_url) {
-            return c.json({error: 'Thiếu URL ảnh cover'}, 400)
-        }
-
-        await c.env.DB.prepare(`
-            UPDATE users
-            SET cover_image_url = ?
-            WHERE id = ?
-        `).bind(body.cover_image_url, userId).run()
-
+        if (!body.cover_image_url) return c.json({error: 'Thiếu URL ảnh cover'}, 400)
+        await c.env.DB.prepare('UPDATE users SET cover_image_url = ? WHERE id = ?').bind(body.cover_image_url, c.req.param('userId')).run()
         return c.json({success: true, message: 'Cập nhật ảnh cover thành công'})
     } catch (error) {
-        console.error('Error updating cover:', error)
         return c.json({error: 'Lỗi cập nhật ảnh cover'}, 500)
     }
 })
 
-// Helper function to calculate monthly summary
-async function calculateMonthlySummary(db: D1Database, userId: number, year: number, month: number) {
-    // Get user position
-    const user = await db.prepare('SELECT position_id FROM users WHERE id = ?').bind(userId).first()
-    const positionId = user?.position_id || 0
-
-    // Calculate KPI score
-    const kpiScore = await db.prepare(`
-        SELECT SUM(weighted_score) as total
-        FROM kpi_data kd
-                 JOIN kpi_templates kt ON kd.kpi_template_id = kt.id
-        WHERE kd.user_id = ?
-          AND kd.year = ?
-          AND kd.month = ?
-          AND kt.is_for_kpi = 1
-    `).bind(userId, year, month).first()
-
-    const totalKpiScore = kpiScore?.total || 0
-
-    // Determine KPI level based on score percentage
-    // totalKpiScore = weighted score (0-1.5 range)
-    // Convert to percentage: totalKpiScore * 100 (0-150%)
-    const kpiPercent = totalKpiScore * 100
-    let kpiLevel = 'Cần Cải Thiện'
-    if (kpiPercent >= 120) kpiLevel = 'Xuất sắc'
-    else if (kpiPercent >= 90) kpiLevel = 'Giỏi'
-    else if (kpiPercent >= 70) kpiLevel = 'Khá'
-    else if (kpiPercent >= 50) kpiLevel = 'Trung Bình'
-
-    // Calculate Level score
-    const levelScore = await db.prepare(`
-        SELECT SUM(weighted_score) as total
-        FROM kpi_data kd
-                 JOIN kpi_templates kt ON kd.kpi_template_id = kt.id
-        WHERE kd.user_id = ?
-          AND kd.year = ?
-          AND kd.month = ?
-          AND kt.is_for_kpi = 0
-    `).bind(userId, year, month).first()
-
-    const totalLevelScore = levelScore?.total || 0
-    const levelPercent = totalLevelScore * 100
-
-    // Determine performance level based on position and score
-    // Based on xep loai level.xlsx - Different thresholds per position
-    let performanceLevel = 'Xem xét lại'
-
-    if (positionId === 1 || positionId === 5) {
-        // PTGĐ & GĐKDCC
-        if (levelPercent >= 155) performanceLevel = 'Level 4'
-        else if (levelPercent >= 131) performanceLevel = 'Level 3'
-        else if (levelPercent > 100) performanceLevel = 'Level 2'
-        else if (levelPercent >= 50) performanceLevel = 'Level 1'
-    } else if (positionId === 2 || positionId === 3) {
-        // GĐKD & Trợ lý KD
-        if (levelPercent >= 140) performanceLevel = 'Level 5'
-        else if (levelPercent >= 121) performanceLevel = 'Level 4'
-        else if (levelPercent >= 101) performanceLevel = 'Level 3'
-        else if (levelPercent >= 81) performanceLevel = 'Level 2'
-        else if (levelPercent >= 50) performanceLevel = 'Level 1'
-    } else if (positionId === 4) {
-        // Giám sát
-        if (levelPercent >= 150) performanceLevel = 'Level 5'
-        else if (levelPercent >= 131) performanceLevel = 'Level 4'
-        else if (levelPercent >= 101) performanceLevel = 'Level 3'
-        else if (levelPercent >= 76) performanceLevel = 'Level 2'
-        else if (levelPercent >= 50) performanceLevel = 'Level 1'
-    } else {
-        // Default fallback (PTGĐ logic)
-        if (levelPercent >= 155) performanceLevel = 'Level 4'
-        else if (levelPercent >= 131) performanceLevel = 'Level 3'
-        else if (levelPercent > 100) performanceLevel = 'Level 2'
-        else if (levelPercent >= 50) performanceLevel = 'Level 1'
-    }
-
-    // Insert or update summary
-    await db.prepare(`
-        INSERT INTO monthly_summary (user_id, month, year, total_kpi_score, kpi_level, total_level_score,
-                                     performance_level)
-        VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year)
-    DO
-        UPDATE SET
-            total_kpi_score = ?,
-            kpi_level = ?,
-            total_level_score = ?,
-            performance_level = ?,
-            updated_at = CURRENT_TIMESTAMP
-    `).bind(
-        userId, month, year, totalKpiScore, kpiLevel, totalLevelScore, performanceLevel,
-        totalKpiScore, kpiLevel, totalLevelScore, performanceLevel
-    ).run()
-}
-
-// ===== Frontend Routes =====
-
-// Main page
-app.get('/', (c) => {
-    // Prevent caching
-    c.header('Cache-Control', 'no-cache, no-store, must-revalidate')
-    c.header('Pragma', 'no-cache')
-    c.header('Expires', '0')
-
-    return c.html(`
-    <!DOCTYPE html>
-    <html lang="vi">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <title>Hệ thống KPI - Công ty Nhân Kiệt</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
-        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-        <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-        <style>
-          /* Mobile-first CSS */
-          * {
-            -webkit-tap-highlight-color: transparent;
-          }
-          
-          body {
-            overscroll-behavior-y: none;
-          }
-          
-          /* Hide scrollbar but keep functionality */
-          ::-webkit-scrollbar {
-            width: 0px;
-            height: 0px;
-          }
-          
-          /* Smooth scrolling */
-          html {
-            scroll-behavior: smooth;
-          }
-          
-          /* Touch-friendly inputs */
-          input, select, textarea, button {
-            font-size: 16px !important; /* Prevent zoom on iOS */
-          }
-          
-          @media (min-width: 768px) {
-            input, select, textarea {
-              font-size: 14px !important;
-            }
-          }
-          
-          /* Force single column on mobile for dashboard */
-          @media (max-width: 767px) {
-            .dashboard-grid {
-              display: flex !important;
-              flex-direction: column !important;
-              gap: 1rem !important;
-            }
-            
-            .dashboard-grid > div {
-              width: 100% !important;
-            }
-          }
-        </style>
-    </head>
-    <body class="bg-gray-50 select-none">
-        <div id="app"></div>
-        
-        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/app.js?v=${Date.now()}"></script>
-    </body>
-    </html>
-  `)
-})
-
-// Get recruitment chart data for Giám sát
 app.get('/api/recruitment-chart/:year/:month', async (c) => {
     try {
-        const year = c.req.param('year')
-        const month = c.req.param('month')
-
-        // KPI template ID 32: "Số lượng lao động mới tuyển dụng nhận việc mỗi tháng"
-        // Standard value: 40
         const results = await c.env.DB.prepare(`
             SELECT u.id,
                    u.full_name,
@@ -2116,38 +1641,31 @@ app.get('/api/recruitment-chart/:year/:month', async (c) => {
                    kt.standard_value
             FROM users u
                      JOIN regions r ON u.region_id = r.id
-                     LEFT JOIN kpi_data kd ON u.id = kd.user_id
-                AND kd.year = ? AND kd.month = ?
-                AND kd.kpi_template_id = 32
+                     LEFT JOIN kpi_data kd
+                               ON u.id = kd.user_id AND kd.year = ? AND kd.month = ? AND kd.kpi_template_id = 32
                      LEFT JOIN kpi_templates kt ON kt.id = 32
             WHERE u.position_id = 4
             ORDER BY kd.actual_value DESC NULLS LAST, u.full_name
-        `).bind(year, month).all()
+        `).bind(c.req.param('year'), c.req.param('month')).all()
 
         return c.json({
             data: results.results,
             standard: 40,
-            year: parseInt(year),
-            month: parseInt(month)
+            year: parseInt(c.req.param('year')),
+            month: parseInt(c.req.param('month'))
         })
     } catch (error) {
-        console.error('Recruitment chart error:', error)
         return c.json({error: 'Lỗi lấy dữ liệu biểu đồ'}, 500)
     }
 })
 
-// Admin API: Recalculate Level for a user
 app.post('/api/admin/recalc-level/:userId', async (c) => {
     try {
         const userId = parseInt(c.req.param('userId'))
 
-        // Get user info
         const user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first()
-        if (!user) {
-            return c.json({error: 'User not found'}, 404)
-        }
+        if (!user) return c.json({error: 'User not found'}, 404)
 
-        // Get all months with KPI data
         const months = await c.env.DB.prepare(`
             SELECT DISTINCT month, year
             FROM kpi_data
@@ -2160,7 +1678,6 @@ app.post('/api/admin/recalc-level/:userId', async (c) => {
         for (const row of months.results) {
             const {month, year} = row
 
-            // Delete existing Level data for this month
             await c.env.DB.prepare(`
                 DELETE
                 FROM kpi_data
@@ -2168,7 +1685,6 @@ app.post('/api/admin/recalc-level/:userId', async (c) => {
                   AND kpi_template_id IN (SELECT id FROM kpi_templates WHERE is_for_kpi = 0)
             `).bind(userId, year, month).run()
 
-            // Get Level templates
             const levelTemplates = await c.env.DB.prepare(`
                 SELECT id, kpi_name, weight, standard_value
                 FROM kpi_templates
@@ -2177,52 +1693,31 @@ app.post('/api/admin/recalc-level/:userId', async (c) => {
                 ORDER BY display_order
             `).bind(user.position_id).all()
 
-            // Auto-fill Level from KPI (first 3 templates only)
             for (let i = 0; i < 3 && i < levelTemplates.results.length; i++) {
-                const levelTemplate = levelTemplates.results[i]
+                const lt = levelTemplates.results[i]
 
-                // Find KPI template with SAME NAME
-                const kpiTemplate = await c.env.DB.prepare(`
-                    SELECT id
-                    FROM kpi_templates
-                    WHERE position_id = ?
-                      AND is_for_kpi = 1
-                      AND kpi_name = ?
-                `).bind(user.position_id, levelTemplate.kpi_name).first()
+                const kpiTpl = await c.env.DB.prepare(
+                    'SELECT id FROM kpi_templates WHERE position_id = ? AND is_for_kpi = 1 AND kpi_name = ?'
+                ).bind(user.position_id, lt.kpi_name).first()
 
-                if (!kpiTemplate) continue
+                if (!kpiTpl) continue
 
-                // Get KPI data
-                const kpiDataRow = await c.env.DB.prepare(`
-                    SELECT actual_value
-                    FROM kpi_data
-                    WHERE user_id = ? AND year = ? AND month = ?
-                      AND kpi_template_id = ?
-                `).bind(userId, year, month, kpiTemplate.id).first()
+                const kpiRow = await c.env.DB.prepare(
+                    'SELECT actual_value FROM kpi_data WHERE user_id = ? AND year = ? AND month = ? AND kpi_template_id = ?'
+                ).bind(userId, year, month, kpiTpl.id).first()
 
-                if (kpiDataRow && kpiDataRow.actual_value !== null) {
-                    // Recalculate completion_percent for Level (max 160%)
-                    let levelCompletionPercent = (kpiDataRow.actual_value / levelTemplate.standard_value) * 100
-                    levelCompletionPercent = Math.min(levelCompletionPercent, 160)
+                if (kpiRow?.actual_value !== null) {
+                    let comp = (kpiRow.actual_value / lt.standard_value) * 100
+                    comp = Math.min(comp, 160)
+                    const score = (comp / 100) * lt.weight
 
-                    // Recalculate weighted_score
-                    const newWeightedScore = (levelCompletionPercent / 100) * levelTemplate.weight
-
-                    // Insert Level data
-                    await c.env.DB.prepare(`
-                        INSERT INTO kpi_data (user_id, month, year, kpi_template_id, actual_value, completion_percent,
-                                              weighted_score)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    `).bind(
-                        userId, month, year, levelTemplate.id,
-                        kpiDataRow.actual_value, levelCompletionPercent, newWeightedScore
-                    ).run()
+                    await c.env.DB.prepare(
+                        'INSERT INTO kpi_data (user_id, month, year, kpi_template_id, actual_value, completion_percent, weighted_score) VALUES (?, ?, ?, ?, ?, ?, ?)'
+                    ).bind(userId, month, year, lt.id, kpiRow.actual_value, comp, score).run()
                 }
             }
 
-            // Recalculate monthly summary
             await calculateMonthlySummary(c.env.DB, userId, year, month)
-
             processed++
         }
 
@@ -2233,57 +1728,30 @@ app.post('/api/admin/recalc-level/:userId', async (c) => {
             username: user.username
         })
     } catch (error) {
-        console.error('Error recalculating Level:', error)
         return c.json({error: 'Failed to recalculate Level'}, 500)
     }
 })
 
-// ===== CHANGE PASSWORD API =====
 app.post('/api/change-password', async (c) => {
     try {
         const {userId, oldPassword, newPassword} = await c.req.json()
 
-        if (!userId || !oldPassword || !newPassword) {
-            return c.json({error: 'Thiếu thông tin'}, 400)
-        }
+        if (!userId || !oldPassword || !newPassword) return c.json({error: 'Thiếu thông tin'}, 400)
+        if (newPassword.length < 6) return c.json({error: 'Mật khẩu mới phải có ít nhất 6 ký tự'}, 400)
 
-        if (newPassword.length < 6) {
-            return c.json({error: 'Mật khẩu mới phải có ít nhất 6 ký tự'}, 400)
-        }
+        const user = await c.env.DB.prepare('SELECT id, password FROM users WHERE id = ?').bind(userId).first()
+        if (!user) return c.json({error: 'Không tìm thấy user'}, 404)
+        if (user.password && user.password !== oldPassword) return c.json({error: 'Mật khẩu cũ không đúng'}, 401)
 
-        // Verify old password
-        const user = await c.env.DB.prepare('SELECT id, password FROM users WHERE id = ?')
-            .bind(userId).first()
-
-        if (!user) {
-            return c.json({error: 'Không tìm thấy user'}, 404)
-        }
-
-        // Check old password (simple comparison - in production use bcrypt)
-        if (user.password && user.password !== oldPassword) {
-            return c.json({error: 'Mật khẩu cũ không đúng'}, 401)
-        }
-
-        // Update password
-        await c.env.DB.prepare('UPDATE users SET password = ? WHERE id = ?')
-            .bind(newPassword, userId).run()
-
+        await c.env.DB.prepare('UPDATE users SET password = ? WHERE id = ?').bind(newPassword, userId).run()
         return c.json({success: true, message: 'Đổi mật khẩu thành công'})
     } catch (error) {
-        console.error('Change password error:', error)
         return c.json({error: 'Lỗi đổi mật khẩu'}, 500)
     }
 })
 
-// ===== LOCK/UNLOCK MONTH APIs (Admin only) =====
-
-// Get lock status for a month
 app.get('/api/admin/lock-status/:year/:month/:positionId', async (c) => {
     try {
-        const year = parseInt(c.req.param('year'))
-        const month = parseInt(c.req.param('month'))
-        const positionId = parseInt(c.req.param('positionId'))
-
         const lock = await c.env.DB.prepare(`
             SELECT lm.*, u.full_name as locked_by_name
             FROM lock_months lm
@@ -2291,80 +1759,54 @@ app.get('/api/admin/lock-status/:year/:month/:positionId', async (c) => {
             WHERE lm.year = ?
               AND lm.month = ?
               AND lm.position_id = ?
-        `).bind(year, month, positionId).first()
-
-        return c.json({
-            isLocked: !!lock,
-            lock: lock || null
-        })
+        `).bind(
+            parseInt(c.req.param('year')),
+            parseInt(c.req.param('month')),
+            parseInt(c.req.param('positionId'))
+        ).first()
+        return c.json({isLocked: !!lock, lock: lock || null})
     } catch (error) {
-        console.error('Get lock status error:', error)
         return c.json({error: 'Lỗi lấy trạng thái khóa'}, 500)
     }
 })
 
-// Lock a month (approve)
 app.post('/api/admin/lock-month', async (c) => {
     try {
         const {year, month, positionId, userId, notes} = await c.req.json()
+        if (!year || !month || !positionId || !userId) return c.json({error: 'Thiếu thông tin'}, 400)
 
-        if (!year || !month || !positionId || !userId) {
-            return c.json({error: 'Thiếu thông tin'}, 400)
-        }
-
-        // Check if already locked
         const existing = await c.env.DB.prepare(
             'SELECT id FROM lock_months WHERE year = ? AND month = ? AND position_id = ?'
         ).bind(year, month, positionId).first()
+        if (existing) return c.json({error: 'Tháng này đã được duyệt'}, 400)
 
-        if (existing) {
-            return c.json({error: 'Tháng này đã được duyệt'}, 400)
-        }
+        await c.env.DB.prepare(
+            'INSERT INTO lock_months (year, month, position_id, locked_by, notes) VALUES (?, ?, ?, ?, ?)'
+        ).bind(year, month, positionId, userId, notes || '').run()
 
-        // Insert lock record
-        await c.env.DB.prepare(`
-            INSERT INTO lock_months (year, month, position_id, locked_by, notes)
-            VALUES (?, ?, ?, ?, ?)
-        `).bind(year, month, positionId, userId, notes || '').run()
-
-        return c.json({
-            success: true,
-            message: `Đã duyệt và khóa tháng ${month}/${year}`
-        })
+        return c.json({success: true, message: `Đã duyệt và khóa tháng ${month}/${year}`})
     } catch (error) {
-        console.error('Lock month error:', error)
         return c.json({error: 'Lỗi khóa tháng'}, 500)
     }
 })
 
-// Unlock a month
 app.post('/api/admin/unlock-month', async (c) => {
     try {
         const {year, month, positionId} = await c.req.json()
-
-        if (!year || !month || !positionId) {
-            return c.json({error: 'Thiếu thông tin'}, 400)
-        }
+        if (!year || !month || !positionId) return c.json({error: 'Thiếu thông tin'}, 400)
 
         await c.env.DB.prepare(
             'DELETE FROM lock_months WHERE year = ? AND month = ? AND position_id = ?'
         ).bind(year, month, positionId).run()
 
-        return c.json({
-            success: true,
-            message: `Đã mở khóa tháng ${month}/${year}`
-        })
+        return c.json({success: true, message: `Đã mở khóa tháng ${month}/${year}`})
     } catch (error) {
-        console.error('Unlock month error:', error)
         return c.json({error: 'Lỗi mở khóa tháng'}, 500)
     }
 })
 
-// Get all locked months for admin dashboard
 app.get('/api/admin/locked-months/:year', async (c) => {
     try {
-        const year = parseInt(c.req.param('year'))
-
         const locks = await c.env.DB.prepare(`
             SELECT lm.*, p.display_name as position_name, u.full_name as locked_by_name
             FROM lock_months lm
@@ -2372,23 +1814,184 @@ app.get('/api/admin/locked-months/:year', async (c) => {
                      LEFT JOIN users u ON lm.locked_by = u.id
             WHERE lm.year = ?
             ORDER BY lm.month DESC, lm.position_id
-        `).bind(year).all()
-
+        `).bind(parseInt(c.req.param('year'))).all()
         return c.json({locks: locks.results})
     } catch (error) {
-        console.error('Get locked months error:', error)
         return c.json({error: 'Lỗi lấy danh sách tháng đã khóa'}, 500)
     }
 })
 
-// Serve static files (app.js, style.css, etc.) - MUST be last to not override API routes
-// Note: serveStatic with manifest only works in production, will throw error for .ico in dev
+app.get('/api/admin/holiday-days/:year', async (c) => {
+    try {
+        const year = parseInt(c.req.param('year'))
+        const rows = await c.env.DB.prepare(
+            'SELECT month, holiday_count, note FROM holiday_days WHERE year = ? ORDER BY month'
+        ).bind(year).all()
+        return c.json({success: true, holidays: rows.results})
+    } catch (error) {
+        return c.json({error: 'Lỗi lấy dữ liệu ngày lễ'}, 500)
+    }
+})
+
+app.post('/api/admin/holiday-days', async (c) => {
+    try {
+        const {year, month, holiday_count, note} = await c.req.json()
+        if (!year || !month || holiday_count === undefined) {
+            return c.json({error: 'Thiếu thông tin: year, month, holiday_count'}, 400)
+        }
+        if (holiday_count < 0 || holiday_count > 15) {
+            return c.json({error: 'Số ngày lễ không hợp lệ (0–15)'}, 400)
+        }
+        await c.env.DB.prepare(`
+            INSERT INTO holiday_days (year, month, holiday_count, note)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(year, month) DO UPDATE SET
+                holiday_count = excluded.holiday_count,
+                note = excluded.note,
+                updated_at = CURRENT_TIMESTAMP
+        `).bind(year, month, holiday_count, note || '').run()
+
+        const workingDays = await calculateWorkingDays(c.env.DB, year, month)
+        return c.json({
+            success: true,
+            message: `Đã cập nhật ngày lễ tháng ${month}/${year}`,
+            workingDays
+        })
+    } catch (error) {
+        return c.json({error: 'Lỗi lưu ngày lễ'}, 500)
+    }
+})
+
+app.delete('/api/admin/holiday-days/:year/:month', async (c) => {
+    try {
+        const year = parseInt(c.req.param('year'))
+        const month = parseInt(c.req.param('month'))
+        await c.env.DB.prepare(
+            'DELETE FROM holiday_days WHERE year = ? AND month = ?'
+        ).bind(year, month).run()
+        return c.json({success: true, message: `Đã xóa ngày lễ tháng ${month}/${year}`})
+    } catch (error) {
+        return c.json({error: 'Lỗi xóa ngày lễ'}, 500)
+    }
+})
+
+app.get('/api/admin/lark/sync-status', async (c) => {
+    try {
+        const meta = await c.env.DB.prepare(
+            `SELECT * FROM lark_sync_meta WHERE id = 1`
+        ).first()
+
+        const cacheStats = await c.env.DB.prepare(
+            `SELECT COUNT(*) as total,
+                    COUNT(DISTINCT email) as unique_emails,
+                    MIN(video_create_time) as oldest,
+                    MAX(video_create_time) as newest
+             FROM lark_video_cache`
+        ).first()
+
+        return c.json({success: true, meta, cacheStats})
+    } catch (error) {
+        return c.json({error: 'Lỗi lấy trạng thái sync'}, 500)
+    }
+})
+
+app.post('/api/admin/lark/full-sync', async (c) => {
+    try {
+        const meta = await c.env.DB.prepare(
+            `SELECT status FROM lark_sync_meta WHERE id = 1`
+        ).first()
+        if (meta?.status === 'running') {
+            return c.json({error: 'Đang sync, vui lòng đợi hoàn tất'}, 409)
+        }
+
+        const result = await runLarkFullSync(c.env)
+
+        if (result.error) {
+            return c.json({
+                success: false,
+                error: result.error,
+                totalProcessed: result.totalProcessed,
+                newRows: result.newRows
+            }, 200)
+        }
+
+        return c.json({
+            success: true,
+            newRows: result.newRows,
+            skippedRows: result.skippedRows,
+            totalProcessed: result.totalProcessed,
+            message: `Đồng bộ xong: ${result.newRows} dòng mới, ${result.skippedRows} dòng đã có`
+        })
+    } catch (error: any) {
+        return c.json({error: error.message ?? 'Lỗi sync Lark'}, 500)
+    }
+})
+
+app.post('/api/lark/sync-video-kpi', async (c) => {
+    try {
+        const {userId, year, month} = await c.req.json()
+        if (!userId || !year || !month) return c.json({error: 'Thiếu thông tin: userId, year, month'}, 400)
+
+        const result = await runLarkSyncForUser(c.env, userId, year, month)
+
+        if (result.skipped) return c.json({success: true, skipped: true, reason: 'Chỉ áp dụng cho Giám sát'})
+        if (result.cacheEmpty) return c.json({success: false, cacheEmpty: true, error: result.error}, 200)
+        if (!result.success) return c.json({success: false, error: result.error}, 200)
+
+        return c.json({
+            success: true,
+            videoCount: result.videoCount,
+            workingDays: result.workingDays,
+            message: `Đã tự động điền ${result.videoCount} video cho tháng ${month}/${year} (chuẩn: ${result.workingDays} ngày công)`
+        })
+    } catch (error: any) {
+        console.error('Lark sync error:', error)
+        return c.json({success: false, error: error.message ?? 'Lỗi sync Lark'}, 200)
+    }
+})
+
+app.get('/', (c) => {
+    c.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+    c.header('Pragma', 'no-cache')
+    c.header('Expires', '0')
+
+    return c.html(`<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hệ thống KPI - Công ty Nhân Kiệt</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+      * { -webkit-tap-highlight-color: transparent; }
+      body { overscroll-behavior-y: none; }
+      ::-webkit-scrollbar { width: 0px; height: 0px; }
+      html { scroll-behavior: smooth; }
+      input, select, textarea, button { font-size: 16px !important; }
+      @media (min-width: 768px) { input, select, textarea { font-size: 14px !important; } }
+      @media (max-width: 767px) {
+        .dashboard-grid { display: flex !important; flex-direction: column !important; gap: 1rem !important; }
+        .dashboard-grid > div { width: 100% !important; }
+      }
+    </style>
+</head>
+<body class="bg-gray-50 select-none">
+    <div id="app"></div>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+    <script src="/app.js?v=${Date.now()}"></script>
+</body>
+</html>`)
+})
+
 app.use('/*', async (c, next) => {
     try {
-        return await serveStatic({root: './'})(c, next);
+        return await serveStatic({root: './'})(c, next)
     } catch (e) {
-        // Fallback for dev mode when __STATIC_CONTENT_MANIFEST not available
-        return c.notFound();
+        return c.notFound()
     }
 })
 
