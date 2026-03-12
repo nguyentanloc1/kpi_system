@@ -4991,12 +4991,6 @@ function renderLarkSyncTab(container) {
         >
           <i class="fas fa-sync mr-2"></i>Đồng bộ ngay
         </button>
-        <button
-          onclick="loadLarkSyncStatus()"
-          class="px-4 py-3 bg-gray-100 text-gray-600 rounded-xl font-semibold hover:bg-gray-200 transition-all"
-        >
-          <i class="fas fa-refresh mr-2"></i>Làm mới
-        </button>
       </div>
 
       <div id="lark-sync-log" class="hidden mt-4"></div>
