@@ -1698,6 +1698,16 @@ function renderDashboardTab(container) {
                 <option value="2026" selected>Năm 2026</option>
               </select>
             </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 mb-1.5">Vùng</label>
+              <select id="dash-region" class="w-full px-3 py-2.5 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                <option value="" selected>--Tất cả--</option>
+                <option value="1">Bình Dương</option>
+                <option value="2">Hà Nội</option>
+                <option value="3">Miền Trung</option>
+                <option value="4">H Chí Minh</option>
+              </select>
+            </div>
           </div>
           <button id="load-dash-btn" class="w-full px-4 py-3 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all">
             <i class="fas fa-sync-alt mr-2"></i>Tải dữ liệu
@@ -1720,6 +1730,16 @@ function renderDashboardTab(container) {
               <option value="2026" selected>Năm 2026</option>
             </select>
           </div>
+          <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Vùng</label>
+                <select id="dash-region-desktop" class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                <option value="" selected>--Tất cả--</option>
+                <option value="1">Bình Dương</option>
+                <option value="2">Hà Nội</option>
+                <option value="3">Miền Trung</option>
+                <option value="4">Hồ Chí Minh</option>
+              </select>
+            </div>
           <div>
             <button id="load-dash-btn-desktop" class="px-6 py-2 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg hover:shadow-lg transition-all">
               <i class="fas fa-sync-alt mr-2"></i>Tải dữ liệu
@@ -1749,6 +1769,11 @@ function renderDashboardTab(container) {
         const desktopYear = document.getElementById('dash-year-desktop');
         if (desktopYear) desktopYear.value = year;
     });
+    document.getElementById('dash-region').addEventListener('change', () => {
+        const region = document.getElementById('dash-region').value;
+        const desktopRegion = document.getElementById('dash-region-desktop');
+        if (desktopRegion) desktopRegion.value = region;
+    });
 
     // Setup desktop listeners (if exists)
     const desktopLoadBtn = document.getElementById('load-dash-btn-desktop');
@@ -1762,18 +1787,23 @@ function renderDashboardTab(container) {
             const year = document.getElementById('dash-year-desktop').value;
             document.getElementById('dash-year').value = year;
         });
+        document.getElementById('dash-region-desktop').addEventListener('change', () => {
+            const region = document.getElementById('dash-region-desktop').value;
+            document.getElementById('dash-region').value = region;
+        });
     }
 }
 
 async function loadDashboardData() {
     const month = document.getElementById('dash-month').value;
     const year = document.getElementById('dash-year').value;
+    const region = document.getElementById('dash-region').value;
     const container = document.getElementById('dashboard-container');
 
     container.innerHTML = '<div class="text-center py-12"><i class="fas fa-spinner fa-spin text-4xl text-green-500"></i></div>';
 
     try {
-        const response = await axios.get(`/api/dashboard/${currentUser.id}/${year}/${month}`);
+        const response = await axios.get(`/api/dashboard/${currentUser.id}/${year}/${month}?region=${region}`);
         const data = response.data.dashboard;
         const isAdmin = response.data.isAdmin;
 
