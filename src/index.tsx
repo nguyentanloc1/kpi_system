@@ -40,7 +40,7 @@ async function fetchSheetValues(token: string, spreadsheetToken: string, sheetId
     if (metaData.code !== 0) throw new Error(`Lark sheet meta failed: ${metaData.msg}`)
     const rowCount: number = metaData.data?.sheet?.grid_properties?.row_count ?? 2000
 
-    const range = `${sheetId}!A1:AZ${rowCount}`
+    const range = `${sheetId}!A1:AA${rowCount}`
     const dataRes = await fetch(
         `https://open.larksuite.com/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${range}`,
         {headers: {'Authorization': `Bearer ${token}`}}
@@ -49,32 +49,6 @@ async function fetchSheetValues(token: string, spreadsheetToken: string, sheetId
     const sheetData: any = await dataRes.json()
     if (sheetData.code !== 0) throw new Error(`Lark sheet read failed: ${sheetData.msg}`)
     return sheetData.data?.valueRange?.values ?? []
-}
-
-async function fetchLarkSheetRows(
-    token: string,
-    spreadsheetToken: string,
-    sheetId: string
-): Promise<Array<{ channel: string; video_create_time: string }>> {
-    const values = await fetchSheetValues(token, spreadsheetToken, sheetId)
-    if (values.length < 2) return []
-
-    const headers: string[] = (values[0] ?? []).map((h: any) => String(h ?? '').trim())
-    const channelIdx = headers.indexOf('channel')
-    const dateIdx = headers.indexOf('video_create_time')
-
-    if (channelIdx === -1 || dateIdx === -1) {
-        throw new Error(`Không tìm thấy cột "channel" hoặc "video_create_time" trong sheet`)
-    }
-
-    const rows: Array<{ channel: string; video_create_time: string }> = []
-    for (let i = 1; i < values.length; i++) {
-        const row = values[i] ?? []
-        const channel = String(row[channelIdx] ?? '').trim()
-        const dateVal = String(row[dateIdx] ?? '').trim()
-        if (channel && dateVal) rows.push({channel, video_create_time: dateVal})
-    }
-    return rows
 }
 
 async function fetchChannelEmailMapping(
@@ -128,7 +102,7 @@ async function* fetchLarkSheetBatches(
     channelEmailMap: Map<string, string>
 ): AsyncGenerator<Array<{ channel: string; email: string; video_create_time: string }>> {
 
-    const headerRange = `${sheetId}!A1:AZ1`
+    const headerRange = `${sheetId}!A1:AA1`
     const headerRes = await fetch(
         `https://open.larksuite.com/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${headerRange}`,
         {headers: {'Authorization': `Bearer ${token}`}}
@@ -156,7 +130,7 @@ async function* fetchLarkSheetBatches(
     let startRow = 2
     while (startRow <= totalRows) {
         const endRow = Math.min(startRow + LARK_BATCH_SIZE - 1, totalRows)
-        const range = `${sheetId}!A${startRow}:AZ${endRow}`
+        const range = `${sheetId}!A${startRow}:AA${endRow}`
 
         const batchRes = await fetch(
             `https://open.larksuite.com/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${range}`,
