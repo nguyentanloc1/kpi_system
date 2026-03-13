@@ -161,15 +161,19 @@ async function* fetchLarkSheetBatches(
     }
 }
 
-async function runLarkFullSync(env: any): Promise<{
+async function runLarkFullSync(env: any, triggeredBy: 'manual' | 'cron' = 'manual'): Promise<{
     newRows: number
     skippedRows: number
     totalProcessed: number
     error?: string
 }> {
     await env.DB.prepare(
-        `UPDATE lark_sync_meta SET status = 'running', last_synced_at = CURRENT_TIMESTAMP WHERE id = 1`
-    ).run()
+        `UPDATE lark_sync_meta
+         SET status         = 'running',
+             last_synced_at = CURRENT_TIMESTAMP,
+             triggered_by   = ?
+         WHERE id = 1`
+    ).bind(triggeredBy).run()
 
     let newRows = 0
     let skippedRows = 0
@@ -190,7 +194,8 @@ async function runLarkFullSync(env: any): Promise<{
                 const chunk = batch.slice(i, i + D1_CHUNK)
                 const stmts = chunk.map(r =>
                     env.DB.prepare(
-                        `INSERT OR IGNORE INTO lark_video_cache (channel, email, video_create_time)
+                        `INSERT
+                        OR IGNORE INTO lark_video_cache (channel, email, video_create_time)
                          VALUES (?, ?, ?)`
                     ).bind(r.channel, r.email, r.video_create_time)
                 )
@@ -205,7 +210,10 @@ async function runLarkFullSync(env: any): Promise<{
 
         await env.DB.prepare(
             `UPDATE lark_sync_meta
-             SET status = 'done', last_row_count = ?, new_rows_added = ?, last_synced_at = CURRENT_TIMESTAMP
+             SET status         = 'done',
+                 last_row_count = ?,
+                 new_rows_added = ?,
+                 last_synced_at = CURRENT_TIMESTAMP
              WHERE id = 1`
         ).bind(totalProcessed, newRows).run()
 
@@ -213,7 +221,9 @@ async function runLarkFullSync(env: any): Promise<{
 
     } catch (err: any) {
         await env.DB.prepare(
-            `UPDATE lark_sync_meta SET status = 'error' WHERE id = 1`
+            `UPDATE lark_sync_meta
+             SET status = 'error'
+             WHERE id = 1`
         ).run()
         return {newRows, skippedRows, totalProcessed, error: err.message}
     }
@@ -243,7 +253,14 @@ async function runLarkSyncForUser(
     userId: number,
     year: number,
     month: number
-): Promise<{ success: boolean; videoCount?: number; workingDays?: number; error?: string; skipped?: boolean; cacheEmpty?: boolean }> {
+): Promise<{
+    success: boolean;
+    videoCount?: number;
+    workingDays?: number;
+    error?: string;
+    skipped?: boolean;
+    cacheEmpty?: boolean
+}> {
     const user = await env.DB.prepare(
         'SELECT id, username, position_id FROM users WHERE id = ?'
     ).bind(userId).first()
@@ -252,7 +269,8 @@ async function runLarkSyncForUser(
     if ((user.position_id as number) !== 4) return {success: true, skipped: true}
 
     const cacheCheck = await env.DB.prepare(
-        `SELECT COUNT(*) as cnt FROM lark_video_cache`
+        `SELECT COUNT(*) as cnt
+         FROM lark_video_cache`
     ).first()
     if ((cacheCheck?.cnt as number) === 0) {
         return {success: false, cacheEmpty: true, error: 'Chưa có dữ liệu cache. Admin cần đồng bộ Lark trước.'}
@@ -530,15 +548,13 @@ app.get('/api/tracking/:userId/:year', async (c) => {
         const user = await c.env.DB.prepare('SELECT position_id FROM users WHERE id = ?').bind(userId).first()
         if (!user) return c.json({error: 'Người dùng không tồn tại'}, 404)
 
-        // Get Revenue Plan
         const revenue_plan = await c.env.DB.prepare(`
             SELECT *
             FROM revenue_plan
             WHERE user_id = ?
-              AND year = ?           
+                      AND year = ?
         `).bind(userId, year).all()
 
-        // Get KPI templates
         const kpiTemplates = await c.env.DB.prepare(`
             SELECT id, kpi_name, weight, standard_value, display_order, value_type
             FROM kpi_templates
@@ -582,7 +598,7 @@ app.get('/api/tracking/:userId/:year', async (c) => {
                 kpi: kpiTemplates.results,
                 level: levelTemplates.results
             },
-            revenue_plan:revenue_plan.results
+            revenue_plan: revenue_plan.results
         })
     } catch (error) {
         return c.json({error: 'Lỗi lấy dữ liệu tracking'}, 500)
@@ -594,7 +610,6 @@ app.post('/api/kpi-data', async (c) => {
         const data = await c.req.json()
         const {userId, year, month, kpiData} = data
 
-        // Get user info to check position
         const user = await c.env.DB.prepare(`
             SELECT position_id, start_date, region_id
             FROM users
@@ -605,26 +620,22 @@ app.post('/api/kpi-data', async (c) => {
             return c.json({error: 'Không tìm thấy user'}, 404)
         }
 
-        const user = await c.env.DB.prepare('SELECT position_id, start_date FROM users WHERE id = ?').bind(userId).first()
-        if (!user) return c.json({error: 'Không tìm thấy user'}, 404)
-
         const lockCheck = await c.env.DB.prepare(
             'SELECT id FROM lock_months WHERE year = ? AND month = ? AND position_id = ?'
         ).bind(year, month, user.position_id).first()
         if (lockCheck) return c.json({error: 'Tháng này đã được duyệt và khóa. Không thể chỉnh sửa!'}, 403)
 
         const isGiamSat = user.position_id === 4
+        const workingDays = isGiamSat ? await calculateWorkingDays(c.env.DB, year, month) : 0
 
         for (const item of kpiData) {
             const {templateId, actualValue} = item
             if (actualValue === undefined || actualValue === null || isNaN(actualValue)) continue
 
-            // Skip if actualValue is invalid
-            if (actualValue === undefined || actualValue === null || isNaN(actualValue)) {
+            if (isNaN(actualValue)) {
                 continue
             }
 
-            // Get template info
             const template = await c.env.DB.prepare(`
                 SELECT *
                 FROM kpi_templates
@@ -650,52 +661,30 @@ app.post('/api/kpi-data', async (c) => {
                 }
             }
 
-            // Adjust actual value based on KPI type
             let adjustedValue = actualValueToUse
-
-            // Special case: "Tỷ lệ % doanh thu tăng trưởng" - user inputs total revenue in billions, not percentage
-            /*const isRevenueGrowthKpi = template.kpi_name && template.kpi_name.includes('doanh thu tăng trưởng')
-            const isRevenueKpi = template.kpi_name && template.kpi_name.includes('doanh thu') && !template.kpi_name.includes('%')
-            const isPercentageKpi = template.kpi_name && (template.kpi_name.includes('Tỷ lệ') || template.kpi_name.includes('tỷ lệ')) && !isRevenueGrowthKpi
-
-            if (isRevenueGrowthKpi) {
-                // Revenue growth KPI (template 5): User inputs total revenue (20 tỷ), convert to VND
-                adjustedValue = actualValueToUse * 1000000000
-            } else if (isRevenueKpi) {
-                // Revenue KPI: Convert billions (tỷ) to VND
-                adjustedValue = actualValueToUse * 1000000000
-            } else if (isPercentageKpi) {
-                // Percentage KPI: Convert percentage (70) to decimal (0.7)
-                adjustedValue = actualValueToUse / 100
-            }*/
-
-            //code format currency new
-
             if (template.value_type && template.value_type == 'percentage') {
-                // Percentage KPI: Convert percentage (70) to decimal (0.7)
                 adjustedValue = actualValueToUse / 100
-            } else{
+            } else {
                 adjustedValue = actualValueToUse
             }
 
-            // Calculate completion percentage
             let completionPercent = 0
             if (template.value_type && template.value_type == 'currency') {
-                // Get user planned_revenue
                 const plan = await c.env.DB.prepare(`
-                SELECT planned_revenue
-                FROM revenue_plan
-                WHERE user_id = ?
-                    AND month = ?
-                    AND year = ?
+                    SELECT planned_revenue
+                    FROM revenue_plan
+                    WHERE user_id = ?
+                              AND month = ?
+                              AND year = ?
                 `).bind(userId, month, year).first()
                 completionPercent = (adjustedValue / plan.planned_revenue) * 100
-            }else {
+            } else if (isGiamSat && template.id === 34) {
+                completionPercent = (adjustedValue / workingDays) * 100
+            } else {
                 completionPercent = (adjustedValue / template.standard_value) * 100
             }
 
-            // Cap based on KPI vs Level
-            const maxPercent = template.is_for_kpi === 1 ? 150 : 160 // KPI max 150%, Level max 160%
+            const maxPercent = template.is_for_kpi === 1 ? 150 : 160
             completionPercent = Math.min(completionPercent, maxPercent)
             const weightedScore = (completionPercent / 100) * template.weight
 
@@ -706,7 +695,6 @@ app.post('/api/kpi-data', async (c) => {
             const safeWt = ensureSafeNumber(weightedScore, 0)
 
 
-            // Insert or update (store the adjusted value with safe numeric values)
             await c.env.DB.prepare(`
                 INSERT INTO kpi_data (user_id, month, year, kpi_template_id, actual_value, completion_percent,
                                       weighted_score)
@@ -741,7 +729,6 @@ app.post('/api/kpi-data', async (c) => {
                 `).bind(user.position_id).first()
 
                 if (revenueKpiTemplate) {
-                    // Get the actual revenue input from KPI data (in billions)
                     const revenueKpiData = await c.env.DB.prepare(`
                         SELECT actual_value
                         FROM kpi_data
@@ -750,20 +737,15 @@ app.post('/api/kpi-data', async (c) => {
                     `).bind(userId, year, month, revenueKpiTemplate.id).first()
 
                     if (revenueKpiData && revenueKpiData.actual_value && revenuePlan) {
-                        // Level 1: Tổng số doanh thu
-                        // actual_value is stored as VND (e.g., 20e9 for 20 billion)
-                        // Use it directly
-
                         const actualRevenue = ensureSafeNumber(revenueKpiData.actual_value, 0)
                         const levelTemplate1 = levelTemplates.results[0]
 
                         let standardValue = levelTemplate1.standard_value
-                        console.log('111',standardValue, levelTemplate1.kpi_name, user.region_id)
-                        if(levelTemplate1.kpi_name.includes('Tổng số doanh thu') && user.region_id == 3){
-                            standardValue = levelTemplate1.standard_value*0.7
+                        if (levelTemplate1.kpi_name.includes('Tổng số doanh thu') && user.region_id == 3) {
+                            standardValue = levelTemplate1.standard_value * 0.7
                         }
 
-                        const level1Completion = Math.min((actualRevenue / (standardValue/1000000000)) * 100, 160)
+                        const level1Completion = Math.min((actualRevenue / (standardValue / 1000000000)) * 100, 160)
                         const level1Score = (level1Completion / 100) * levelTemplate1.weight
 
                         await c.env.DB.prepare(`
@@ -772,19 +754,11 @@ app.post('/api/kpi-data', async (c) => {
                             VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id)
                             DO
                             UPDATE SET actual_value = ?, completion_percent = ?, weighted_score = ?, updated_at = CURRENT_TIMESTAMP
-                        `).bind(userId, month, year, lt1.id,
-                            ensureSafeNumber(actualRevenue), ensureSafeNumber(l1Comp), ensureSafeNumber(l1Score),
-                            ensureSafeNumber(actualRevenue), ensureSafeNumber(l1Comp), ensureSafeNumber(l1Score)
+                        `).bind(userId, month, year, levelTemplate1.id,
+                            ensureSafeNumber(actualRevenue), ensureSafeNumber(level1Completion), ensureSafeNumber(level1Score),
+                            ensureSafeNumber(actualRevenue), ensureSafeNumber(level1Completion), ensureSafeNumber(level1Score)
                         ).run()
-
-                        // Level 2: Tỷ lệ % doanh thu tăng trưởng - Calculate from actual vs planned
                         const levelTemplate2 = levelTemplates.results[1]
-                        // Calculate growth % = (actual / planned) - 1
-                        const growthPercent = (actualRevenue / revenuePlan.planned_revenue)
-                        // Convert to percentage and cap at 160%
-                        const growthPercentValue = Math.min(growthPercent * 100, 150)
-                        // standard_value is 1.0 (means 100% growth is standard)
-                        // Completion = (actual_growth / standard_growth) * 100, capped at 160%
                         const level2Completion = Math.min((actualRevenue / revenuePlan.planned_revenue) * 100, 160)
                         const level2Score = (level2Completion / 100) * levelTemplate2.weight
 
@@ -792,7 +766,7 @@ app.post('/api/kpi-data', async (c) => {
                             INSERT INTO kpi_data (user_id, month, year, kpi_template_id, actual_value,
                                                   completion_percent, weighted_score)
                             VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id) 
-              DO
+                            DO
                             UPDATE SET
                                 actual_value = ?,
                                 completion_percent = ?,
@@ -868,7 +842,6 @@ app.post('/api/kpi-data', async (c) => {
                   AND is_for_kpi = 0
                 ORDER BY display_order
             `).all()
-
             for (let i = 0; i < 3 && i < levelTemplates.results.length; i++) {
                 const levelTpl = levelTemplates.results[i]
 
@@ -892,7 +865,11 @@ app.post('/api/kpi-data', async (c) => {
                     'SELECT weight, standard_value FROM kpi_templates WHERE id = ?'
                 ).bind(levelTpl.id).first()
 
-                let levelComp = (kpiRow.actual_value / levelTplInfo.standard_value) * 100
+                const isVideoKpi = levelTpl.kpi_name && (
+                    levelTpl.kpi_name.includes('video') || levelTpl.kpi_name.includes('Video')
+                )
+                const standard = isVideoKpi ? workingDays : levelTplInfo.standard_value
+                let levelComp = (kpiRow.actual_value / standard) * 100
                 levelComp = Math.min(levelComp, 160)
                 const levelScore = (levelComp / 100) * levelTplInfo.weight
 
@@ -944,7 +921,7 @@ app.post('/api/kpi-data', async (c) => {
         `).bind(user.position_id).all()
 
         for (let i = 0; i < 3 && i < allLevelTemplates.results.length; i++) {
-            const lt = allLevelTemplates.results[i]
+            const levelTemplate = allLevelTemplates.results[i]
 
             const matchingKpi = await c.env.DB.prepare(`
                 SELECT id, value_type
@@ -956,7 +933,6 @@ app.post('/api/kpi-data', async (c) => {
 
             if (!matchingKpi) continue
 
-            // Get revenue plan for this month
             const revenuePlan = await c.env.DB.prepare(`
                 SELECT planned_revenue
                 FROM revenue_plan
@@ -972,18 +948,18 @@ app.post('/api/kpi-data', async (c) => {
 
             const kpiRow = await c.env.DB.prepare(
                 'SELECT actual_value FROM kpi_data WHERE user_id = ? AND year = ? AND month = ? AND kpi_template_id = ?'
-            ).bind(userId, year, month, matchKpi.id).first()
+            ).bind(userId, year, month, matchingKpi.id).first()
 
             let levelCompletion = 0
             let standardValue = levelTemplate.standard_value
 
-            if(levelTemplate.kpi_name.includes('Tổng số doanh thu') && user.region_id == 3){
-                standardValue = levelTemplate.standard_value*0.7
+            if (levelTemplate.kpi_name.includes('Tổng số doanh thu') && user.region_id == 3) {
+                standardValue = levelTemplate.standard_value * 0.7
             }
 
-            if(levelTemplate.value_type == 'currency') {
+            if (levelTemplate.value_type == 'currency') {
                 levelCompletion = Math.min((kpiData.actual_value / revenuePlan.planned_revenue) * 100, 160)
-            }else {
+            } else {
                 levelCompletion = Math.min((kpiData.actual_value / standardValue) * 100, 160)
             }
 
@@ -995,9 +971,9 @@ app.post('/api/kpi-data', async (c) => {
                 VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, month, year, kpi_template_id)
                 DO
                 UPDATE SET actual_value = ?, completion_percent = ?, weighted_score = ?, updated_at = CURRENT_TIMESTAMP
-            `).bind(userId, month, year, lt.id,
-                kpiRow.actual_value, ltComp, ltScore,
-                kpiRow.actual_value, ltComp, ltScore
+            `).bind(userId, month, year, levelTemplate.id,
+                kpiRow.actual_value, levelCompletion, levelScore,
+                kpiRow.actual_value, levelCompletion, levelScore
             ).run()
         }
 
@@ -1012,7 +988,6 @@ app.post('/api/kpi-data', async (c) => {
 app.post('/api/level-data', async (c) => {
     try {
         const {userId, year, month, levelData} = await c.req.json()
-        // Get user info
         const user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first()
         if (!user) return c.json({error: 'User not found'}, 404)
 
@@ -1844,8 +1819,8 @@ app.post('/api/admin/holiday-days', async (c) => {
         }
         await c.env.DB.prepare(`
             INSERT INTO holiday_days (year, month, holiday_count, note)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(year, month) DO UPDATE SET
+            VALUES (?, ?, ?, ?) ON CONFLICT(year, month) DO
+            UPDATE SET
                 holiday_count = excluded.holiday_count,
                 note = excluded.note,
                 updated_at = CURRENT_TIMESTAMP
@@ -1878,12 +1853,14 @@ app.delete('/api/admin/holiday-days/:year/:month', async (c) => {
 app.get('/api/admin/lark/sync-status', async (c) => {
     try {
         const meta = await c.env.DB.prepare(
-            `SELECT * FROM lark_sync_meta WHERE id = 1`
+            `SELECT status, last_synced_at, last_row_count, new_rows_added, triggered_by
+             FROM lark_sync_meta
+             WHERE id = 1`
         ).first()
 
         const cacheStats = await c.env.DB.prepare(
-            `SELECT COUNT(*) as total,
-                    COUNT(DISTINCT email) as unique_emails,
+            `SELECT COUNT(*)               as total,
+                    COUNT(DISTINCT email)  as unique_emails,
                     MIN(video_create_time) as oldest,
                     MAX(video_create_time) as newest
              FROM lark_video_cache`
@@ -1898,13 +1875,15 @@ app.get('/api/admin/lark/sync-status', async (c) => {
 app.post('/api/admin/lark/full-sync', async (c) => {
     try {
         const meta = await c.env.DB.prepare(
-            `SELECT status FROM lark_sync_meta WHERE id = 1`
+            `SELECT status
+             FROM lark_sync_meta
+             WHERE id = 1`
         ).first()
         if (meta?.status === 'running') {
             return c.json({error: 'Đang sync, vui lòng đợi hoàn tất'}, 409)
         }
 
-        const result = await runLarkFullSync(c.env)
+        const result = await runLarkFullSync(c.env, 'manual')
 
         if (result.error) {
             return c.json({
