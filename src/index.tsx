@@ -605,9 +605,6 @@ app.post('/api/kpi-data', async (c) => {
             return c.json({error: 'Không tìm thấy user'}, 404)
         }
 
-        const user = await c.env.DB.prepare('SELECT position_id, start_date FROM users WHERE id = ?').bind(userId).first()
-        if (!user) return c.json({error: 'Không tìm thấy user'}, 404)
-
         const lockCheck = await c.env.DB.prepare(
             'SELECT id FROM lock_months WHERE year = ? AND month = ? AND position_id = ?'
         ).bind(year, month, user.position_id).first()
