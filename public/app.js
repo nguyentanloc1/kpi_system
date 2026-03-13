@@ -746,7 +746,7 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month, 
               data-revenue-plan="${revenuePlan}"
               class="kpi-input w-full px-3 lg:px-4 py-2.5 lg:py-3 text-sm lg:text-base border-2 border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition-all font-semibold"
               placeholder="VD: 5.5 (nghĩa là 5.5 tỷ VNĐ)"
-              value="${value > 10000 ? value/1000000000 : value}"
+              value="${value > 10000 ? value / 1000000000 : value}"
               oninput="calculateRevenuePercent(this)"
             >
           </div>
@@ -779,7 +779,7 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month, 
               data-type="kpi"
               class="kpi-input w-full px-3 lg:px-4 py-2.5 lg:py-3 text-sm lg:text-base border-2 border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all font-semibold"
               placeholder="VD: 5.5 (nghĩa là 5.5 tỷ VNĐ)"
-              value="${value > 10000 ? value/1000000000 : value}"
+              value="${value > 10000 ? value / 1000000000 : value}"
             >
           </div>
         </div>
@@ -788,7 +788,6 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month, 
 
         infoHtml = '';
     } else {
-
         const isRevenueGrowthKpi = template.kpi_name && template.kpi_name.includes('doanh thu tăng trưởng');
         const isPercentageKpi = template.kpi_name && template.kpi_name.includes('Tỷ lệ') && !isRevenueGrowthKpi;
         const placeholder = isPercentageKpi ? 'Nhập số % (ví dụ: 70 cho 70%)' : 'Nhập giá trị thực tế đạt được';
@@ -854,9 +853,7 @@ function calculateRevenuePercent(input) {
     const templateId = input.dataset.templateId;
     const revenuePlan = parseFloat(input.dataset.revenuePlan);
     const actualRevenue = parseFloat(input.value) || 0;
-
     const percent = Math.min((actualRevenue / revenuePlan) * 100, 150);
-
     const resultDiv = document.getElementById(`revenue-result-${templateId}`);
     const percentSpan = document.getElementById(`revenue-percent-${templateId}`);
 
@@ -878,9 +875,7 @@ function calculateKpiPercent(input) {
     if (!standardValue || standardValue === 0) return;
 
     const adjustedValue = isPercentage ? actualValue / 100 : actualValue;
-
     const percent = Math.min((adjustedValue / standardValue) * 100, 150);
-
     const resultDiv = document.getElementById(`kpi-result-${templateId}`);
     const percentSpan = document.getElementById(`kpi-percent-${templateId}`);
 
@@ -929,7 +924,6 @@ async function saveKpiData() {
     `;
 
         await loadKpiSummary(year, month);
-
         await loadKpiHistory(year);
 
         setTimeout(() => {
@@ -1229,7 +1223,7 @@ async function loadLevelDataNew() {
                   <div class="bg-white p-2 md:p-3 rounded-lg border-2 border-blue-200 shadow-sm">
                     <p class="text-[10px] md:text-xs text-gray-600 mb-1 font-semibold">Giá trị</p>
                     <p class="text-sm md:text-lg font-bold text-blue-700 truncate" title="${template.value_type}">
-                        ${template.value_type == 'currency' ||template.name.includes('Tỷ lệ % doanh thu tăng trưởng so với kế hoạch tháng') ? data.value : formatLargeNumber(data.value, template.name)}
+                        ${template.value_type == 'currency' || template.name.includes('Tỷ lệ % doanh thu tăng trưởng so với kế hoạch tháng') ? data.value : formatLargeNumber(data.value, template.name)}
                     </p>
                   </div>
                   <div class="bg-white p-2 md:p-3 rounded-lg border-2 border-green-200 shadow-sm">
@@ -1527,11 +1521,9 @@ async function loadTrackingData() {
                 const revenue = revenue_plan.find(d => d.user_id === currentUser.id && d.month === month && d.year === Number(year));
 
                 if (data) {
-                    // For percentage KPIs, multiply by 100 to show the original input value
-                    //const isPercentKpi = template.kpi_name.includes('Tỷ lệ');
                     let displayValue = data.actual_value;
                     if (template.value_type == 'percentage') {
-                        displayValue = displayValue * 100 + '%'; // Convert 0.7 → 70
+                        displayValue = displayValue * 100 + '%';
                     }
                     const percent = data.completion_percent * 100;
                     const color = percent >= 100 ? 'text-green-600' : percent >= 50 ? 'text-yellow-600' : 'text-red-600';
@@ -1620,14 +1612,12 @@ async function loadTrackingData() {
 
                     const isPercentKpi = template.name.includes('Tỷ lệ %');
                     let displayValue = data.actual_value;
-                    //console.log('ahihi' + template.id, displayValue, 'type = ' + template.value_type)
                     if (template.value_type == 'percentage') {
-                        displayValue = displayValue * 100 + '%'; // Convert 0.7 → 70
+                        displayValue = displayValue * 100 + '%';
                     }
                     if (isPercentKpi) {
-                        displayValue = displayValue/revenue.planned_revenue * 100 + '%';
+                        displayValue = displayValue / revenue.planned_revenue * 100 + '%';
                     }
-                    // format số
                     displayValue = formatValue(displayValue);
 
                     const percent = data.completion_percent * 100;
@@ -1704,7 +1694,6 @@ function formatValue(value) {
     return parseFloat(Number(value).toFixed(2));
 }
 
-// ===== DASHBOARD TAB =====
 function renderDashboardTab(container) {
     container.innerHTML = `
     <div class="bg-white rounded-xl lg:rounded-2xl shadow-lg lg:shadow-xl p-4 lg:p-8">
@@ -4853,8 +4842,8 @@ async function loadHolidayDays() {
         const holidayMap = {};
         holidays.forEach(h => holidayMap[h.month] = h);
 
-        const monthNames = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
-                            'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+        const monthNames = ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
+            'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
         const currentMonth = new Date().getMonth() + 1;
         const currentYear = new Date().getFullYear();
 
@@ -4888,7 +4877,7 @@ async function loadHolidayDays() {
               ><i class="fas fa-times"></i></button>` : ''}
 
               <div class="flex items-center gap-2 mb-3">
-                <span class="font-bold text-gray-700 text-sm">${monthNames[m-1]}</span>
+                <span class="font-bold text-gray-700 text-sm">${monthNames[m - 1]}</span>
                 ${isCurrentMonth ? '<span class="text-xs px-1.5 py-1 bg-blue-500 text-white rounded-full leading-none">hiện tại</span>' : ''}
               </div>
 
@@ -5000,8 +4989,8 @@ async function saveHolidayDay(year, month) {
 }
 
 async function deleteHolidayDay(year, month) {
-    const monthNames = ['','Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
-                        'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+    const monthNames = ['', 'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
+        'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
     if (!confirm(`Xóa ngày lễ ${monthNames[month]}/${year}?\nNgày công sẽ về lại công thức cơ bản.`)) return;
 
     try {
@@ -5025,7 +5014,7 @@ function renderLarkSyncTab(container) {
           <i class="fas fa-database mr-2 text-blue-500"></i>Đồng bộ dữ liệu Lark
         </h3>
         <p class="text-sm text-gray-400 mt-1">
-          Kéo dữ liệu video từ Lark Sheet về database nội bộ.
+          Đồng bộ dữ liệu video từ Lark Sheet về database nội bộ.
         </p>
       </div>
 
@@ -5077,8 +5066,22 @@ async function loadLarkSyncStatus() {
         }[meta.status] || 'Chưa sync';
 
         const lastSynced = meta.last_synced_at
-            ? new Date(meta.last_synced_at).toLocaleString('vi-VN')
+            ? new Date(meta.last_synced_at.replace(' ', 'T') + 'Z')
+                .toLocaleString('vi-VN', {
+                    timeZone: 'Asia/Ho_Chi_Minh',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                })
             : 'Chưa có';
+
+        const triggeredByLabel = meta.triggered_by === 'cron'
+            ? '<i class="fas fa-clock mr-1"></i>Tự động'
+            : '<i class="fas fa-hand-pointer mr-1"></i>Thủ công';
 
         statusEl.innerHTML = `
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -5095,12 +5098,12 @@ async function loadLarkSyncStatus() {
           <div class="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
             <p class="text-xs text-emerald-400 font-semibold uppercase tracking-wide mb-1">Lần sync gần nhất</p>
             <p class="text-sm font-bold text-emerald-700 leading-tight">${lastSynced}</p>
-            <p class="text-xs text-emerald-400 mt-1">${meta.new_rows_added ?? 0} dòng mới thêm</p>
+            <p class="text-xs text-emerald-400 mt-1">${meta.new_rows_added ?? 0} dòng mới · ${triggeredByLabel}</p>
           </div>
           <div class="p-4 bg-gray-50 rounded-xl border border-gray-200">
             <p class="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Trạng thái</p>
             <p class="text-lg font-black ${statusColor}">${statusLabel}</p>
-            <p class="text-xs text-gray-400 mt-1">${stats.oldest ? `Từ ${stats.oldest.slice(0,7)}` : '—'} ${stats.newest ? `→ ${stats.newest.slice(0,7)}` : ''}</p>
+            <p class="text-xs text-gray-400 mt-1">${stats.oldest ? `Từ ${stats.oldest.slice(0, 7)}` : '—'} ${stats.newest ? `→ ${stats.newest.slice(0, 7)}` : ''}</p>
           </div>
         </div>
         `;
@@ -5124,7 +5127,7 @@ async function triggerLarkFullSync() {
     logEl.innerHTML = `
       <div class="p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700">
         <i class="fas fa-spinner fa-spin mr-2"></i>
-        Đang kéo dữ liệu từ Lark Sheet theo batch 500 dòng... Vui lòng đợi.
+        Đang đồng bộ dữ liệu từ Lark Sheet Vui lòng đợi.
       </div>
     `;
 
