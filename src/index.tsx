@@ -1251,6 +1251,126 @@ app.get('/api/dashboard/:userId/:year/:month', async (c) => {
     }
 })
 
+// Get all subordinates (recursive)
+app.get('/api/users/subordinates/:userId', async (c) => {
+    try {
+
+        const userId = c.req.param('userId')
+
+        const results = await c.env.DB.prepare(`
+            WITH RECURSIVE subordinates AS (
+            
+                -- cấp dưới trực tiếp
+                SELECT 
+                    id,
+                    full_name,
+                    username,
+                    position_id,
+                    region_id,
+                    manager_id
+                FROM users
+                WHERE manager_id = ?
+
+                UNION ALL
+
+                -- cấp dưới của cấp dưới
+                SELECT 
+                    u.id,
+                    u.full_name,
+                    u.username,
+                    u.position_id,
+                    u.region_id,
+                    u.manager_id
+                FROM users u
+                JOIN subordinates s ON u.manager_id = s.id
+            )
+
+            SELECT 
+                s.id,
+                s.full_name,
+                s.username,
+                s.position_id,
+                p.display_name AS position_name,
+                s.region_id,
+                r.name AS region_name
+            FROM subordinates s
+            LEFT JOIN positions p ON s.position_id = p.id
+            LEFT JOIN regions r ON s.region_id = r.id
+            ORDER BY s.position_id, s.full_name
+        `).bind(userId).all()
+
+        return c.json({
+            subordinates: results.results
+        })
+
+    } catch (error) {
+
+        console.error('Subordinates error:', error)
+
+        return c.json({
+            error: 'Lỗi lấy danh sách cấp dưới'
+        }, 500)
+
+    }
+})
+
+// Get KPI detail of a user
+app.get('/api/user-kpi-detail/:userId/:year', async (c) => {
+
+    try {
+
+        const userId = c.req.param('userId')
+        const year = c.req.param('year')
+
+        const results = await c.env.DB.prepare(`
+      SELECT
+        kd.id,
+        kd.user_id,
+        kd.year,
+        kd.month,
+        kd.actual_value,
+        kd.completion_percent,
+        kd.weighted_score,
+        kd.kpi_template_id,
+
+        kt.kpi_name,
+        kt.weight,
+        kt.standard_value,
+        kt.value_type,
+        kt.is_for_kpi,
+
+        u.full_name,
+        u.position_id
+
+      FROM kpi_data kd
+      JOIN kpi_templates kt
+        ON kd.kpi_template_id = kt.id
+      JOIN users u
+        ON kd.user_id = u.id
+
+      WHERE kd.user_id = ?
+      AND kd.year = ?    
+
+    `).bind(userId, year).all()
+
+        return c.json({
+            success: true,
+            data: results.results
+        })
+
+    } catch (error) {
+
+        console.error(error)
+
+        return c.json({
+            success: false,
+            message: 'Lỗi lấy KPI detail'
+        }, 500)
+
+    }
+
+})
+
 app.get('/api/admin/users', async (c) => {
     try {
         const userId = c.req.query('userId')

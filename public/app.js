@@ -1,5 +1,6 @@
 let currentUser = null;
 const currentMonth = new Date().getMonth() + 1;
+const CURRENT_YEAR = new Date().getFullYear();
 let currentTab = 'commitment';
 let kpiMonthYear = null;
 
@@ -374,7 +375,7 @@ function renderMainPage() {
           <div class="hidden lg:flex space-x-2 mt-6 border-b border-gray-200">
             ${!isAdmin ? `
               <button onclick="switchTab('commitment')" id="tab-commitment" class="px-6 py-3 font-semibold transition-all duration-300 rounded-t-lg">
-                <i class="fas fa-file-contract mr-2"></i>Cam Kết Mục Tiêu 2026
+                <i class="fas fa-file-contract mr-2"></i>Cam Kết Mục Tiêu ${CURRENT_YEAR}
               </button>
               <button onclick="switchTab('kpi')" id="tab-kpi" class="px-6 py-3 font-semibold transition-all duration-300 rounded-t-lg">
                 <i class="fas fa-edit mr-2"></i>Nhập KPI
@@ -387,6 +388,9 @@ function renderMainPage() {
               </button>
               <button onclick="switchTab('dashboard')" id="tab-dashboard" class="px-6 py-3 font-semibold transition-all duration-300 rounded-t-lg">
                 <i class="fas fa-chart-bar mr-2"></i>Dashboard
+              </button>
+              <button onclick="switchTab('subordinates')" id="tab-subordinates" class="px-6 py-3 font-semibold transition-all duration-300 rounded-t-lg">
+                <i class="fas fa-users-cog mr-2"></i>Người dùng
               </button>
               ${currentUser.position_id === 4 ? `
                 <button onclick="switchTab('recruitment')" id="tab-recruitment" class="px-6 py-3 font-semibold transition-all duration-300 rounded-t-lg">
@@ -484,6 +488,8 @@ function switchTab(tab) {
         renderTrackingTab(content);
     } else if (tab === 'dashboard') {
         renderDashboardTab(content);
+    } else if (tab === 'subordinates') {
+        renderSubordinatesTab(content);
     } else if (tab === 'commitment') {
         renderCommitmentTab(content);
     } else if (tab === 'recruitment') {
@@ -514,7 +520,7 @@ function renderKpiTab(container) {
             <div>
               <label class="block text-xs font-semibold text-gray-700 mb-1.5">Năm</label>
               <select id="kpi-year" class="w-full px-3 py-2.5 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="2026" selected>Năm 2026</option>
+                
               </select>
             </div>
           </div>
@@ -535,7 +541,7 @@ function renderKpiTab(container) {
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1">Năm</label>
             <select id="kpi-year-desktop" class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="2026" selected>Năm 2026</option>
+              
             </select>
           </div>
           <div>
@@ -579,6 +585,8 @@ function renderKpiTab(container) {
     </div>
   `;
 
+    ['kpi-year', 'kpi-year-desktop']
+        .forEach(generateYearOptions)
     loadKpiData();
 
     document.getElementById('load-kpi-btn').addEventListener('click', loadKpiData);
@@ -1118,7 +1126,7 @@ function renderLevelTab(container) {
             <div class="flex-1">
               <label class="block text-xs md:text-sm font-semibold text-gray-700 mb-1">Năm</label>
               <select id="level-year" class="w-full px-3 py-2 text-sm md:text-base border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
-                <option value="2026" selected>Năm 2026</option>
+                
               </select>
             </div>
           </div>
@@ -1159,7 +1167,8 @@ function renderLevelTab(container) {
       </div>
     </div>
   `;
-
+    ['level-year']
+        .forEach(generateYearOptions)
     document.getElementById('load-level-btn').addEventListener('click', loadLevelDataNew);
 }
 
@@ -1458,7 +1467,7 @@ function renderTrackingTab(container) {
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1">Năm</label>
             <select id="tracking-year" class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <option value="2026" selected>Năm 2026</option>
+              
             </select>
           </div>
           <div class="pt-6">
@@ -1478,6 +1487,8 @@ function renderTrackingTab(container) {
     </div>
   `;
 
+    ['tracking-year']
+        .forEach(generateYearOptions)
     loadTrackingData();
 
     document.getElementById('load-tracking-btn').addEventListener('click', loadTrackingData);
@@ -1694,6 +1705,26 @@ function formatValue(value) {
     return parseFloat(Number(value).toFixed(2));
 }
 
+function generateYearOptions(selectId) {
+
+    const currentYear = new Date().getFullYear()
+    const startYear = 2025
+
+    const select = document.getElementById(selectId)
+
+    let html = ''
+
+    for (let year = currentYear; year >= startYear; year--) {
+
+        html += `<option value="${year}" ${year === currentYear ? 'selected' : ''}>
+            ${year}
+        </option>`
+
+    }
+
+    select.innerHTML = html
+}
+
 function renderDashboardTab(container) {
     container.innerHTML = `
     <div class="bg-white rounded-xl lg:rounded-2xl shadow-lg lg:shadow-xl p-4 lg:p-8">
@@ -1715,7 +1746,7 @@ function renderDashboardTab(container) {
             <div>
               <label class="block text-xs font-semibold text-gray-700 mb-1.5">Năm</label>
               <select id="dash-year" class="w-full px-3 py-2.5 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-                <option value="2026" selected>Năm 2026</option>
+                
               </select>
             </div>
             <div>
@@ -1746,7 +1777,7 @@ function renderDashboardTab(container) {
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1">Năm</label>
             <select id="dash-year-desktop" class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-              <option value="2026" selected>Năm 2026</option>
+              
             </select>
           </div>
           <div>
@@ -1773,6 +1804,8 @@ function renderDashboardTab(container) {
       </div>
     </div>
   `;
+    ['dash-year', 'dash-year-desktop']
+        .forEach(generateYearOptions)
 
     loadDashboardData();
 
@@ -1838,6 +1871,332 @@ async function loadDashboardData() {
 
     } catch (error) {
         console.error('Dashboard error:', error);
+        container.innerHTML = `<div class="text-center py-12 text-red-500"><i class="fas fa-exclamation-triangle mr-2"></i>Lỗi tải dữ liệu</div>`;
+    }
+}
+
+function renderSubordinatesTab(container) {
+    container.innerHTML = `
+    <div class="bg-white rounded-xl lg:rounded-2xl shadow-lg lg:shadow-xl p-4 lg:p-8">
+      <div class="mb-4 lg:mb-6">
+        <h2 class="text-xl lg:text-2xl font-bold bg-gradient-to-r from-green-600 to-teal-600 bg-clip-text text-transparent mb-3 lg:mb-4">
+          <i class="fas fa-users-cog mr-2"></i>Người dùng
+        </h2>
+        
+        <div class="lg:hidden space-y-3">
+          <div class="grid grid-cols-2 gap-3">            
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 mb-1.5">Năm</label>
+              <select id="subordinates-year" class="w-full px-3 py-2.5 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 mb-1.5">Người dùng</label>
+              <select id="subordinates-users" class="w-full px-3 py-2.5 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                
+              </select>
+            </div>
+          </div>
+          <button id="load-subordinates-btn" class="w-full px-4 py-3 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all">
+            <i class="fas fa-sync-alt mr-2"></i>Tải dữ liệu
+          </button>
+        </div>
+        
+        <div class="hidden lg:flex items-end space-x-4">          
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Năm</label>
+            <select id="subordinates-year-desktop" class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+              
+            </select>
+          </div>
+          <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Người dùng</label>
+                <select id="subordinates-users-desktop" class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                
+              </select>
+            </div>
+          <div>
+            <button id="load-subordinates-btn-desktop" class="px-6 py-2 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg hover:shadow-lg transition-all">
+              <i class="fas fa-sync-alt mr-2"></i>Tải dữ liệu
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <div id="subordinates-container" class="text-center py-2 text-gray-500">        
+      </div>
+    </div>
+  `;
+    generateYearOptions('subordinates-year')
+    generateYearOptions('subordinates-year-desktop')
+    loadSubordinateUsers();
+    //loadSubordinatesKpiData();
+
+    document.getElementById('load-subordinates-btn').addEventListener('click', loadSubordinatesKpiData);
+    document.getElementById('subordinates-year').addEventListener('change', () => {
+        const year = document.getElementById('subordinates-year').value;
+        const subordinatesYear = document.getElementById('subordinates-year-desktop');
+        if (subordinatesYear) subordinatesYear.value = year;
+    });
+    document.getElementById('subordinates-users').addEventListener('change', () => {
+        const users = document.getElementById('subordinates-users').value;
+        const desktopUsers = document.getElementById('subordinates-users-desktop');
+        if (desktopUsers) desktopUsers.value = users;
+    });
+
+    const desktopLoadBtn = document.getElementById('load-subordinates-btn-desktop');
+    if (desktopLoadBtn) {
+        desktopLoadBtn.addEventListener('click', loadSubordinatesKpiData);
+        document.getElementById('subordinates-year-desktop').addEventListener('change', () => {
+            const year = document.getElementById('subordinates-year-desktop').value;
+            document.getElementById('subordinates-year').value = year;
+        });
+        document.getElementById('subordinates-users-desktop').addEventListener('change', () => {
+            const users = document.getElementById('subordinates-users-desktop').value;
+            document.getElementById('subordinates-users').value = users;
+        });
+    }
+}
+
+async function loadSubordinateUsers() {
+    try {
+
+        const res = await fetch(`/api/users/subordinates/${currentUser.id}`);
+        const data = await res.json();
+
+        const mobileSelect = document.getElementById('subordinates-users');
+        const desktopSelect = document.getElementById('subordinates-users-desktop');
+
+        if (!mobileSelect || !desktopSelect) return;
+
+        const defaultOption = '<option value="">--Chính mình--</option>';
+
+        mobileSelect.innerHTML = defaultOption;
+        desktopSelect.innerHTML = defaultOption;
+
+        data.subordinates.forEach(user => {
+
+            const optionText = `${user.full_name} (${user.position_name})`;
+
+            mobileSelect.innerHTML += `<option value="${user.id}">${optionText}</option>`;
+            desktopSelect.innerHTML += `<option value="${user.id}">${optionText}</option>`;
+
+        });
+
+    } catch (error) {
+        console.error('Load subordinates error:', error);
+    }
+}
+
+async function loadSubordinatesKpiData() {
+    const year = document.getElementById('subordinates-year').value;
+    const selectedUserId = Number(document.getElementById('subordinates-users').value) || currentUser.id;
+    const container = document.getElementById('subordinates-container');
+
+    container.innerHTML = '<div class="text-center py-12"><i class="fas fa-spinner fa-spin text-4xl text-indigo-500"></i></div>';
+
+    try {
+
+        const response = await axios.get(`/api/tracking/${selectedUserId}/${year}`);
+        const {kpiData, levelData, templates, revenue_plan} = response.data;
+
+        let html = `
+      <div class="bg-gradient-to-r from-blue-50 to-cyan-50 p-6 rounded-xl border-2 border-blue-200">
+        <h3 class="text-xl font-bold text-blue-800 mb-4 flex items-center">
+          <i class="fas fa-chart-line mr-2"></i>Theo dõi KPI
+        </h3>
+        <div class="overflow-x-auto">
+          <table class="w-full border-collapse">
+            <thead>
+              <tr class="bg-blue-100">
+                <th class="border border-blue-300 px-4 py-2 text-left">Chỉ tiêu</th>
+                ${Array.from({length: 12}, (_, i) => `<th class="border border-blue-300 px-2 py-2 text-center">T${i + 1}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+    `;
+
+        templates.kpi.forEach((template) => {
+            html += `
+        <tr class="hover:bg-blue-50">
+          <td class="border border-blue-200 px-4 py-2 font-semibold">${template.kpi_name}</td>
+      `;
+
+            for (let month = 1; month <= 12; month++) {
+                const data = kpiData.find(d => d.month === month && d.kpi_template_id === template.id);
+                const revenue = revenue_plan.find(d =>
+                    d.user_id === selectedUserId &&
+                    d.month === month &&
+                    d.year === Number(year)
+                );
+
+                if (data) {
+                    let displayValue = data.actual_value;
+                    if (template.value_type == 'percentage') {
+                        displayValue = displayValue * 100 + '%';
+                    }
+                    const percent = data.completion_percent * 100;
+                    const color = percent >= 100 ? 'text-green-600' : percent >= 50 ? 'text-yellow-600' : 'text-red-600';
+                    html += `<td class="border border-blue-200 px-2 py-2 text-center ${color} font-semibold">${(template.value_type === 'currency')
+                        ? (revenue.planned_revenue ? ((displayValue / revenue.planned_revenue) * 100).toFixed(2) + '%' : '0%')
+                        : displayValue}</td>`;
+                } else {
+                    html += `<td class="border border-blue-200 px-2 py-2 text-center text-gray-400">-</td>`;
+                }
+            }
+
+            html += `</tr>`;
+        });
+
+        html += `
+      <tr class="bg-blue-100 font-bold">
+        <td class="border border-blue-300 px-4 py-2">% KPI tổng</td>
+    `;
+
+        for (let month = 1; month <= 12; month++) {
+            const monthData = kpiData.filter(d => d.month === month);
+            if (monthData.length > 0) {
+                const totalScore = monthData.reduce((sum, d) => sum + d.weighted_score, 0);
+                const percent = totalScore * 100;
+                const color = percent >= 100 ? 'text-green-700' : percent >= 50 ? 'text-yellow-700' : 'text-red-700';
+                html += `<td class="border border-blue-300 px-2 py-2 text-center ${color}">${percent.toFixed(1)}%</td>`;
+            } else {
+                html += `<td class="border border-blue-300 px-2 py-2 text-center text-gray-400">-</td>`;
+            }
+        }
+
+        html += `
+      </tr>
+    `;
+
+        html += `
+      <tr class="bg-blue-50 font-semibold">
+        <td class="border border-blue-300 px-4 py-2">Xếp loại KPI</td>
+    `;
+
+        for (let month = 1; month <= 12; month++) {
+            const monthData = kpiData.filter(d => d.month === month);
+            if (monthData.length > 0) {
+                const totalScore = monthData.reduce((sum, d) => sum + d.weighted_score, 0);
+                const percent = totalScore * 100;
+                const classification = getKpiClassification(percent);
+                const color = percent >= 120 ? 'text-green-700' : percent >= 90 ? 'text-blue-700' : percent >= 70 ? 'text-yellow-700' : percent >= 50 ? 'text-orange-700' : 'text-red-700';
+                html += `<td class="border border-blue-300 px-2 py-2 text-center ${color} font-semibold">${classification}</td>`;
+            } else {
+                html += `<td class="border border-blue-300 px-2 py-2 text-center text-gray-400">-</td>`;
+            }
+        }
+
+        html += `
+      </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <div class="bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-xl border-2 border-purple-200">
+        <h3 class="text-xl font-bold text-purple-800 mb-4 flex items-center">
+          <i class="fas fa-star mr-2"></i>Theo dõi Level
+        </h3>
+        <div class="overflow-x-auto">
+          <table class="w-full border-collapse">
+            <thead>
+              <tr class="bg-purple-100">
+                <th class="border border-purple-300 px-4 py-2 text-left">Chỉ tiêu</th>
+                ${Array.from({length: 12}, (_, i) => `<th class="border border-purple-300 px-2 py-2 text-center">T${i + 1}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+    `;
+
+        templates.level.forEach((template) => {
+            html += `
+        <tr class="hover:bg-purple-50">
+          <td class="border border-purple-200 px-4 py-2 font-semibold">${template.name}</td>
+      `;
+
+            for (let month = 1; month <= 12; month++) {
+                const data = levelData.find(d => d.month === month && d.kpi_template_id === template.id);
+                const revenue = revenue_plan.find(d =>
+                    d.user_id === selectedUserId &&
+                    d.month === month &&
+                    d.year === Number(year)
+                );
+                if (data) {
+
+                    const isPercentKpi = template.name.includes('Tỷ lệ %');
+                    let displayValue = data.actual_value;
+                    if (template.value_type == 'percentage') {
+                        displayValue = displayValue * 100 + '%';
+                    }
+                    if (isPercentKpi) {
+                        displayValue = displayValue / revenue.planned_revenue * 100 + '%';
+                    }
+                    displayValue = formatValue(displayValue);
+
+                    const percent = data.completion_percent * 100;
+                    const color = percent >= 100 ? 'text-green-600' : percent >= 50 ? 'text-yellow-600' : 'text-red-600';
+                    html += `<td class="border border-purple-200 px-2 py-2 text-center ${color} font-semibold">${displayValue}</td>`;
+                } else {
+                    html += `<td class="border border-purple-200 px-2 py-2 text-center text-gray-400">-</td>`;
+                }
+            }
+
+            html += `</tr>`;
+        });
+
+        html += `
+      <tr class="bg-purple-100 font-bold">
+        <td class="border border-purple-300 px-4 py-2">% Level tổng</td>
+    `;
+
+        for (let month = 1; month <= 12; month++) {
+            const monthData = levelData.filter(d => d.month === month);
+            if (monthData.length > 0) {
+                const totalScore = monthData.reduce((sum, d) => sum + d.weighted_score, 0);
+                const percent = totalScore * 100;
+                const color = percent >= 100 ? 'text-green-700' : percent >= 50 ? 'text-yellow-700' : 'text-red-700';
+                html += `<td class="border border-purple-300 px-2 py-2 text-center ${color}">${percent.toFixed(1)}%</td>`;
+            } else {
+                html += `<td class="border border-purple-300 px-2 py-2 text-center text-gray-400">-</td>`;
+            }
+        }
+
+        html += `
+      </tr>
+    `;
+
+        html += `
+      <tr class="bg-purple-50 font-semibold">
+        <td class="border border-purple-300 px-4 py-2">Xếp loại Level</td>
+    `;
+
+        for (let month = 1; month <= 12; month++) {
+            const monthData = levelData.filter(d => d.month === month);
+            if (monthData.length > 0) {
+                const totalScore = monthData.reduce((sum, d) => sum + d.weighted_score, 0);
+                const percent = totalScore * 100;
+                const classification = getLevelClassification(percent, currentUser.position_id);
+                const color = percent >= 155 ? 'text-green-700' : percent >= 131 ? 'text-blue-700' : percent > 100 ? 'text-yellow-700' : percent >= 50 ? 'text-orange-700' : 'text-red-700';
+                html += `<td class="border border-purple-300 px-2 py-2 text-center ${color} font-semibold">${classification}</td>`;
+            } else {
+                html += `<td class="border border-purple-300 px-2 py-2 text-center text-gray-400">-</td>`;
+            }
+        }
+
+        html += `
+      </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+        container.innerHTML = html;
+
+    } catch (error) {
+        console.error('Error loading tracking data:', error);
         container.innerHTML = `<div class="text-center py-12 text-red-500"><i class="fas fa-exclamation-triangle mr-2"></i>Lỗi tải dữ liệu</div>`;
     }
 }
@@ -3235,7 +3594,7 @@ function renderCommitmentTab(container) {
           </div>
           <div>
             <h2 class="text-2xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
-              Cam Kết Mục Tiêu 2026
+              Cam Kết Mục Tiêu ${CURRENT_YEAR}
             </h2>
             <p class="text-sm text-gray-600">Bảng giao chỉ tiêu cá nhân</p>
           </div>
@@ -3246,7 +3605,7 @@ function renderCommitmentTab(container) {
         <div class="relative bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-6 border-2 border-orange-200 shadow-lg">
           <div class="absolute top-4 right-4 z-10">
             <span class="px-3 py-1 bg-red-500 text-white text-xs font-bold rounded-full shadow-md">
-              <i class="fas fa-star mr-1"></i>Năm 2026
+              <i class="fas fa-star mr-1"></i>Năm ${CURRENT_YEAR}
             </span>
           </div>
           ${currentUser.cover_image_url.toLowerCase().endsWith('.pdf') ? `
@@ -3259,7 +3618,7 @@ function renderCommitmentTab(container) {
           ` : `
             <img 
               src="${currentUser.cover_image_url}" 
-              alt="Bảng Cam Kết Mục Tiêu 2026" 
+              alt="Bảng Cam Kết Mục Tiêu ${CURRENT_YEAR}" 
               class="w-full max-h-[600px] object-contain rounded-lg"
               onerror="this.parentElement.innerHTML='<p class=\\'text-center text-gray-500 py-12\\'><i class=\\'fas fa-exclamation-triangle mr-2\\'></i>Không thể tải ảnh</p>'"
             >
@@ -3267,7 +3626,7 @@ function renderCommitmentTab(container) {
           <div class="mt-4 text-center">
             <p class="text-sm text-gray-600">
               <i class="fas fa-info-circle mr-2"></i>
-              Đây là bảng cam kết mục tiêu được giao cho bạn trong năm 2026
+              Đây là bảng cam kết mục tiêu được giao cho bạn trong năm ${CURRENT_YEAR}
             </p>
           </div>
         </div>
@@ -3281,7 +3640,7 @@ function renderCommitmentTab(container) {
               Chưa có Bảng Cam Kết Mục Tiêu
             </h3>
             <p class="text-gray-500 mb-6">
-              Tải lên bảng cam kết mục tiêu 2026 của bạn (file ảnh hoặc PDF)
+              Tải lên bảng cam kết mục tiêu ${CURRENT_YEAR} của bạn (file ảnh hoặc PDF)
             </p>
           </div>
 
@@ -3505,7 +3864,7 @@ function renderRecruitmentTab(container) {
         </div>
         <div class="flex items-center space-x-4">
           <select id="chart-year" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
-            <option value="2026" selected>Năm 2026</option>
+            
           </select>
           <select id="chart-month" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
             ${Array.from({length: 12}, (_, i) => i + 1).map(m =>
@@ -3525,6 +3884,8 @@ function renderRecruitmentTab(container) {
       </div>
     </div>
   `;
+    ['chart-year']
+        .forEach(generateYearOptions)
 
     setTimeout(() => loadRecruitmentChart(), 100);
 }
@@ -3777,10 +4138,10 @@ function renderPositionDashboard(container, positionIds, positionName) {
     <div class="bg-white rounded-2xl shadow-xl p-6">
       <div class="flex items-center justify-between mb-6">
         <h3 class="text-2xl font-bold text-gray-800">
-          <i class="fas fa-chart-bar mr-2 text-blue-600"></i>Dashboard ${positionName} - Năm 2026
+          Dashboard ${positionName} - Năm <span id="position-dashboard-year">${CURRENT_YEAR}</span>
         </h3>
         <select id="position-year" class="px-4 py-2 border-2 border-gray-300 rounded-lg" onchange="loadPositionDashboard('${positionIds}', '${positionName}')">
-          <option value="2026" selected>2026</option>
+          
         </select>
       </div>
       <div id="position-dashboard-content" class="overflow-x-auto">
@@ -3791,13 +4152,15 @@ function renderPositionDashboard(container, positionIds, positionName) {
       </div>
     </div>
   `;
-
+    ['position-year']
+        .forEach(generateYearOptions)
     loadPositionDashboard(positionIds, positionName);
 }
 
 async function loadPositionDashboard(positionIds, positionName) {
     try {
-        const year = document.getElementById('position-year')?.value || '2026';
+        const year = document.getElementById('position-year')?.value || CURRENT_YEAR;
+        document.getElementById('position-dashboard-year').innerText = year;
 
         const response = await axios.get(`/api/admin/dashboard/${positionIds}/${year}`, {
             params: {
@@ -3928,7 +4291,7 @@ function renderKpiDetail(container, positionIds, positionName, kpiIds) {
           <i class="fas fa-chart-line mr-2 text-orange-600"></i>${positionName} - Thống kê chỉ số trọng điểm
         </h3>
         <select id="kpi-year" class="px-4 py-2 border-2 border-gray-300 rounded-lg" onchange="loadKpiDetail('${positionIds}', '${positionName}', [${kpiIds}])">
-          <option value="2026" selected>2026</option>
+          
         </select>
       </div>
       <div id="kpi-detail-content" class="overflow-x-auto">
@@ -3940,12 +4303,14 @@ function renderKpiDetail(container, positionIds, positionName, kpiIds) {
     </div>
   `;
 
+    ['kpi-year']
+        .forEach(generateYearOptions)
     loadKpiDetail(positionIds, positionName, kpiIds);
 }
 
 async function loadKpiDetail(positionIds, positionName, kpiIds) {
     try {
-        const year = document.getElementById('kpi-year')?.value || '2026';
+        const year = document.getElementById('kpi-year')?.value || CURRENT_YEAR;
         const response = await axios.get(`/api/admin/kpi-detail/${positionIds}/${year}/${kpiIds.join(',')}`, {
             params: {
                 userId: currentUser?.id,
@@ -4048,7 +4413,7 @@ function renderRevenuePlan(container) {
           </button>
           <input type="file" id="import-file" accept=".xlsx,.xls" style="display:none" onchange="importRevenuePlan(event)" />
           <select id="plan-year" class="px-4 py-2 border-2 border-gray-300 rounded-lg" onchange="loadRevenuePlan()">
-            <option value="2026" selected>2026</option>
+            
           </select>
         </div>
       </div>
@@ -4070,12 +4435,14 @@ function renderRevenuePlan(container) {
     </div>
   `;
 
+    ['plan-year']
+        .forEach(generateYearOptions)
     loadRevenuePlan();
 }
 
 async function loadRevenuePlan() {
     try {
-        const year = document.getElementById('plan-year')?.value || '2026';
+        const year = document.getElementById('plan-year')?.value || CURRENT_YEAR;
         const response = await axios.get(`/api/admin/revenue-plan/${year}`, {
             params: {
                 userId: currentUser?.id,
@@ -4181,7 +4548,7 @@ async function loadRevenuePlan() {
 
 async function saveUserPlan(userId) {
     try {
-        const year = document.getElementById('plan-year')?.value || '2026';
+        const year = document.getElementById('plan-year')?.value || CURRENT_YEAR;
         const inputs = document.querySelectorAll(`input[data-user="${userId}"]`);
 
         const plans = [];
@@ -4206,7 +4573,7 @@ async function saveUserPlan(userId) {
 
 async function saveAllPlans() {
     try {
-        const year = document.getElementById('plan-year')?.value || '2026';
+        const year = document.getElementById('plan-year')?.value || CURRENT_YEAR;
         const inputs = document.querySelectorAll('input[data-user][data-month]');
 
         const allPlans = {};
@@ -4259,7 +4626,7 @@ function calculateRowTotal(userId) {
 
 async function exportRevenuePlanTemplate() {
     try {
-        const year = document.getElementById('plan-year')?.value || '2026';
+        const year = document.getElementById('plan-year')?.value || CURRENT_YEAR;
         const response = await axios.get(`/api/admin/revenue-plan/${year}`, {
             params: {
                 userId: currentUser?.id,
@@ -4345,7 +4712,7 @@ async function importRevenuePlan(event) {
                 const jsonData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
 
                 const dataRows = jsonData.slice(1).filter(row => row && row.length >= 17);
-                const year = document.getElementById('plan-year')?.value || '2026';
+                const year = document.getElementById('plan-year')?.value || CURRENT_YEAR;
                 const total = dataRows.length;
                 let done = 0;
                 const errors = [];
@@ -4527,7 +4894,7 @@ function renderActualRevenueUpload(container) {
         <ul class="list-disc ml-5 mt-1">
           <li><b>email</b> (VD: trungnguyen@nhankiet.vn, locnguyen@nhankiet.vn ...</li>
           <li><b>month</b> (1–12)</li>
-          <li><b>year</b> (VD: 2026)</li>
+          <li><b>year</b> (VD: ${CURRENT_YEAR})</li>
           <li><b>actual_value</b> (Doanh thu thực tế)</li>
         </ul>
       </div>
@@ -4682,7 +5049,7 @@ function renderLockMonthTab(container) {
       </h3>
       <div class="mb-4 flex space-x-2">
         <select id="lock-year" class="px-4 py-2 border rounded-lg">
-          <option value="2026" selected>2026</option>
+          
         </select>
         <button onclick="loadLockMonths()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
           <i class="fas fa-sync mr-2"></i>Tải dữ liệu
@@ -4691,6 +5058,8 @@ function renderLockMonthTab(container) {
       <div id="lock-month-content">Đang tải...</div>
     </div>
   `;
+    ['lock-year']
+        .forEach(generateYearOptions)
     setTimeout(() => loadLockMonths(), 100);
 }
 
