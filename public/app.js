@@ -9,6 +9,16 @@ let filteredUsers = [];
 let currentUserPage = 1;
 const USER_PAGE_SIZE = 25;
 
+let gsDashboardData = {users: [], monthlyData: [], templates: []};
+let gsFilteredUsers = [];
+let gsCurrentPage = 1;
+const GS_PAGE_SIZE = 20;
+
+let gsKpiData = {users: [], kpiTemplates: [], kpiData: []};
+let gsKpiFilteredUsers = [];
+let gsKpiCurrentPage = 1;
+const GS_KPI_PAGE_SIZE = 20;
+
 function calculateWorkingDaysBase(year, month) {
     const daysInMonth = new Date(year, month, 0).getDate();
     let sundays = 0;
@@ -4135,6 +4145,42 @@ function renderRecruitmentChart(chartData) {
 document.addEventListener('DOMContentLoaded', renderApp);
 
 function renderPositionDashboard(container, positionIds, positionName) {
+    const isGs = positionIds === '4';
+    const searchBlock = isGs ? `
+      <div class="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-200">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="md:col-span-2">
+            <label class="block text-sm font-semibold text-gray-700 mb-1">
+              <i class="fas fa-search mr-1 text-blue-500"></i>Tìm theo tên hoặc username
+            </label>
+            <input
+              type="text"
+              id="gs-search"
+              placeholder="Nhập tên hoặc username..."
+              oninput="filterGsDashboard()"
+              class="w-full px-4 py-2 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">
+              <i class="fas fa-map-marker-alt mr-1 text-blue-500"></i>Khu vực
+            </label>
+            <select
+              id="gs-region-filter"
+              onchange="filterGsDashboard()"
+              class="w-full px-4 py-2 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Tất cả khu vực</option>
+            </select>
+          </div>
+        </div>
+        <div class="mt-2 text-sm text-gray-500">
+          <i class="fas fa-info-circle mr-1"></i>
+          Hiển thị <span id="gs-filter-count" class="font-semibold text-blue-600">0</span> người dùng
+        </div>
+      </div>
+    ` : '';
+
     container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-6">
       <div class="flex items-center justify-between mb-6">
@@ -4142,9 +4188,9 @@ function renderPositionDashboard(container, positionIds, positionName) {
           Dashboard ${positionName} - Năm <span id="position-dashboard-year">${CURRENT_YEAR}</span>
         </h3>
         <select id="position-year" class="px-4 py-2 border-2 border-gray-300 rounded-lg" onchange="loadPositionDashboard('${positionIds}', '${positionName}')">
-          
         </select>
       </div>
+      ${searchBlock}
       <div id="position-dashboard-content" class="overflow-x-auto">
         <div class="text-center py-12">
           <i class="fas fa-spinner fa-spin text-4xl text-gray-400 mb-4"></i>
@@ -4153,8 +4199,7 @@ function renderPositionDashboard(container, positionIds, positionName) {
       </div>
     </div>
   `;
-    ['position-year']
-        .forEach(generateYearOptions)
+    ['position-year'].forEach(generateYearOptions);
     loadPositionDashboard(positionIds, positionName);
 }
 
@@ -4164,119 +4209,38 @@ async function loadPositionDashboard(positionIds, positionName) {
         document.getElementById('position-dashboard-year').innerText = year;
 
         const response = await axios.get(`/api/admin/dashboard/${positionIds}/${year}`, {
-            params: {
-                userId: currentUser?.id,
-                username: currentUser?.username
-            }
+            params: {userId: currentUser?.id, username: currentUser?.username}
         });
 
         const {users, templates, monthlyData} = response.data;
-        const container = document.getElementById('position-dashboard-content');
+        const isGs = positionIds === '4';
 
-        if (!users || users.length === 0) {
-            container.innerHTML = '<div class="text-center py-8 text-gray-500">Không có dữ liệu</div>';
-            return;
-        }
+        if (isGs) {
+            gsDashboardData = {users: users || [], templates: templates || [], monthlyData: monthlyData || []};
+            gsFilteredUsers = [...gsDashboardData.users];
+            gsCurrentPage = 1;
 
-        const userMonthlyData = {};
-        monthlyData.forEach(m => {
-            if (!userMonthlyData[m.user_id]) userMonthlyData[m.user_id] = {};
-            userMonthlyData[m.user_id][m.month] = m;
-        });
-
-        let html = '<div class="space-y-6">';
-
-        html += '<div>';
-        html += '<h4 class="text-lg font-bold text-blue-600 mb-3"><i class="fas fa-chart-line mr-2"></i>Bảng tổng hợp KPI</h4>';
-        html += '<div class="overflow-x-auto">';
-        html += '<table class="w-full text-sm border-collapse">';
-
-        html += '<thead class="bg-gradient-to-r from-blue-500 to-blue-600 text-white sticky top-0">';
-        html += '<tr>';
-        html += '<th class="border px-3 py-2 text-left sticky left-0 bg-blue-600 z-10">Họ và tên</th>';
-        html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
-
-        for (let m = 1; m <= 12; m++) {
-            html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
-        }
-
-        html += '</tr>';
-        html += '</thead>';
-
-        html += '<tbody>';
-        users.forEach((user, idx) => {
-            html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50">`;
-            html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
-            html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
-
-            for (let m = 1; m <= 12; m++) {
-                const monthData = userMonthlyData[user.id]?.[m];
-                if (monthData) {
-                    const kpiPercent = Math.round((monthData.total_kpi_score || 0) * 100);
-                    const kpiColor = kpiPercent >= 100 ? 'text-green-600' : kpiPercent >= 80 ? 'text-blue-600' : 'text-orange-600';
-
-                    html += `<td class="border px-2 py-2 text-center">
-            <span class="${kpiColor} font-bold text-base">${kpiPercent}%</span>
-          </td>`;
-                } else {
-                    html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
-                }
+            const regions = [...new Map((users || []).map(u => [u.region_id, u.region_name])).entries()];
+            const regionSelect = document.getElementById('gs-region-filter');
+            if (regionSelect) {
+                regionSelect.innerHTML = '<option value="">Tất cả khu vực</option>';
+                regions.sort((a, b) => a[1].localeCompare(b[1], 'vi')).forEach(([id, name]) => {
+                    regionSelect.innerHTML += `<option value="${id}">${name}</option>`;
+                });
             }
 
-            html += '</tr>';
-        });
-        html += '</tbody>';
-        html += '</table>';
-        html += '</div>';
-        html += '</div>';
+            const countEl = document.getElementById('gs-filter-count');
+            if (countEl) countEl.textContent = (users || []).length;
 
-        html += '<div>';
-        html += '<h4 class="text-lg font-bold text-green-600 mb-3"><i class="fas fa-star mr-2"></i>Bảng tổng hợp Level</h4>';
-        html += '<div class="overflow-x-auto">';
-        html += '<table class="w-full text-sm border-collapse">';
-
-        html += '<thead class="bg-gradient-to-r from-green-500 to-green-600 text-white sticky top-0">';
-        html += '<tr>';
-        html += '<th class="border px-3 py-2 text-left sticky left-0 bg-green-600 z-10">Họ và tên</th>';
-        html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
-
-        for (let m = 1; m <= 12; m++) {
-            html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
-        }
-
-        html += '</tr>';
-        html += '</thead>';
-
-        html += '<tbody>';
-        users.forEach((user, idx) => {
-            html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-green-50">`;
-            html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
-            html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
-
-            for (let m = 1; m <= 12; m++) {
-                const monthData = userMonthlyData[user.id]?.[m];
-                if (monthData) {
-                    const levelPercent = Math.round((monthData.total_level_score || 0) * 100);
-                    const levelColor = levelPercent >= 100 ? 'text-green-600' : levelPercent >= 80 ? 'text-blue-600' : 'text-orange-600';
-
-                    html += `<td class="border px-2 py-2 text-center">
-            <span class="${levelColor} font-bold text-base">${levelPercent}%</span>
-          </td>`;
-                } else {
-                    html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
-                }
+            renderGsDashboardTable();
+        } else {
+            const container = document.getElementById('position-dashboard-content');
+            if (!users || users.length === 0) {
+                container.innerHTML = '<div class="text-center py-8 text-gray-500">Không có dữ liệu</div>';
+                return;
             }
-
-            html += '</tr>';
-        });
-        html += '</tbody>';
-        html += '</table>';
-        html += '</div>';
-        html += '</div>';
-
-        html += '</div>';
-
-        container.innerHTML = html;
+            renderPositionDashboardHtml(container, users, monthlyData);
+        }
     } catch (error) {
         console.error('Error loading position dashboard:', error);
         document.getElementById('position-dashboard-content').innerHTML =
@@ -4284,19 +4248,268 @@ async function loadPositionDashboard(positionIds, positionName) {
     }
 }
 
+function renderPositionDashboardHtml(container, users, monthlyData) {
+    const userMonthlyData = {};
+    monthlyData.forEach(m => {
+        if (!userMonthlyData[m.user_id]) userMonthlyData[m.user_id] = {};
+        userMonthlyData[m.user_id][m.month] = m;
+    });
+
+    let html = '<div class="space-y-6">';
+
+    html += '<div>';
+    html += '<h4 class="text-lg font-bold text-blue-600 mb-3"><i class="fas fa-chart-line mr-2"></i>Bảng tổng hợp KPI</h4>';
+    html += '<div class="overflow-x-auto">';
+    html += '<table class="w-full text-sm border-collapse">';
+    html += '<thead class="bg-gradient-to-r from-blue-500 to-blue-600 text-white sticky top-0">';
+    html += '<tr>';
+    html += '<th class="border px-3 py-2 text-left sticky left-0 bg-blue-600 z-10">Họ và tên</th>';
+    html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
+    for (let m = 1; m <= 12; m++) html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
+    html += '</tr></thead><tbody>';
+
+    users.forEach((user, idx) => {
+        html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50">`;
+        html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
+        html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
+        for (let m = 1; m <= 12; m++) {
+            const d = userMonthlyData[user.id]?.[m];
+            if (d) {
+                const pct = Math.round((d.total_kpi_score || 0) * 100);
+                const color = pct >= 100 ? 'text-green-600' : pct >= 80 ? 'text-blue-600' : 'text-orange-600';
+                html += `<td class="border px-2 py-2 text-center"><span class="${color} font-bold text-base">${pct}%</span></td>`;
+            } else {
+                html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+            }
+        }
+        html += '</tr>';
+    });
+    html += '</tbody></table></div></div>';
+
+    html += '<div>';
+    html += '<h4 class="text-lg font-bold text-green-600 mb-3"><i class="fas fa-star mr-2"></i>Bảng tổng hợp Level</h4>';
+    html += '<div class="overflow-x-auto">';
+    html += '<table class="w-full text-sm border-collapse">';
+    html += '<thead class="bg-gradient-to-r from-green-500 to-green-600 text-white sticky top-0">';
+    html += '<tr>';
+    html += '<th class="border px-3 py-2 text-left sticky left-0 bg-green-600 z-10">Họ và tên</th>';
+    html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
+    for (let m = 1; m <= 12; m++) html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
+    html += '</tr></thead><tbody>';
+
+    users.forEach((user, idx) => {
+        html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-green-50">`;
+        html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
+        html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
+        for (let m = 1; m <= 12; m++) {
+            const d = userMonthlyData[user.id]?.[m];
+            if (d) {
+                const pct = Math.round((d.total_level_score || 0) * 100);
+                const color = pct >= 100 ? 'text-green-600' : pct >= 80 ? 'text-blue-600' : 'text-orange-600';
+                html += `<td class="border px-2 py-2 text-center"><span class="${color} font-bold text-base">${pct}%</span></td>`;
+            } else {
+                html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+            }
+        }
+        html += '</tr>';
+    });
+    html += '</tbody></table></div></div></div>';
+
+    container.innerHTML = html;
+}
+
+function filterGsDashboard() {
+    const search = document.getElementById('gs-search')?.value.toLowerCase() || '';
+    const regionId = document.getElementById('gs-region-filter')?.value || '';
+
+    gsFilteredUsers = gsDashboardData.users.filter(u => {
+        const matchSearch = !search ||
+            u.full_name.toLowerCase().includes(search) ||
+            u.username.toLowerCase().includes(search);
+        const matchRegion = !regionId || String(u.region_id) === String(regionId);
+        return matchSearch && matchRegion;
+    });
+
+    gsCurrentPage = 1;
+    const countEl = document.getElementById('gs-filter-count');
+    if (countEl) countEl.textContent = gsFilteredUsers.length;
+    renderGsDashboardTable();
+}
+
+function goToGsPage(page) {
+    const totalPages = Math.ceil(gsFilteredUsers.length / GS_PAGE_SIZE);
+    if (page < 1 || page > totalPages) return;
+    gsCurrentPage = page;
+    renderGsDashboardTable();
+    document.getElementById('position-dashboard-content').scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
+function renderGsDashboardTable() {
+    const container = document.getElementById('position-dashboard-content');
+    const users = gsFilteredUsers;
+    const {monthlyData} = gsDashboardData;
+
+    if (!users || users.length === 0) {
+        container.innerHTML = '<div class="text-center py-8 text-gray-500">Không tìm thấy người dùng nào</div>';
+        return;
+    }
+
+    const userMonthlyData = {};
+    monthlyData.forEach(m => {
+        if (!userMonthlyData[m.user_id]) userMonthlyData[m.user_id] = {};
+        userMonthlyData[m.user_id][m.month] = m;
+    });
+
+    const totalPages = Math.ceil(users.length / GS_PAGE_SIZE);
+    const startIndex = (gsCurrentPage - 1) * GS_PAGE_SIZE;
+    const endIndex = Math.min(startIndex + GS_PAGE_SIZE, users.length);
+    const pageUsers = users.slice(startIndex, endIndex);
+
+    let html = '<div class="space-y-6">';
+
+    html += '<div>';
+    html += '<h4 class="text-lg font-bold text-blue-600 mb-3"><i class="fas fa-chart-line mr-2"></i>Bảng tổng hợp KPI</h4>';
+    html += '<div class="overflow-x-auto">';
+    html += '<table class="w-full text-sm border-collapse">';
+    html += '<thead class="bg-gradient-to-r from-blue-500 to-blue-600 text-white sticky top-0">';
+    html += '<tr><th class="border px-3 py-2 text-left sticky left-0 bg-blue-600 z-10">Họ và tên</th>';
+    html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
+    for (let m = 1; m <= 12; m++) html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
+    html += '</tr></thead><tbody>';
+
+    pageUsers.forEach((user, idx) => {
+        html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50">`;
+        html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
+        html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
+        for (let m = 1; m <= 12; m++) {
+            const d = userMonthlyData[user.id]?.[m];
+            if (d) {
+                const pct = Math.round((d.total_kpi_score || 0) * 100);
+                const color = pct >= 100 ? 'text-green-600' : pct >= 80 ? 'text-blue-600' : 'text-orange-600';
+                html += `<td class="border px-2 py-2 text-center"><span class="${color} font-bold text-base">${pct}%</span></td>`;
+            } else {
+                html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+            }
+        }
+        html += '</tr>';
+    });
+    html += '</tbody></table></div></div>';
+
+    html += '<div>';
+    html += '<h4 class="text-lg font-bold text-green-600 mb-3"><i class="fas fa-star mr-2"></i>Bảng tổng hợp Level</h4>';
+    html += '<div class="overflow-x-auto">';
+    html += '<table class="w-full text-sm border-collapse">';
+    html += '<thead class="bg-gradient-to-r from-green-500 to-green-600 text-white sticky top-0">';
+    html += '<tr><th class="border px-3 py-2 text-left sticky left-0 bg-green-600 z-10">Họ và tên</th>';
+    html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
+    for (let m = 1; m <= 12; m++) html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
+    html += '</tr></thead><tbody>';
+
+    pageUsers.forEach((user, idx) => {
+        html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-green-50">`;
+        html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
+        html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
+        for (let m = 1; m <= 12; m++) {
+            const d = userMonthlyData[user.id]?.[m];
+            if (d) {
+                const pct = Math.round((d.total_level_score || 0) * 100);
+                const color = pct >= 100 ? 'text-green-600' : pct >= 80 ? 'text-blue-600' : 'text-orange-600';
+                html += `<td class="border px-2 py-2 text-center"><span class="${color} font-bold text-base">${pct}%</span></td>`;
+            } else {
+                html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+            }
+        }
+        html += '</tr>';
+    });
+    html += '</tbody></table></div></div>';
+
+    if (totalPages > 1) {
+        html += renderPaginationHtml(gsCurrentPage, totalPages, users.length, startIndex, endIndex, 'goToGsPage');
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function renderPaginationHtml(currentPage, totalPages, totalItems, startIndex, endIndex, goFn) {
+    let html = '<div class="mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">';
+    html += `<div class="text-sm text-gray-600">Hiển thị <span class="font-semibold">${startIndex + 1}</span> đến <span class="font-semibold">${endIndex}</span> trong tổng số <span class="font-semibold">${totalItems}</span></div>`;
+    html += '<div class="flex items-center space-x-2">';
+
+    html += `<button onclick="${goFn}(${currentPage - 1})" class="px-3 py-2 rounded-lg ${currentPage === 1 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-500 text-white hover:bg-blue-600'}" ${currentPage === 1 ? 'disabled' : ''}><i class="fas fa-chevron-left"></i></button>`;
+
+    const maxPages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxPages / 2));
+    let endPage = Math.min(totalPages, startPage + maxPages - 1);
+    if (endPage - startPage < maxPages - 1) startPage = Math.max(1, endPage - maxPages + 1);
+
+    if (startPage > 1) {
+        html += `<button onclick="${goFn}(1)" class="px-3 py-2 rounded-lg bg-white border border-gray-300 hover:bg-gray-50">1</button>`;
+        if (startPage > 2) html += '<span class="px-2 text-gray-500">...</span>';
+    }
+    for (let i = startPage; i <= endPage; i++) {
+        html += `<button onclick="${goFn}(${i})" class="px-3 py-2 rounded-lg ${i === currentPage ? 'bg-blue-600 text-white font-semibold' : 'bg-white border border-gray-300 hover:bg-gray-50'}">${i}</button>`;
+    }
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) html += '<span class="px-2 text-gray-500">...</span>';
+        html += `<button onclick="${goFn}(${totalPages})" class="px-3 py-2 rounded-lg bg-white border border-gray-300 hover:bg-gray-50">${totalPages}</button>`;
+    }
+
+    html += `<button onclick="${goFn}(${currentPage + 1})" class="px-3 py-2 rounded-lg ${currentPage === totalPages ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-500 text-white hover:bg-blue-600'}" ${currentPage === totalPages ? 'disabled' : ''}><i class="fas fa-chevron-right"></i></button>`;
+    html += '</div></div>';
+    return html;
+}
+
 function renderKpiDetail(container, positionIds, positionName, kpiIds) {
+    const isGs = positionIds === '4';
+    const searchBlock = isGs ? `
+      <div class="mb-6 p-4 bg-orange-50 rounded-xl border border-orange-200">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="md:col-span-2">
+            <label class="block text-sm font-semibold text-gray-700 mb-1">
+              <i class="fas fa-search mr-1 text-orange-500"></i>Tìm theo tên hoặc username
+            </label>
+            <input
+              type="text"
+              id="gs-kpi-search"
+              placeholder="Nhập tên hoặc username..."
+              oninput="filterGsKpiDetail()"
+              class="w-full px-4 py-2 border-2 border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+            >
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">
+              <i class="fas fa-map-marker-alt mr-1 text-orange-500"></i>Khu vực
+            </label>
+            <select
+              id="gs-kpi-region-filter"
+              onchange="filterGsKpiDetail()"
+              class="w-full px-4 py-2 border-2 border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+            >
+              <option value="">Tất cả khu vực</option>
+            </select>
+          </div>
+        </div>
+        <div class="mt-2 text-sm text-gray-500">
+          <i class="fas fa-info-circle mr-1"></i>
+          Hiển thị <span id="gs-kpi-filter-count" class="font-semibold text-orange-600">0</span> người dùng
+        </div>
+      </div>
+    ` : '';
+
     container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-6">
       <div class="flex items-center justify-between mb-6">
         <h3 class="text-2xl font-bold text-gray-800">
           <i class="fas fa-chart-line mr-2 text-orange-600"></i>${positionName} - Thống kê chỉ số trọng điểm
         </h3>
-        <select 
+        <select
             id="kpi-year"
-            class="px-4 py-2 border-2 border-gray-300 rounded-lg" 
+            class="px-4 py-2 border-2 border-gray-300 rounded-lg"
             onchange="loadKpiDetail('${positionIds}', '${positionName}', [${kpiIds}])">
         </select>
       </div>
+      ${searchBlock}
       <div id="kpi-detail-content" class="overflow-x-auto">
         <div class="text-center py-12">
           <i class="fas fa-spinner fa-spin text-4xl text-gray-400 mb-4"></i>
@@ -4306,8 +4519,7 @@ function renderKpiDetail(container, positionIds, positionName, kpiIds) {
     </div>
   `;
 
-    ['kpi-year']
-        .forEach(generateYearOptions)
+    ['kpi-year'].forEach(generateYearOptions);
     loadKpiDetail(positionIds, positionName, kpiIds);
 }
 
@@ -4315,81 +4527,166 @@ async function loadKpiDetail(positionIds, positionName, kpiIds) {
     try {
         const year = document.getElementById('kpi-year')?.value || CURRENT_YEAR;
         const response = await axios.get(`/api/admin/kpi-detail/${positionIds}/${year}/${kpiIds.join(',')}`, {
-            params: {
-                userId: currentUser?.id,
-                username: currentUser?.username
-            }
+            params: {userId: currentUser?.id, username: currentUser?.username}
         });
 
         const {users, kpiTemplates, kpiData} = response.data;
-        const container = document.getElementById('kpi-detail-content');
+        const isGs = positionIds === '4';
 
-        if (!users || users.length === 0) {
-            container.innerHTML = '<div class="text-center py-8 text-gray-500">Không có dữ liệu</div>';
-            return;
-        }
+        if (isGs) {
+            gsKpiData = {users: users || [], kpiTemplates: kpiTemplates || [], kpiData: kpiData || []};
+            gsKpiFilteredUsers = [...gsKpiData.users];
+            gsKpiCurrentPage = 1;
 
-        const userKpiData = {};
-        kpiData.forEach(d => {
-            if (!userKpiData[d.user_id]) userKpiData[d.user_id] = {};
-            if (!userKpiData[d.user_id][d.kpi_template_id]) userKpiData[d.user_id][d.kpi_template_id] = {};
-            userKpiData[d.user_id][d.kpi_template_id][d.month] = d;
-        });
-
-        let html = '<div class="space-y-8">';
-
-        kpiTemplates.forEach(kpi => {
-            html += '<div>';
-            html += `<h4 class="text-lg font-bold text-orange-600 mb-3"><i class="fas fa-chart-bar mr-2"></i>${kpi.kpi_name}</h4>`;
-            html += '<div class="overflow-x-auto">';
-            html += '<table class="w-full text-sm border-collapse">';
-
-            html += '<thead class="bg-gradient-to-r from-orange-500 to-red-600 text-white sticky top-0">';
-            html += '<tr>';
-            html += '<th class="border px-3 py-2 text-left sticky left-0 bg-orange-600 z-10">Họ và tên</th>';
-            html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
-
-            for (let m = 1; m <= 12; m++) {
-                html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
+            const regions = [...new Map((users || []).map(u => [u.region_id, u.region_name])).entries()];
+            const regionSelect = document.getElementById('gs-kpi-region-filter');
+            if (regionSelect) {
+                regionSelect.innerHTML = '<option value="">Tất cả khu vực</option>';
+                regions.sort((a, b) => a[1].localeCompare(b[1], 'vi')).forEach(([id, name]) => {
+                    regionSelect.innerHTML += `<option value="${id}">${name}</option>`;
+                });
             }
 
-            html += '</tr>';
-            html += '</thead>';
+            const countEl = document.getElementById('gs-kpi-filter-count');
+            if (countEl) countEl.textContent = (users || []).length;
 
-            html += '<tbody>';
-            users.forEach((user, idx) => {
-                html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-orange-50">`;
-                html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
-                html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
-
-                for (let m = 1; m <= 12; m++) {
-                    const monthData = userKpiData[user.id]?.[kpi.id]?.[m];
-                    if (monthData && monthData.actual_value !== null) {
-                        const value = formatLargeNumber(monthData.actual_value, kpi.kpi_name);
-                        html += `<td class="border px-2 py-2 text-center">
-              <span class="font-bold text-blue-600">${value}</span>
-            </td>`;
-                    } else {
-                        html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
-                    }
-                }
-
-                html += '</tr>';
-            });
-            html += '</tbody>';
-            html += '</table>';
-            html += '</div>';
-            html += '</div>';
-        });
-
-        html += '</div>';
-
-        container.innerHTML = html;
+            renderGsKpiDetailTable();
+        } else {
+            const container = document.getElementById('kpi-detail-content');
+            if (!users || users.length === 0) {
+                container.innerHTML = '<div class="text-center py-8 text-gray-500">Không có dữ liệu</div>';
+                return;
+            }
+            renderKpiDetailHtml(container, users, kpiTemplates, kpiData);
+        }
     } catch (error) {
         console.error('Error loading KPI detail:', error);
         document.getElementById('kpi-detail-content').innerHTML =
             '<div class="text-center py-8 text-red-500">Lỗi tải dữ liệu</div>';
     }
+}
+
+function renderKpiDetailHtml(container, users, kpiTemplates, kpiData) {
+    const userKpiData = {};
+    kpiData.forEach(d => {
+        if (!userKpiData[d.user_id]) userKpiData[d.user_id] = {};
+        if (!userKpiData[d.user_id][d.kpi_template_id]) userKpiData[d.user_id][d.kpi_template_id] = {};
+        userKpiData[d.user_id][d.kpi_template_id][d.month] = d;
+    });
+
+    let html = '<div class="space-y-8">';
+    kpiTemplates.forEach(kpi => {
+        html += '<div>';
+        html += `<h4 class="text-lg font-bold text-orange-600 mb-3"><i class="fas fa-chart-bar mr-2"></i>${kpi.kpi_name}</h4>`;
+        html += '<div class="overflow-x-auto"><table class="w-full text-sm border-collapse">';
+        html += '<thead class="bg-gradient-to-r from-orange-500 to-red-600 text-white sticky top-0"><tr>';
+        html += '<th class="border px-3 py-2 text-left sticky left-0 bg-orange-600 z-10">Họ và tên</th>';
+        html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
+        for (let m = 1; m <= 12; m++) html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
+        html += '</tr></thead><tbody>';
+
+        users.forEach((user, idx) => {
+            html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-orange-50">`;
+            html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
+            html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
+            for (let m = 1; m <= 12; m++) {
+                const d = userKpiData[user.id]?.[kpi.id]?.[m];
+                if (d && d.actual_value !== null) {
+                    html += `<td class="border px-2 py-2 text-center"><span class="font-bold text-blue-600">${formatLargeNumber(d.actual_value, kpi.kpi_name)}</span></td>`;
+                } else {
+                    html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+                }
+            }
+            html += '</tr>';
+        });
+        html += '</tbody></table></div></div>';
+    });
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function filterGsKpiDetail() {
+    const search = document.getElementById('gs-kpi-search')?.value.toLowerCase() || '';
+    const regionId = document.getElementById('gs-kpi-region-filter')?.value || '';
+
+    gsKpiFilteredUsers = gsKpiData.users.filter(u => {
+        const matchSearch = !search ||
+            u.full_name.toLowerCase().includes(search) ||
+            u.username.toLowerCase().includes(search);
+        const matchRegion = !regionId || String(u.region_id) === String(regionId);
+        return matchSearch && matchRegion;
+    });
+
+    gsKpiCurrentPage = 1;
+    const countEl = document.getElementById('gs-kpi-filter-count');
+    if (countEl) countEl.textContent = gsKpiFilteredUsers.length;
+    renderGsKpiDetailTable();
+}
+
+function goToGsKpiPage(page) {
+    const totalPages = Math.ceil(gsKpiFilteredUsers.length / GS_KPI_PAGE_SIZE);
+    if (page < 1 || page > totalPages) return;
+    gsKpiCurrentPage = page;
+    renderGsKpiDetailTable();
+    document.getElementById('kpi-detail-content').scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
+function renderGsKpiDetailTable() {
+    const container = document.getElementById('kpi-detail-content');
+    const users = gsKpiFilteredUsers;
+    const {kpiTemplates, kpiData} = gsKpiData;
+
+    if (!users || users.length === 0) {
+        container.innerHTML = '<div class="text-center py-8 text-gray-500">Không tìm thấy người dùng nào</div>';
+        return;
+    }
+
+    const userKpiData = {};
+    kpiData.forEach(d => {
+        if (!userKpiData[d.user_id]) userKpiData[d.user_id] = {};
+        if (!userKpiData[d.user_id][d.kpi_template_id]) userKpiData[d.user_id][d.kpi_template_id] = {};
+        userKpiData[d.user_id][d.kpi_template_id][d.month] = d;
+    });
+
+    const totalPages = Math.ceil(users.length / GS_KPI_PAGE_SIZE);
+    const startIndex = (gsKpiCurrentPage - 1) * GS_KPI_PAGE_SIZE;
+    const endIndex = Math.min(startIndex + GS_KPI_PAGE_SIZE, users.length);
+    const pageUsers = users.slice(startIndex, endIndex);
+
+    let html = '<div class="space-y-8">';
+    kpiTemplates.forEach(kpi => {
+        html += '<div>';
+        html += `<h4 class="text-lg font-bold text-orange-600 mb-3"><i class="fas fa-chart-bar mr-2"></i>${kpi.kpi_name}</h4>`;
+        html += '<div class="overflow-x-auto"><table class="w-full text-sm border-collapse">';
+        html += '<thead class="bg-gradient-to-r from-orange-500 to-red-600 text-white sticky top-0"><tr>';
+        html += '<th class="border px-3 py-2 text-left sticky left-0 bg-orange-600 z-10">Họ và tên</th>';
+        html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
+        for (let m = 1; m <= 12; m++) html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
+        html += '</tr></thead><tbody>';
+
+        pageUsers.forEach((user, idx) => {
+            html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-orange-50">`;
+            html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
+            html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
+            for (let m = 1; m <= 12; m++) {
+                const d = userKpiData[user.id]?.[kpi.id]?.[m];
+                if (d && d.actual_value !== null) {
+                    html += `<td class="border px-2 py-2 text-center"><span class="font-bold text-blue-600">${formatLargeNumber(d.actual_value, kpi.kpi_name)}</span></td>`;
+                } else {
+                    html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+                }
+            }
+            html += '</tr>';
+        });
+        html += '</tbody></table></div></div>';
+    });
+
+    if (totalPages > 1) {
+        html += renderPaginationHtml(gsKpiCurrentPage, totalPages, users.length, startIndex, endIndex, 'goToGsKpiPage');
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
 }
 
 function renderRevenuePlan(container) {
