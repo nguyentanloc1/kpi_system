@@ -652,7 +652,8 @@ async function loadKpiData() {
                 const hRes = await axios.get(`/api/admin/holiday-days/${year}`);
                 const hRow = (hRes.data?.holidays || []).find(h => h.month === parseInt(month));
                 holidayCount = hRow?.holiday_count ?? 0;
-            } catch (_) { /* không có ngày lễ thì dùng 0 */ }
+            } catch (_) { /* không có ngày lễ thì dùng 0 */
+            }
         }
 
         const dataMap = {};
@@ -4290,8 +4291,10 @@ function renderKpiDetail(container, positionIds, positionName, kpiIds) {
         <h3 class="text-2xl font-bold text-gray-800">
           <i class="fas fa-chart-line mr-2 text-orange-600"></i>${positionName} - Thống kê chỉ số trọng điểm
         </h3>
-        <select id="kpi-year" class="px-4 py-2 border-2 border-gray-300 rounded-lg" onchange="loadKpiDetail('${positionIds}', '${positionName}', [${kpiIds}])">
-          
+        <select 
+            id="kpi-year"
+            class="px-4 py-2 border-2 border-gray-300 rounded-lg" 
+            onchange="loadKpiDetail('${positionIds}', '${positionName}', [${kpiIds}])">
         </select>
       </div>
       <div id="kpi-detail-content" class="overflow-x-auto">
