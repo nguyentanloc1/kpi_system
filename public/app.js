@@ -19,6 +19,32 @@ let gsKpiFilteredUsers = [];
 let gsKpiCurrentPage = 1;
 const GS_KPI_PAGE_SIZE = 20;
 
+function adminParams() {
+    return {params: {userId: currentUser?.id, username: currentUser?.username}};
+}
+
+function tableRowClass(idx) {
+    return idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+}
+
+function stickyTdClass(idx) {
+    return `border px-3 py-2 font-semibold sticky left-0 ${tableRowClass(idx)} z-5`;
+}
+
+function buildMonthHeaders() {
+    return Array.from({length: 12}, (_, i) =>
+        `<th class="border px-2 py-2 text-center">T${i + 1}</th>`
+    ).join('');
+}
+
+function buildMonthCells(getCell) {
+    return Array.from({length: 12}, (_, i) => getCell(i + 1)).join('');
+}
+
+function scoreColor(pct) {
+    return pct >= 100 ? 'text-green-600' : pct >= 80 ? 'text-blue-600' : 'text-orange-600';
+}
+
 function calculateWorkingDaysBase(year, month) {
     const daysInMonth = new Date(year, month, 0).getDate();
     let sundays = 0;
@@ -32,7 +58,7 @@ function calculateWorkingDays(year, month, holidayCount = 0) {
     return Math.max(calculateWorkingDaysBase(year, month) - holidayCount, 0);
 }
 
-function formatLargeNumber(value, kpiName = '', forceShort = false) {
+function formatLargeNumber(value, kpiName = '') {
     if (!value || value === '-') return '-';
     const num = parseFloat(value);
     if (isNaN(num)) return value;
@@ -2912,12 +2938,7 @@ let adminMetadata = {regions: [], positions: []};
 
 async function loadAdminStatistics() {
     try {
-        const response = await axios.get('/api/admin/statistics', {
-            params: {
-                userId: currentUser?.id,
-                username: currentUser?.username
-            }
-        });
+        const response = await axios.get('/api/admin/statistics', adminParams());
 
         const stats = response.data.positionCounts;
         const container = document.getElementById('admin-statistics');
@@ -3160,12 +3181,7 @@ async function loadAdminUsers() {
     const container = document.getElementById('admin-users-container');
 
     try {
-        const response = await axios.get('/api/admin/users', {
-            params: {
-                userId: currentUser?.id,
-                username: currentUser?.username
-            }
-        });
+        const response = await axios.get('/api/admin/users', adminParams());
         allUsers = response.data.users;
 
         renderUserTable(allUsers);
@@ -3218,7 +3234,7 @@ function renderUserTable(users) {
     pageUsers.forEach((user, idx) => {
         const globalIndex = startIndex + idx;
         html += `
-      <tr class="border-b hover:bg-gray-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
+      <tr class="border-b hover:bg-gray-50 transition-colors ${tableRowClass(idx)}">
         <td class="px-4 py-3 font-semibold text-left">${globalIndex + 1}</td>
         <td class="px-4 py-3 text-blue-600 text-left">${user.username}</td>
         <td class="px-4 py-3 font-semibold text-left">${user.full_name}</td>
@@ -3271,81 +3287,7 @@ function renderUserTable(users) {
     html += '</div>';
 
     if (totalPages > 1) {
-        html += '<div class="mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">';
-
-        html += `
-      <div class="text-sm text-gray-600 text-left">
-        Hiển thị <span class="font-semibold">${startIndex + 1}</span> đến 
-        <span class="font-semibold">${endIndex}</span> trong tổng số 
-        <span class="font-semibold">${users.length}</span> người dùng
-      </div>
-    `;
-
-        html += '<div class="flex items-center space-x-2">';
-
-        html += `
-      <button 
-        onclick="goToUserPage(${currentUserPage - 1})"
-        class="px-3 py-2 rounded-lg ${currentUserPage === 1 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-500 text-white hover:bg-blue-600'}"
-        ${currentUserPage === 1 ? 'disabled' : ''}
-      >
-        <i class="fas fa-chevron-left"></i>
-      </button>
-    `;
-
-        const maxPagesToShow = 5;
-        let startPage = Math.max(1, currentUserPage - Math.floor(maxPagesToShow / 2));
-        let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
-
-        if (endPage - startPage < maxPagesToShow - 1) {
-            startPage = Math.max(1, endPage - maxPagesToShow + 1);
-        }
-
-        if (startPage > 1) {
-            html += `
-        <button onclick="goToUserPage(1)" class="px-3 py-2 rounded-lg bg-white border border-gray-300 hover:bg-gray-50">
-          1
-        </button>
-      `;
-            if (startPage > 2) {
-                html += '<span class="px-2 text-gray-500">...</span>';
-            }
-        }
-
-        for (let i = startPage; i <= endPage; i++) {
-            html += `
-        <button 
-          onclick="goToUserPage(${i})"
-          class="px-3 py-2 rounded-lg ${i === currentUserPage ? 'bg-blue-600 text-white font-semibold' : 'bg-white border border-gray-300 hover:bg-gray-50'}"
-        >
-          ${i}
-        </button>
-      `;
-        }
-
-        if (endPage < totalPages) {
-            if (endPage < totalPages - 1) {
-                html += '<span class="px-2 text-gray-500">...</span>';
-            }
-            html += `
-        <button onclick="goToUserPage(${totalPages})" class="px-3 py-2 rounded-lg bg-white border border-gray-300 hover:bg-gray-50">
-          ${totalPages}
-        </button>
-      `;
-        }
-
-        html += `
-      <button 
-        onclick="goToUserPage(${currentUserPage + 1})"
-        class="px-3 py-2 rounded-lg ${currentUserPage === totalPages ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-500 text-white hover:bg-blue-600'}"
-        ${currentUserPage === totalPages ? 'disabled' : ''}
-      >
-        <i class="fas fa-chevron-right"></i>
-      </button>
-    `;
-
-        html += '</div>';
-        html += '</div>';
+        html += renderPaginationHtml(currentUserPage, totalPages, users.length, startIndex, endIndex, 'goToUserPage');
     }
 
     html += `
@@ -3586,7 +3528,7 @@ async function saveEditUser() {
         }, 3000);
 
     } catch (error) {
-        console.log(error)
+        console.error('Error saving user:', error)
         messageDiv.innerHTML = `
       <div class="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
         <i class="fas fa-exclamation-circle mr-2"></i>${error.response?.data?.error || 'Lỗi cập nhật thông tin'}
@@ -4208,10 +4150,7 @@ async function loadPositionDashboard(positionIds, positionName) {
         const year = document.getElementById('position-year')?.value || CURRENT_YEAR;
         document.getElementById('position-dashboard-year').innerText = year;
 
-        const response = await axios.get(`/api/admin/dashboard/${positionIds}/${year}`, {
-            params: {userId: currentUser?.id, username: currentUser?.username}
-        });
-
+        const response = await axios.get(`/api/admin/dashboard/${positionIds}/${year}`, adminParams());
         const {users, templates, monthlyData} = response.data;
         const isGs = positionIds === '4';
 
@@ -4265,23 +4204,22 @@ function renderPositionDashboardHtml(container, users, monthlyData) {
     html += '<tr>';
     html += '<th class="border px-3 py-2 text-left sticky left-0 bg-blue-600 z-10">Họ và tên</th>';
     html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
-    for (let m = 1; m <= 12; m++) html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
+    html += buildMonthHeaders();
     html += '</tr></thead><tbody>';
 
     users.forEach((user, idx) => {
-        html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50">`;
-        html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
+        html += `<tr class="${tableRowClass(idx)} hover:bg-blue-50">`;
+        html += `<td class="${stickyTdClass(idx)}">${user.full_name}</td>`;
         html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
-        for (let m = 1; m <= 12; m++) {
+        html += buildMonthCells(m => {
             const d = userMonthlyData[user.id]?.[m];
             if (d) {
                 const pct = Math.round((d.total_kpi_score || 0) * 100);
-                const color = pct >= 100 ? 'text-green-600' : pct >= 80 ? 'text-blue-600' : 'text-orange-600';
-                html += `<td class="border px-2 py-2 text-center"><span class="${color} font-bold text-base">${pct}%</span></td>`;
-            } else {
-                html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+                const color = scoreColor(pct);
+                return `<td class="border px-2 py-2 text-center"><span class="${color} font-bold text-base">${pct}%</span></td>`;
             }
-        }
+            return '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+        });
         html += '</tr>';
     });
     html += '</tbody></table></div></div>';
@@ -4294,23 +4232,22 @@ function renderPositionDashboardHtml(container, users, monthlyData) {
     html += '<tr>';
     html += '<th class="border px-3 py-2 text-left sticky left-0 bg-green-600 z-10">Họ và tên</th>';
     html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
-    for (let m = 1; m <= 12; m++) html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
+    html += buildMonthHeaders();
     html += '</tr></thead><tbody>';
 
     users.forEach((user, idx) => {
-        html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-green-50">`;
-        html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
+        html += `<tr class="${tableRowClass(idx)} hover:bg-green-50">`;
+        html += `<td class="${stickyTdClass(idx)}">${user.full_name}</td>`;
         html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
-        for (let m = 1; m <= 12; m++) {
+        html += buildMonthCells(m => {
             const d = userMonthlyData[user.id]?.[m];
             if (d) {
                 const pct = Math.round((d.total_level_score || 0) * 100);
-                const color = pct >= 100 ? 'text-green-600' : pct >= 80 ? 'text-blue-600' : 'text-orange-600';
-                html += `<td class="border px-2 py-2 text-center"><span class="${color} font-bold text-base">${pct}%</span></td>`;
-            } else {
-                html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+                const color = scoreColor(pct);
+                return `<td class="border px-2 py-2 text-center"><span class="${color} font-bold text-base">${pct}%</span></td>`;
             }
-        }
+            return '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+        });
         html += '</tr>';
     });
     html += '</tbody></table></div></div></div>';
@@ -4374,23 +4311,22 @@ function renderGsDashboardTable() {
     html += '<thead class="bg-gradient-to-r from-blue-500 to-blue-600 text-white sticky top-0">';
     html += '<tr><th class="border px-3 py-2 text-left sticky left-0 bg-blue-600 z-10">Họ và tên</th>';
     html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
-    for (let m = 1; m <= 12; m++) html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
+    html += buildMonthHeaders();
     html += '</tr></thead><tbody>';
 
     pageUsers.forEach((user, idx) => {
-        html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50">`;
-        html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
+        html += `<tr class="${tableRowClass(idx)} hover:bg-blue-50">`;
+        html += `<td class="${stickyTdClass(idx)}">${user.full_name}</td>`;
         html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
-        for (let m = 1; m <= 12; m++) {
+        html += buildMonthCells(m => {
             const d = userMonthlyData[user.id]?.[m];
             if (d) {
                 const pct = Math.round((d.total_kpi_score || 0) * 100);
-                const color = pct >= 100 ? 'text-green-600' : pct >= 80 ? 'text-blue-600' : 'text-orange-600';
-                html += `<td class="border px-2 py-2 text-center"><span class="${color} font-bold text-base">${pct}%</span></td>`;
-            } else {
-                html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+                const color = scoreColor(pct);
+                return `<td class="border px-2 py-2 text-center"><span class="${color} font-bold text-base">${pct}%</span></td>`;
             }
-        }
+            return '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+        });
         html += '</tr>';
     });
     html += '</tbody></table></div></div>';
@@ -4402,23 +4338,22 @@ function renderGsDashboardTable() {
     html += '<thead class="bg-gradient-to-r from-green-500 to-green-600 text-white sticky top-0">';
     html += '<tr><th class="border px-3 py-2 text-left sticky left-0 bg-green-600 z-10">Họ và tên</th>';
     html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
-    for (let m = 1; m <= 12; m++) html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
+    html += buildMonthHeaders();
     html += '</tr></thead><tbody>';
 
     pageUsers.forEach((user, idx) => {
-        html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-green-50">`;
-        html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
+        html += `<tr class="${tableRowClass(idx)} hover:bg-green-50">`;
+        html += `<td class="${stickyTdClass(idx)}">${user.full_name}</td>`;
         html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
-        for (let m = 1; m <= 12; m++) {
+        html += buildMonthCells(m => {
             const d = userMonthlyData[user.id]?.[m];
             if (d) {
                 const pct = Math.round((d.total_level_score || 0) * 100);
-                const color = pct >= 100 ? 'text-green-600' : pct >= 80 ? 'text-blue-600' : 'text-orange-600';
-                html += `<td class="border px-2 py-2 text-center"><span class="${color} font-bold text-base">${pct}%</span></td>`;
-            } else {
-                html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+                const color = scoreColor(pct);
+                return `<td class="border px-2 py-2 text-center"><span class="${color} font-bold text-base">${pct}%</span></td>`;
             }
-        }
+            return '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+        });
         html += '</tr>';
     });
     html += '</tbody></table></div></div>';
@@ -4526,9 +4461,7 @@ function renderKpiDetail(container, positionIds, positionName, kpiIds) {
 async function loadKpiDetail(positionIds, positionName, kpiIds) {
     try {
         const year = document.getElementById('kpi-year')?.value || CURRENT_YEAR;
-        const response = await axios.get(`/api/admin/kpi-detail/${positionIds}/${year}/${kpiIds.join(',')}`, {
-            params: {userId: currentUser?.id, username: currentUser?.username}
-        });
+        const response = await axios.get(`/api/admin/kpi-detail/${positionIds}/${year}/${kpiIds.join(',')}`, adminParams());
 
         const {users, kpiTemplates, kpiData} = response.data;
         const isGs = positionIds === '4';
@@ -4582,21 +4515,20 @@ function renderKpiDetailHtml(container, users, kpiTemplates, kpiData) {
         html += '<thead class="bg-gradient-to-r from-orange-500 to-red-600 text-white sticky top-0"><tr>';
         html += '<th class="border px-3 py-2 text-left sticky left-0 bg-orange-600 z-10">Họ và tên</th>';
         html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
-        for (let m = 1; m <= 12; m++) html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
+        html += buildMonthHeaders();
         html += '</tr></thead><tbody>';
 
         users.forEach((user, idx) => {
-            html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-orange-50">`;
-            html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
+            html += `<tr class="${tableRowClass(idx)} hover:bg-orange-50">`;
+            html += `<td class="${stickyTdClass(idx)}">${user.full_name}</td>`;
             html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
-            for (let m = 1; m <= 12; m++) {
+            html += buildMonthCells(m => {
                 const d = userKpiData[user.id]?.[kpi.id]?.[m];
                 if (d && d.actual_value !== null) {
-                    html += `<td class="border px-2 py-2 text-center"><span class="font-bold text-blue-600">${formatLargeNumber(d.actual_value, kpi.kpi_name)}</span></td>`;
-                } else {
-                    html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+                    return `<td class="border px-2 py-2 text-center"><span class="font-bold text-blue-600">${formatLargeNumber(d.actual_value, kpi.kpi_name)}</span></td>`;
                 }
-            }
+                return '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+            });
             html += '</tr>';
         });
         html += '</tbody></table></div></div>';
@@ -4661,21 +4593,20 @@ function renderGsKpiDetailTable() {
         html += '<thead class="bg-gradient-to-r from-orange-500 to-red-600 text-white sticky top-0"><tr>';
         html += '<th class="border px-3 py-2 text-left sticky left-0 bg-orange-600 z-10">Họ và tên</th>';
         html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
-        for (let m = 1; m <= 12; m++) html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
+        html += buildMonthHeaders();
         html += '</tr></thead><tbody>';
 
         pageUsers.forEach((user, idx) => {
-            html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-orange-50">`;
-            html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
+            html += `<tr class="${tableRowClass(idx)} hover:bg-orange-50">`;
+            html += `<td class="${stickyTdClass(idx)}">${user.full_name}</td>`;
             html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
-            for (let m = 1; m <= 12; m++) {
+            html += buildMonthCells(m => {
                 const d = userKpiData[user.id]?.[kpi.id]?.[m];
                 if (d && d.actual_value !== null) {
-                    html += `<td class="border px-2 py-2 text-center"><span class="font-bold text-blue-600">${formatLargeNumber(d.actual_value, kpi.kpi_name)}</span></td>`;
-                } else {
-                    html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+                    return `<td class="border px-2 py-2 text-center"><span class="font-bold text-blue-600">${formatLargeNumber(d.actual_value, kpi.kpi_name)}</span></td>`;
                 }
-            }
+                return '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+            });
             html += '</tr>';
         });
         html += '</tbody></table></div></div>';
@@ -4743,12 +4674,7 @@ function renderRevenuePlan(container) {
 async function loadRevenuePlan() {
     try {
         const year = document.getElementById('plan-year')?.value || CURRENT_YEAR;
-        const response = await axios.get(`/api/admin/revenue-plan/${year}`, {
-            params: {
-                userId: currentUser?.id,
-                username: currentUser?.username
-            }
-        });
+        const response = await axios.get(`/api/admin/revenue-plan/${year}`, adminParams());
 
         const {users, plans} = response.data;
         const container = document.getElementById('revenue-plan-content');
@@ -4784,8 +4710,8 @@ async function loadRevenuePlan() {
 
         html += '<tbody>';
         users.forEach((user, idx) => {
-            html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-green-50">`;
-            html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
+            html += `<tr class="${tableRowClass(idx)} hover:bg-green-50">`;
+            html += `<td class="${stickyTdClass(idx)}">${user.full_name}</td>`;
             html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
             html += `<td class="border px-3 py-2 text-xs">${user.position_name}</td>`;
 
@@ -4927,12 +4853,7 @@ function calculateRowTotal(userId) {
 async function exportRevenuePlanTemplate() {
     try {
         const year = document.getElementById('plan-year')?.value || CURRENT_YEAR;
-        const response = await axios.get(`/api/admin/revenue-plan/${year}`, {
-            params: {
-                userId: currentUser?.id,
-                username: currentUser?.username
-            }
-        });
+        const response = await axios.get(`/api/admin/revenue-plan/${year}`, adminParams());
 
         const {users, plans} = response.data;
 
@@ -5245,8 +5166,6 @@ async function importActualRevenue(event) {
             actual_value: Number(row.actual_value)
         };
     });
-
-    console.log("IMPORT DATA:", payload);
 
     const response = await fetch('/api/admin/import-actual-revenue', {
         method: "POST",
