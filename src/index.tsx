@@ -1076,7 +1076,6 @@ app.get('/api/dashboard/:userId/:year/:month', async (c) => {
         const month = c.req.param('month')
         const region = c.req.query('region')
 
-        // Get current user
         const currentUser = await c.env.DB.prepare(`
             SELECT id, username, position_id, region_id
             FROM users
@@ -1084,20 +1083,18 @@ app.get('/api/dashboard/:userId/:year/:month', async (c) => {
         `).bind(userId).first()
 
         if (!currentUser) {
-            return c.json({ error: 'User not found' }, 404)
+            return c.json({error: 'User not found'}, 404)
         }
 
         let query = ''
         let bindings: any[] = [year, month, year, month]
 
-        // region filter
         let regionFilter = ''
         if (region && region !== '') {
             regionFilter = ` AND u.region_id = ? `
             bindings.push(region)
         }
 
-        // ===== ADMIN =====
         if (currentUser.username === 'admin') {
             query = `
                 SELECT u.id,
@@ -1105,7 +1102,7 @@ app.get('/api/dashboard/:userId/:year/:month', async (c) => {
                        u.username,
                        u.position_id,
                        u.region_id,
-                       r.name as region_name,
+                       r.name         as region_name,
                        p.display_name as position_name,
                        ms.total_kpi_score,
                        ms.kpi_level,
@@ -1113,27 +1110,24 @@ app.get('/api/dashboard/:userId/:year/:month', async (c) => {
                        ms.performance_level,
                        rp.planned_revenue
                 FROM users u
-                JOIN regions r ON u.region_id = r.id
-                JOIN positions p ON u.position_id = p.id
-                LEFT JOIN monthly_summary ms 
-                    ON u.id = ms.user_id AND ms.year = ? AND ms.month = ?
-                LEFT JOIN revenue_plan rp 
-                    ON u.id = rp.user_id AND rp.year = ? AND rp.month = ?
-                WHERE u.username NOT IN ('admin','admin1','admin2','admin3')
-                ${regionFilter}
+                         JOIN regions r ON u.region_id = r.id
+                         JOIN positions p ON u.position_id = p.id
+                         LEFT JOIN monthly_summary ms
+                                   ON u.id = ms.user_id AND ms.year = ? AND ms.month = ?
+                         LEFT JOIN revenue_plan rp
+                                   ON u.id = rp.user_id AND rp.year = ? AND rp.month = ?
+                WHERE u.username NOT IN ('admin', 'admin1', 'admin2', 'admin3')
+                    ${regionFilter}
                 ORDER BY r.id, p.id, ms.total_kpi_score DESC NULLS LAST
             `
-        }
-
-        // ===== PTGD & GDKDCC =====
-        else if (currentUser.position_id === 1 || currentUser.position_id === 5) {
+        } else if (currentUser.position_id === 1 || currentUser.position_id === 5) {
             query = `
                 SELECT u.id,
                        u.full_name,
                        u.username,
                        u.position_id,
                        u.region_id,
-                       r.name as region_name,
+                       r.name         as region_name,
                        p.display_name as position_name,
                        ms.total_kpi_score,
                        ms.kpi_level,
@@ -1141,28 +1135,25 @@ app.get('/api/dashboard/:userId/:year/:month', async (c) => {
                        ms.performance_level,
                        rp.planned_revenue
                 FROM users u
-                JOIN regions r ON u.region_id = r.id
-                JOIN positions p ON u.position_id = p.id
-                LEFT JOIN monthly_summary ms 
-                    ON u.id = ms.user_id AND ms.year = ? AND ms.month = ?
-                LEFT JOIN revenue_plan rp 
-                    ON u.id = rp.user_id AND rp.year = ? AND rp.month = ?
-                WHERE u.position_id IN (1,2,3,4,5)
-                AND u.username NOT IN ('admin','admin1','admin2','admin3')
-                ${regionFilter}
+                         JOIN regions r ON u.region_id = r.id
+                         JOIN positions p ON u.position_id = p.id
+                         LEFT JOIN monthly_summary ms
+                                   ON u.id = ms.user_id AND ms.year = ? AND ms.month = ?
+                         LEFT JOIN revenue_plan rp
+                                   ON u.id = rp.user_id AND rp.year = ? AND rp.month = ?
+                WHERE u.position_id IN (1, 2, 3, 4, 5)
+                  AND u.username NOT IN ('admin', 'admin1', 'admin2', 'admin3')
+                    ${regionFilter}
                 ORDER BY p.id, ms.total_kpi_score DESC NULLS LAST, r.id
             `
-        }
-
-        // ===== GDKD =====
-        else if (currentUser.position_id === 2) {
+        } else if (currentUser.position_id === 2) {
             query = `
                 SELECT u.id,
                        u.full_name,
                        u.username,
                        u.position_id,
                        u.region_id,
-                       r.name as region_name,
+                       r.name         as region_name,
                        p.display_name as position_name,
                        ms.total_kpi_score,
                        ms.kpi_level,
@@ -1170,27 +1161,24 @@ app.get('/api/dashboard/:userId/:year/:month', async (c) => {
                        ms.performance_level,
                        rp.planned_revenue
                 FROM users u
-                JOIN regions r ON u.region_id = r.id
-                JOIN positions p ON u.position_id = p.id
-                LEFT JOIN monthly_summary ms 
-                    ON u.id = ms.user_id AND ms.year = ? AND ms.month = ?
-                LEFT JOIN revenue_plan rp 
-                    ON u.id = rp.user_id AND rp.year = ? AND rp.month = ?
-                WHERE u.position_id IN (2,3,4)
-                ${regionFilter}
+                         JOIN regions r ON u.region_id = r.id
+                         JOIN positions p ON u.position_id = p.id
+                         LEFT JOIN monthly_summary ms
+                                   ON u.id = ms.user_id AND ms.year = ? AND ms.month = ?
+                         LEFT JOIN revenue_plan rp
+                                   ON u.id = rp.user_id AND rp.year = ? AND rp.month = ?
+                WHERE u.position_id IN (2, 3, 4)
+                    ${regionFilter}
                 ORDER BY p.id, ms.total_kpi_score DESC NULLS LAST, r.id
             `
-        }
-
-        // ===== TLKD =====
-        else if (currentUser.position_id === 3) {
+        } else if (currentUser.position_id === 3) {
             query = `
                 SELECT u.id,
                        u.full_name,
                        u.username,
                        u.position_id,
                        u.region_id,
-                       r.name as region_name,
+                       r.name         as region_name,
                        p.display_name as position_name,
                        ms.total_kpi_score,
                        ms.kpi_level,
@@ -1198,27 +1186,24 @@ app.get('/api/dashboard/:userId/:year/:month', async (c) => {
                        ms.performance_level,
                        rp.planned_revenue
                 FROM users u
-                JOIN regions r ON u.region_id = r.id
-                JOIN positions p ON u.position_id = p.id
-                LEFT JOIN monthly_summary ms 
-                    ON u.id = ms.user_id AND ms.year = ? AND ms.month = ?
-                LEFT JOIN revenue_plan rp 
-                    ON u.id = rp.user_id AND rp.year = ? AND rp.month = ?
-                WHERE u.position_id IN (3,4)
-                ${regionFilter}
+                         JOIN regions r ON u.region_id = r.id
+                         JOIN positions p ON u.position_id = p.id
+                         LEFT JOIN monthly_summary ms
+                                   ON u.id = ms.user_id AND ms.year = ? AND ms.month = ?
+                         LEFT JOIN revenue_plan rp
+                                   ON u.id = rp.user_id AND rp.year = ? AND rp.month = ?
+                WHERE u.position_id IN (3, 4)
+                    ${regionFilter}
                 ORDER BY p.id, ms.total_kpi_score DESC NULLS LAST, r.id
             `
-        }
-
-        // ===== GS =====
-        else if (currentUser.position_id === 4) {
+        } else if (currentUser.position_id === 4) {
             query = `
                 SELECT u.id,
                        u.full_name,
                        u.username,
                        u.position_id,
                        u.region_id,
-                       r.name as region_name,
+                       r.name         as region_name,
                        p.display_name as position_name,
                        ms.total_kpi_score,
                        ms.kpi_level,
@@ -1226,14 +1211,14 @@ app.get('/api/dashboard/:userId/:year/:month', async (c) => {
                        ms.performance_level,
                        rp.planned_revenue
                 FROM users u
-                JOIN regions r ON u.region_id = r.id
-                JOIN positions p ON u.position_id = p.id
-                LEFT JOIN monthly_summary ms 
-                    ON u.id = ms.user_id AND ms.year = ? AND ms.month = ?
-                LEFT JOIN revenue_plan rp 
-                    ON u.id = rp.user_id AND rp.year = ? AND rp.month = ?
+                         JOIN regions r ON u.region_id = r.id
+                         JOIN positions p ON u.position_id = p.id
+                         LEFT JOIN monthly_summary ms
+                                   ON u.id = ms.user_id AND ms.year = ? AND ms.month = ?
+                         LEFT JOIN revenue_plan rp
+                                   ON u.id = rp.user_id AND rp.year = ? AND rp.month = ?
                 WHERE u.position_id = 4
-                ${regionFilter}
+                    ${regionFilter}
                 ORDER BY ms.total_kpi_score DESC NULLS LAST, r.id
             `
         }
@@ -1247,55 +1232,46 @@ app.get('/api/dashboard/:userId/:year/:month', async (c) => {
 
     } catch (error) {
         console.error('Dashboard error:', error)
-        return c.json({ error: 'Lỗi lấy dashboard' }, 500)
+        return c.json({error: 'Lỗi lấy dashboard'}, 500)
     }
 })
 
-// Get all subordinates (recursive)
 app.get('/api/users/subordinates/:userId', async (c) => {
     try {
 
         const userId = c.req.param('userId')
 
         const results = await c.env.DB.prepare(`
-            WITH RECURSIVE subordinates AS (
-            
-                -- cấp dưới trực tiếp
-                SELECT 
-                    id,
-                    full_name,
-                    username,
-                    position_id,
-                    region_id,
-                    manager_id
-                FROM users
-                WHERE manager_id = ?
+            WITH RECURSIVE subordinates AS (SELECT id,
+                                                   full_name,
+                                                   username,
+                                                   position_id,
+                                                   region_id,
+                                                   manager_id
+                                            FROM users
+                                            WHERE manager_id = ?
 
-                UNION ALL
+                                            UNION ALL
 
-                -- cấp dưới của cấp dưới
-                SELECT 
-                    u.id,
-                    u.full_name,
-                    u.username,
-                    u.position_id,
-                    u.region_id,
-                    u.manager_id
-                FROM users u
-                JOIN subordinates s ON u.manager_id = s.id
-            )
+                                            SELECT u.id,
+                                                   u.full_name,
+                                                   u.username,
+                                                   u.position_id,
+                                                   u.region_id,
+                                                   u.manager_id
+                                            FROM users u
+                                                     JOIN subordinates s ON u.manager_id = s.id)
 
-            SELECT 
-                s.id,
-                s.full_name,
-                s.username,
-                s.position_id,
-                p.display_name AS position_name,
-                s.region_id,
-                r.name AS region_name
+            SELECT s.id,
+                   s.full_name,
+                   s.username,
+                   s.position_id,
+                   p.display_name AS position_name,
+                   s.region_id,
+                   r.name         AS region_name
             FROM subordinates s
-            LEFT JOIN positions p ON s.position_id = p.id
-            LEFT JOIN regions r ON s.region_id = r.id
+                     LEFT JOIN positions p ON s.position_id = p.id
+                     LEFT JOIN regions r ON s.region_id = r.id
             ORDER BY s.position_id, s.full_name
         `).bind(userId).all()
 
@@ -1304,9 +1280,7 @@ app.get('/api/users/subordinates/:userId', async (c) => {
         })
 
     } catch (error) {
-
         console.error('Subordinates error:', error)
-
         return c.json({
             error: 'Lỗi lấy danh sách cấp dưới'
         }, 500)
@@ -1314,44 +1288,40 @@ app.get('/api/users/subordinates/:userId', async (c) => {
     }
 })
 
-// Get KPI detail of a user
 app.get('/api/user-kpi-detail/:userId/:year', async (c) => {
-
     try {
-
         const userId = c.req.param('userId')
         const year = c.req.param('year')
 
         const results = await c.env.DB.prepare(`
-      SELECT
-        kd.id,
-        kd.user_id,
-        kd.year,
-        kd.month,
-        kd.actual_value,
-        kd.completion_percent,
-        kd.weighted_score,
-        kd.kpi_template_id,
+            SELECT kd.id,
+                   kd.user_id,
+                   kd.year,
+                   kd.month,
+                   kd.actual_value,
+                   kd.completion_percent,
+                   kd.weighted_score,
+                   kd.kpi_template_id,
 
-        kt.kpi_name,
-        kt.weight,
-        kt.standard_value,
-        kt.value_type,
-        kt.is_for_kpi,
+                   kt.kpi_name,
+                   kt.weight,
+                   kt.standard_value,
+                   kt.value_type,
+                   kt.is_for_kpi,
 
-        u.full_name,
-        u.position_id
+                   u.full_name,
+                   u.position_id
 
-      FROM kpi_data kd
-      JOIN kpi_templates kt
-        ON kd.kpi_template_id = kt.id
-      JOIN users u
-        ON kd.user_id = u.id
+            FROM kpi_data kd
+                     JOIN kpi_templates kt
+                          ON kd.kpi_template_id = kt.id
+                     JOIN users u
+                          ON kd.user_id = u.id
 
-      WHERE kd.user_id = ?
-      AND kd.year = ?    
+            WHERE kd.user_id = ?
+              AND kd.year = ?
 
-    `).bind(userId, year).all()
+        `).bind(userId, year).all()
 
         return c.json({
             success: true,

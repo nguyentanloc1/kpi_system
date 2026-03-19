@@ -9,6 +9,40 @@ let filteredUsers = [];
 let currentUserPage = 1;
 const USER_PAGE_SIZE = 25;
 
+let gsDashboardData = {users: [], monthlyData: [], templates: []};
+let gsFilteredUsers = [];
+let gsCurrentPage = 1;
+const GS_PAGE_SIZE = 20;
+
+let gsKpiData = {users: [], kpiTemplates: [], kpiData: []};
+let gsKpiFilteredUsers = [];
+let gsKpiCurrentPage = 1;
+const GS_KPI_PAGE_SIZE = 20;
+
+function adminParams() {
+    return {params: {userId: currentUser?.id, username: currentUser?.username}};
+}
+
+function tableRowClass(idx) {
+    return idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+}
+
+function stickyTdClass(idx) {
+    return `border px-3 py-2 font-semibold sticky left-0 ${tableRowClass(idx)} z-5`;
+}
+
+function buildMonthHeaders() {
+    return Array.from({length: 12}, (_, i) => `<th class="border px-2 py-2 text-center">T${i + 1}</th>`).join('');
+}
+
+function buildMonthCells(getCell) {
+    return Array.from({length: 12}, (_, i) => getCell(i + 1)).join('');
+}
+
+function scoreColor(pct) {
+    return pct >= 100 ? 'text-green-600' : pct >= 80 ? 'text-blue-600' : 'text-orange-600';
+}
+
 function calculateWorkingDaysBase(year, month) {
     const daysInMonth = new Date(year, month, 0).getDate();
     let sundays = 0;
@@ -22,7 +56,7 @@ function calculateWorkingDays(year, month, holidayCount = 0) {
     return Math.max(calculateWorkingDaysBase(year, month) - holidayCount, 0);
 }
 
-function formatLargeNumber(value, kpiName = '', forceShort = false) {
+function formatLargeNumber(value, kpiName = '') {
     if (!value || value === '-') return '-';
     const num = parseFloat(value);
     if (isNaN(num)) return value;
@@ -512,9 +546,7 @@ function renderKpiTab(container) {
             <div>
               <label class="block text-xs font-semibold text-gray-700 mb-1.5">Tháng</label>
               <select id="kpi-month" class="w-full px-3 py-2.5 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                ${Array.from({length: 12}, (_, i) => i + 1).map(m =>
-        `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`
-    ).join('')}
+                ${Array.from({length: 12}, (_, i) => i + 1).map(m => `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`).join('')}
               </select>
             </div>
             <div>
@@ -533,9 +565,7 @@ function renderKpiTab(container) {
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1">Tháng</label>
             <select id="kpi-month-desktop" class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-              ${Array.from({length: 12}, (_, i) => i + 1).map(m =>
-        `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`
-    ).join('')}
+              ${Array.from({length: 12}, (_, i) => i + 1).map(m => `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`).join('')}
             </select>
           </div>
           <div>
@@ -641,9 +671,7 @@ async function loadKpiData() {
 
     try {
 
-        const response = await axios.get(
-            `/api/kpi-form-data/${currentUser.id}/${currentUser.position_id}/${year}/${month}?type=kpi`
-        );
+        const response = await axios.get(`/api/kpi-form-data/${currentUser.id}/${currentUser.position_id}/${year}/${month}?type=kpi`);
         const {templates, revenuePlan, existingData} = response.data;
 
         let holidayCount = 0;
@@ -652,7 +680,8 @@ async function loadKpiData() {
                 const hRes = await axios.get(`/api/admin/holiday-days/${year}`);
                 const hRow = (hRes.data?.holidays || []).find(h => h.month === parseInt(month));
                 holidayCount = hRow?.holiday_count ?? 0;
-            } catch (_) { /* không có ngày lễ thì dùng 0 */ }
+            } catch (_) { /* không có ngày lễ thì dùng 0 */
+            }
         }
 
         const dataMap = {};
@@ -727,9 +756,7 @@ async function loadKpiData() {
 function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month, year, holidayCount = 0) {
     const isRevenueKpi = template.kpi_name && template.kpi_name.includes('doanh thu tăng trưởng');
     const isLarkAutoFill = currentUser.position_id === 4 && template.id === 34;
-    const effectiveStandard = isLarkAutoFill
-        ? calculateWorkingDays(parseInt(year), parseInt(month), holidayCount)
-        : template.standard_value;
+    const effectiveStandard = isLarkAutoFill ? calculateWorkingDays(parseInt(year), parseInt(month), holidayCount) : template.standard_value;
 
     let inputHtml = '';
     let infoHtml = '';
@@ -800,13 +827,9 @@ function renderKpiInput(template, index, value, revenuePlan, hasRevenue, month, 
         const isPercentageKpi = template.kpi_name && template.kpi_name.includes('Tỷ lệ') && !isRevenueGrowthKpi;
         const placeholder = isPercentageKpi ? 'Nhập số % (ví dụ: 70 cho 70%)' : 'Nhập giá trị thực tế đạt được';
 
-        const inputStyle = isLarkAutoFill
-            ? 'border-color:#22c55e;background-color:#f0fdf4;cursor:not-allowed;'
-            : '';
+        const inputStyle = isLarkAutoFill ? 'border-color:#22c55e;background-color:#f0fdf4;cursor:not-allowed;' : '';
         const inputDisabled = isLarkAutoFill ? 'disabled' : '';
-        const inputTitle = isLarkAutoFill
-            ? `Chuẩn: ${effectiveStandard} ngày công (tổng ngày - Chủ nhật - 1 ngày phép${holidayCount > 0 ? ` - ${holidayCount} ngày lễ` : ''})`
-            : '';
+        const inputTitle = isLarkAutoFill ? `Chuẩn: ${effectiveStandard} ngày công (tổng ngày - Chủ nhật - 1 ngày phép${holidayCount > 0 ? ` - ${holidayCount} ngày lễ` : ''})` : '';
 
         inputHtml = `
       <input 
@@ -910,18 +933,14 @@ async function saveKpiData() {
         const value = parseFloat(input.value);
         if (!isNaN(value)) {
             kpiData.push({
-                templateId: parseInt(input.dataset.templateId),
-                actualValue: value
+                templateId: parseInt(input.dataset.templateId), actualValue: value
             });
         }
     });
 
     try {
         await axios.post('/api/kpi-data', {
-            userId: currentUser.id,
-            year: parseInt(year),
-            month: parseInt(month),
-            kpiData
+            userId: currentUser.id, year: parseInt(year), month: parseInt(month), kpiData
         });
 
         messageDiv.innerHTML = `
@@ -1118,9 +1137,7 @@ function renderLevelTab(container) {
             <div class="flex-1">
               <label class="block text-xs md:text-sm font-semibold text-gray-700 mb-1">Tháng</label>
               <select id="level-month" class="w-full px-3 py-2 text-sm md:text-base border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
-                ${Array.from({length: 12}, (_, i) => i + 1).map(m =>
-        `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`
-    ).join('')}
+                ${Array.from({length: 12}, (_, i) => i + 1).map(m => `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`).join('')}
               </select>
             </div>
             <div class="flex-1">
@@ -1193,9 +1210,7 @@ async function loadLevelDataNew() {
         const dataMap = {};
         levelData.forEach(item => {
             dataMap[item.kpi_template_id] = {
-                value: item.actual_value,
-                percent: item.completion_percent,
-                score: item.weighted_score
+                value: item.actual_value, percent: item.completion_percent, score: item.weighted_score
             };
         });
 
@@ -1321,9 +1336,7 @@ async function loadLevelData() {
         existingData.forEach(item => {
             if (levelTemplateIds.has(item.kpi_template_id)) {
                 dataMap[item.kpi_template_id] = {
-                    value: item.actual_value,
-                    percent: item.completion_percent,
-                    score: item.weighted_score
+                    value: item.actual_value, percent: item.completion_percent, score: item.weighted_score
                 };
             }
         });
@@ -1538,9 +1551,7 @@ async function loadTrackingData() {
                     }
                     const percent = data.completion_percent * 100;
                     const color = percent >= 100 ? 'text-green-600' : percent >= 50 ? 'text-yellow-600' : 'text-red-600';
-                    html += `<td class="border border-blue-200 px-2 py-2 text-center ${color} font-semibold">${(template.value_type === 'currency')
-                        ? (revenue.planned_revenue ? ((displayValue / revenue.planned_revenue) * 100).toFixed(2) + '%' : '0%')
-                        : displayValue}</td>`;
+                    html += `<td class="border border-blue-200 px-2 py-2 text-center ${color} font-semibold">${(template.value_type === 'currency') ? (revenue.planned_revenue ? ((displayValue / revenue.planned_revenue) * 100).toFixed(2) + '%' : '0%') : displayValue}</td>`;
                 } else {
                     html += `<td class="border border-blue-200 px-2 py-2 text-center text-gray-400">-</td>`;
                 }
@@ -1708,7 +1719,7 @@ function formatValue(value) {
 function generateYearOptions(selectId) {
 
     const currentYear = new Date().getFullYear()
-    const startYear = 2025
+    const startYear = 2026
 
     const select = document.getElementById(selectId)
 
@@ -1738,9 +1749,7 @@ function renderDashboardTab(container) {
             <div>
               <label class="block text-xs font-semibold text-gray-700 mb-1.5">Tháng</label>
               <select id="dash-month" class="w-full px-3 py-2.5 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-                ${Array.from({length: 12}, (_, i) => i + 1).map(m =>
-        `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`
-    ).join('')}
+                ${Array.from({length: 12}, (_, i) => i + 1).map(m => `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`).join('')}
               </select>
             </div>
             <div>
@@ -1769,9 +1778,7 @@ function renderDashboardTab(container) {
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1">Tháng</label>
             <select id="dash-month-desktop" class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-              ${Array.from({length: 12}, (_, i) => i + 1).map(m =>
-        `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`
-    ).join('')}
+              ${Array.from({length: 12}, (_, i) => i + 1).map(m => `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`).join('')}
             </select>
           </div>
           <div>
@@ -2025,11 +2032,7 @@ async function loadSubordinatesKpiData() {
 
             for (let month = 1; month <= 12; month++) {
                 const data = kpiData.find(d => d.month === month && d.kpi_template_id === template.id);
-                const revenue = revenue_plan.find(d =>
-                    d.user_id === selectedUserId &&
-                    d.month === month &&
-                    d.year === Number(year)
-                );
+                const revenue = revenue_plan.find(d => d.user_id === selectedUserId && d.month === month && d.year === Number(year));
 
                 if (data) {
                     let displayValue = data.actual_value;
@@ -2038,9 +2041,7 @@ async function loadSubordinatesKpiData() {
                     }
                     const percent = data.completion_percent * 100;
                     const color = percent >= 100 ? 'text-green-600' : percent >= 50 ? 'text-yellow-600' : 'text-red-600';
-                    html += `<td class="border border-blue-200 px-2 py-2 text-center ${color} font-semibold">${(template.value_type === 'currency')
-                        ? (revenue.planned_revenue ? ((displayValue / revenue.planned_revenue) * 100).toFixed(2) + '%' : '0%')
-                        : displayValue}</td>`;
+                    html += `<td class="border border-blue-200 px-2 py-2 text-center ${color} font-semibold">${(template.value_type === 'currency') ? (revenue.planned_revenue ? ((displayValue / revenue.planned_revenue) * 100).toFixed(2) + '%' : '0%') : displayValue}</td>`;
                 } else {
                     html += `<td class="border border-blue-200 px-2 py-2 text-center text-gray-400">-</td>`;
                 }
@@ -2118,11 +2119,7 @@ async function loadSubordinatesKpiData() {
 
             for (let month = 1; month <= 12; month++) {
                 const data = levelData.find(d => d.month === month && d.kpi_template_id === template.id);
-                const revenue = revenue_plan.find(d =>
-                    d.user_id === selectedUserId &&
-                    d.month === month &&
-                    d.year === Number(year)
-                );
+                const revenue = revenue_plan.find(d => d.user_id === selectedUserId && d.month === month && d.year === Number(year));
                 if (data) {
 
                     const isPercentKpi = template.name.includes('Tỷ lệ %');
@@ -2212,10 +2209,7 @@ function renderAdminDashboard(data, container) {
     });
 
     const regionColors = {
-        'Bình Dương': 'blue',
-        'Hà Nội': 'green',
-        'Miền Trung': 'purple',
-        'Hồ Chí Minh': 'orange'
+        'Bình Dương': 'blue', 'Hà Nội': 'green', 'Miền Trung': 'purple', 'Hồ Chí Minh': 'orange'
     };
 
     let html = '<div class="space-y-8">';
@@ -2901,23 +2895,16 @@ let adminMetadata = {regions: [], positions: []};
 
 async function loadAdminStatistics() {
     try {
-        const response = await axios.get('/api/admin/statistics', {
-            params: {
-                userId: currentUser?.id,
-                username: currentUser?.username
-            }
-        });
+        const response = await axios.get('/api/admin/statistics', adminParams());
 
         const stats = response.data.positionCounts;
         const container = document.getElementById('admin-statistics');
 
-        const colors = [
-            {bg: 'bg-blue-50', text: 'text-blue-600', icon: 'fa-user-tie'},
-            {bg: 'bg-purple-50', text: 'text-purple-600', icon: 'fa-user-shield'},
-            {bg: 'bg-green-50', text: 'text-green-600', icon: 'fa-user-check'},
-            {bg: 'bg-orange-50', text: 'text-orange-600', icon: 'fa-user'},
-            {bg: 'bg-pink-50', text: 'text-pink-600', icon: 'fa-user-graduate'}
-        ];
+        const colors = [{bg: 'bg-blue-50', text: 'text-blue-600', icon: 'fa-user-tie'}, {
+            bg: 'bg-purple-50', text: 'text-purple-600', icon: 'fa-user-shield'
+        }, {bg: 'bg-green-50', text: 'text-green-600', icon: 'fa-user-check'}, {
+            bg: 'bg-orange-50', text: 'text-orange-600', icon: 'fa-user'
+        }, {bg: 'bg-pink-50', text: 'text-pink-600', icon: 'fa-user-graduate'}];
 
         container.innerHTML = stats.map((stat, idx) => `
       <div class="${colors[idx]?.bg || 'bg-gray-50'} rounded-lg p-4 text-center">
@@ -2940,8 +2927,7 @@ async function loadKpiTemplates() {
         const grouped = {};
         templates.forEach(t => {
             if (!grouped[t.position_name]) grouped[t.position_name] = {kpi: [], level: []};
-            if (t.is_for_kpi) grouped[t.position_name].kpi.push(t);
-            else grouped[t.position_name].level.push(t);
+            if (t.is_for_kpi) grouped[t.position_name].kpi.push(t); else grouped[t.position_name].level.push(t);
         });
 
         let html = '<div class="space-y-6">';
@@ -3014,26 +3000,32 @@ async function loadAdminMetadata() {
 
         const regionSelect = document.getElementById('new-region');
         if (regionSelect) {
-            regionSelect.innerHTML = '<option value="">Chọn khối</option>' +
-                adminMetadata.regions.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+            regionSelect.innerHTML = '<option value="">Chọn khối</option>' + adminMetadata.regions.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
         }
 
         const positionSelect = document.getElementById('new-position');
         if (positionSelect) {
-            positionSelect.innerHTML = '<option value="">Chọn vị trí</option>' +
-                adminMetadata.positions.map(p => `<option value="${p.id}">${p.display_name}</option>`).join('');
+            positionSelect.innerHTML = '<option value="">Chọn vị trí</option>' + adminMetadata.positions.map(p => `<option value="${p.id}">${p.display_name}</option>`).join('');
         }
 
         const filterRegion = document.getElementById('filter-region');
         if (filterRegion) {
-            filterRegion.innerHTML = '<option value="">Tất cả khối</option>' +
-                adminMetadata.regions.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+            filterRegion.innerHTML = '<option value="">Tất cả khối</option>' + adminMetadata.regions.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+        }
+
+        const gsRegionFilter = document.getElementById('gs-region-filter');
+        if (gsRegionFilter) {
+            gsRegionFilter.innerHTML = '<option value="">Tất cả khu vực</option>' + adminMetadata.regions.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+        }
+
+        const gsKpiRegionFilter = document.getElementById('gs-kpi-region-filter');
+        if (gsKpiRegionFilter) {
+            gsKpiRegionFilter.innerHTML = '<option value="">Tất cả khu vực</option>' + adminMetadata.regions.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
         }
 
         const filterPosition = document.getElementById('filter-position');
         if (filterPosition) {
-            filterPosition.innerHTML = '<option value="">Tất cả vị trí</option>' +
-                adminMetadata.positions.map(p => `<option value="${p.id}">${p.display_name}</option>`).join('');
+            filterPosition.innerHTML = '<option value="">Tất cả vị trí</option>' + adminMetadata.positions.map(p => `<option value="${p.id}">${p.display_name}</option>`).join('');
         }
     } catch (error) {
         console.error('Error loading metadata:', error);
@@ -3057,8 +3049,7 @@ async function loadPotentialManagers() {
         if (managers.length === 0) {
             managerSelect.innerHTML = '<option value="">Không có quản lý cấp trên (Phó Tổng)</option>';
         } else {
-            managerSelect.innerHTML = '<option value="">Chọn quản lý</option>' +
-                managers.map(m => `<option value="${m.id}">${m.full_name} (${m.username}) - ${m.position_name}</option>`).join('');
+            managerSelect.innerHTML = '<option value="">Chọn quản lý</option>' + managers.map(m => `<option value="${m.id}">${m.full_name} (${m.username}) - ${m.position_name}</option>`).join('');
         }
     } catch (error) {
         console.error('Error loading managers:', error);
@@ -3072,10 +3063,7 @@ function showCreateUserForm() {
 function hideCreateUserForm() {
     document.getElementById('create-user-form').classList.add('hidden');
 
-    const fields = [
-        'new-username', 'new-password', 'new-fullname', 'new-region',
-        'new-position', 'new-team', 'new-manager', 'new-startdate'
-    ];
+    const fields = ['new-username', 'new-password', 'new-fullname', 'new-region', 'new-position', 'new-team', 'new-manager', 'new-startdate'];
     fields.forEach(id => {
         const element = document.getElementById(id);
         if (element) {
@@ -3149,12 +3137,7 @@ async function loadAdminUsers() {
     const container = document.getElementById('admin-users-container');
 
     try {
-        const response = await axios.get('/api/admin/users', {
-            params: {
-                userId: currentUser?.id,
-                username: currentUser?.username
-            }
-        });
+        const response = await axios.get('/api/admin/users', adminParams());
         allUsers = response.data.users;
 
         renderUserTable(allUsers);
@@ -3207,7 +3190,7 @@ function renderUserTable(users) {
     pageUsers.forEach((user, idx) => {
         const globalIndex = startIndex + idx;
         html += `
-      <tr class="border-b hover:bg-gray-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
+      <tr class="border-b hover:bg-gray-50 transition-colors ${tableRowClass(idx)}">
         <td class="px-4 py-3 font-semibold text-left">${globalIndex + 1}</td>
         <td class="px-4 py-3 text-blue-600 text-left">${user.username}</td>
         <td class="px-4 py-3 font-semibold text-left">${user.full_name}</td>
@@ -3260,81 +3243,7 @@ function renderUserTable(users) {
     html += '</div>';
 
     if (totalPages > 1) {
-        html += '<div class="mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">';
-
-        html += `
-      <div class="text-sm text-gray-600 text-left">
-        Hiển thị <span class="font-semibold">${startIndex + 1}</span> đến 
-        <span class="font-semibold">${endIndex}</span> trong tổng số 
-        <span class="font-semibold">${users.length}</span> người dùng
-      </div>
-    `;
-
-        html += '<div class="flex items-center space-x-2">';
-
-        html += `
-      <button 
-        onclick="goToUserPage(${currentUserPage - 1})"
-        class="px-3 py-2 rounded-lg ${currentUserPage === 1 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-500 text-white hover:bg-blue-600'}"
-        ${currentUserPage === 1 ? 'disabled' : ''}
-      >
-        <i class="fas fa-chevron-left"></i>
-      </button>
-    `;
-
-        const maxPagesToShow = 5;
-        let startPage = Math.max(1, currentUserPage - Math.floor(maxPagesToShow / 2));
-        let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
-
-        if (endPage - startPage < maxPagesToShow - 1) {
-            startPage = Math.max(1, endPage - maxPagesToShow + 1);
-        }
-
-        if (startPage > 1) {
-            html += `
-        <button onclick="goToUserPage(1)" class="px-3 py-2 rounded-lg bg-white border border-gray-300 hover:bg-gray-50">
-          1
-        </button>
-      `;
-            if (startPage > 2) {
-                html += '<span class="px-2 text-gray-500">...</span>';
-            }
-        }
-
-        for (let i = startPage; i <= endPage; i++) {
-            html += `
-        <button 
-          onclick="goToUserPage(${i})"
-          class="px-3 py-2 rounded-lg ${i === currentUserPage ? 'bg-blue-600 text-white font-semibold' : 'bg-white border border-gray-300 hover:bg-gray-50'}"
-        >
-          ${i}
-        </button>
-      `;
-        }
-
-        if (endPage < totalPages) {
-            if (endPage < totalPages - 1) {
-                html += '<span class="px-2 text-gray-500">...</span>';
-            }
-            html += `
-        <button onclick="goToUserPage(${totalPages})" class="px-3 py-2 rounded-lg bg-white border border-gray-300 hover:bg-gray-50">
-          ${totalPages}
-        </button>
-      `;
-        }
-
-        html += `
-      <button 
-        onclick="goToUserPage(${currentUserPage + 1})"
-        class="px-3 py-2 rounded-lg ${currentUserPage === totalPages ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-500 text-white hover:bg-blue-600'}"
-        ${currentUserPage === totalPages ? 'disabled' : ''}
-      >
-        <i class="fas fa-chevron-right"></i>
-      </button>
-    `;
-
-        html += '</div>';
-        html += '</div>';
+        html += renderPaginationHtml(currentUserPage, totalPages, users.length, startIndex, endIndex, 'goToUserPage');
     }
 
     html += `
@@ -3365,14 +3274,9 @@ function filterUsers() {
     const filterPositionId = document.getElementById('filter-position')?.value || '';
 
     let filtered = allUsers.filter(user => {
-
-        const matchSearch = !searchText ||
-            user.full_name.toLowerCase().includes(searchText) ||
-            user.username.toLowerCase().includes(searchText);
-
-        const matchRegion = !filterRegionId || user.region_id == filterRegionId;
-
-        const matchPosition = !filterPositionId || user.position_id == filterPositionId;
+        const matchSearch = !searchText || user.full_name.toLowerCase().includes(searchText) || user.username.toLowerCase().includes(searchText);
+        const matchRegion = !filterRegionId || user.region_id === filterRegionId;
+        const matchPosition = !filterPositionId || user.position_id === filterPositionId;
 
         return matchSearch && matchRegion && matchPosition;
     });
@@ -3432,16 +3336,10 @@ async function showEditUserModal(userId) {
         document.getElementById('edit-startdate').value = user.start_date || '';
 
         const regionSelect = document.getElementById('edit-region');
-        regionSelect.innerHTML = '<option value="">Chọn khối</option>' +
-            adminMetadata.regions.map(r =>
-                `<option value="${r.id}" ${r.id === user.region_id ? 'selected' : ''}>${r.name}</option>`
-            ).join('');
+        regionSelect.innerHTML = '<option value="">Chọn khối</option>' + adminMetadata.regions.map(r => `<option value="${r.id}" ${r.id === user.region_id ? 'selected' : ''}>${r.name}</option>`).join('');
 
         const positionSelect = document.getElementById('edit-position');
-        positionSelect.innerHTML = '<option value="">Chọn vị trí</option>' +
-            adminMetadata.positions.map(p =>
-                `<option value="${p.id}" ${p.id === user.position_id ? 'selected' : ''}>${p.display_name}</option>`
-            ).join('');
+        positionSelect.innerHTML = '<option value="">Chọn vị trí</option>' + adminMetadata.positions.map(p => `<option value="${p.id}" ${p.id === user.position_id ? 'selected' : ''}>${p.display_name}</option>`).join('');
 
         await loadEditPotentialManagers(user.manager_id);
 
@@ -3508,10 +3406,7 @@ async function loadEditPotentialManagers(managerId = null) {
         if (managers.length === 0) {
             managerSelect.innerHTML = '<option value="">Không có quản lý cấp trên (Phó Tổng)</option>';
         } else {
-            managerSelect.innerHTML = '<option value="">Chọn quản lý</option>' +
-                managers.map(m =>
-                    `<option value="${m.id}" ${m.id === currentManagerId ? 'selected' : ''}>${m.full_name} (${m.username})</option>`
-                ).join('');
+            managerSelect.innerHTML = '<option value="">Chọn quản lý</option>' + managers.map(m => `<option value="${m.id}" ${m.id === currentManagerId ? 'selected' : ''}>${m.full_name} (${m.username})</option>`).join('');
         }
     } catch (error) {
         console.error('Error loading managers:', error);
@@ -3575,7 +3470,7 @@ async function saveEditUser() {
         }, 3000);
 
     } catch (error) {
-        console.log(error)
+        console.error('Error saving user:', error)
         messageDiv.innerHTML = `
       <div class="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
         <i class="fas fa-exclamation-circle mr-2"></i>${error.response?.data?.error || 'Lỗi cập nhật thông tin'}
@@ -3822,8 +3717,7 @@ async function uploadUserCover() {
         formData.append('userId', currentUser.id);
 
         const response = await fetch('/api/users/upload-cover', {
-            method: 'POST',
-            body: formData
+            method: 'POST', body: formData
         });
 
         const data = await response.json();
@@ -3867,9 +3761,7 @@ function renderRecruitmentTab(container) {
             
           </select>
           <select id="chart-month" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
-            ${Array.from({length: 12}, (_, i) => i + 1).map(m =>
-        `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`
-    ).join('')}
+            ${Array.from({length: 12}, (_, i) => i + 1).map(m => `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`).join('')}
           </select>
           <button onclick="loadRecruitmentChart()" class="px-6 py-2 bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-lg hover:shadow-lg transition-all duration-300">
             <i class="fas fa-sync-alt mr-2"></i>Tải dữ liệu
@@ -4049,12 +3941,7 @@ function renderRecruitmentChart(chartData) {
               ${top10.map((user, idx) => `
                 <tr class="border-b hover:bg-green-50 ${user.id === currentUser.id ? 'bg-purple-50' : ''}">
                   <td class="px-4 py-3">
-                    <span class="inline-flex items-center justify-center w-8 h-8 rounded-full ${
-        idx === 0 ? 'bg-yellow-400 text-yellow-900' :
-            idx === 1 ? 'bg-gray-300 text-gray-700' :
-                idx === 2 ? 'bg-orange-400 text-orange-900' :
-                    'bg-gray-100 text-gray-600'
-    } font-bold text-sm">
+                    <span class="inline-flex items-center justify-center w-8 h-8 rounded-full ${idx === 0 ? 'bg-yellow-400 text-yellow-900' : idx === 1 ? 'bg-gray-300 text-gray-700' : idx === 2 ? 'bg-orange-400 text-orange-900' : 'bg-gray-100 text-gray-600'} font-bold text-sm">
                       ${idx + 1}
                     </span>
                   </td>
@@ -4134,16 +4021,76 @@ function renderRecruitmentChart(chartData) {
 document.addEventListener('DOMContentLoaded', renderApp);
 
 function renderPositionDashboard(container, positionIds, positionName) {
+    const isGs = positionIds === '4';
+
+    const searchFilterBar = isGs ? `
+      <div class="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-200">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <div class="md:col-span-2">
+            <label class="block text-sm font-semibold text-gray-700 mb-1">
+              <i class="fas fa-search mr-1 text-blue-500"></i>Tìm theo tên hoặc username
+            </label>
+            <input
+              type="text"
+              id="gs-search"
+              placeholder="Nhập tên hoặc username..."
+              oninput="filterGsDashboard()"
+              class="w-full px-4 py-2 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">
+              <i class="fas fa-map-marker-alt mr-1 text-blue-500"></i>Khu vực
+            </label>
+            <select
+              id="gs-region-filter"
+              onchange="filterGsDashboard()"
+              class="w-full px-4 py-2 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Tất cả khu vực</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">
+              <i class="fas fa-table mr-1 text-blue-500"></i>Xem theo
+            </label>
+            <select
+              id="gs-view-type"
+              onchange="renderGsDashboardTable()"
+              class="w-full px-4 py-2 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="kpi">KPI</option>
+              <option value="level">Level</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">
+              <i class="fas fa-calendar-alt mr-1 text-blue-500"></i>Năm
+            </label>
+            <select
+              id="position-year"
+              onchange="loadPositionDashboard('${positionIds}', '${positionName}')"
+              class="w-full px-4 py-2 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            ></select>
+          </div>
+        </div>
+        <div class="mt-2 text-sm text-gray-500">
+          <i class="fas fa-info-circle mr-1"></i>
+          Hiển thị <span id="gs-filter-count" class="font-semibold text-blue-600">0</span> người dùng
+        </div>
+      </div>
+    ` : `
+      <div class="mb-4 flex justify-end">
+        <select id="position-year" onchange="loadPositionDashboard('${positionIds}', '${positionName}')" class="px-4 py-2 border-2 border-gray-300 rounded-lg"></select>
+      </div>
+    `;
+
     container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-6">
-      <div class="flex items-center justify-between mb-6">
-        <h3 class="text-2xl font-bold text-gray-800">
-          Dashboard ${positionName} - Năm <span id="position-dashboard-year">${CURRENT_YEAR}</span>
-        </h3>
-        <select id="position-year" class="px-4 py-2 border-2 border-gray-300 rounded-lg" onchange="loadPositionDashboard('${positionIds}', '${positionName}')">
-          
-        </select>
-      </div>
+      <h3 class="text-2xl font-bold text-gray-800 mb-6">
+        Dashboard ${positionName} - Năm <span id="position-dashboard-year">${CURRENT_YEAR}</span>
+      </h3>
+      ${searchFilterBar}
       <div id="position-dashboard-content" class="overflow-x-auto">
         <div class="text-center py-12">
           <i class="fas fa-spinner fa-spin text-4xl text-gray-400 mb-4"></i>
@@ -4152,8 +4099,9 @@ function renderPositionDashboard(container, positionIds, positionName) {
       </div>
     </div>
   `;
-    ['position-year']
-        .forEach(generateYearOptions)
+
+    generateYearOptions('position-year');
+    if (positionIds === '4') loadAdminMetadata();
     loadPositionDashboard(positionIds, positionName);
 }
 
@@ -4162,138 +4110,276 @@ async function loadPositionDashboard(positionIds, positionName) {
         const year = document.getElementById('position-year')?.value || CURRENT_YEAR;
         document.getElementById('position-dashboard-year').innerText = year;
 
-        const response = await axios.get(`/api/admin/dashboard/${positionIds}/${year}`, {
-            params: {
-                userId: currentUser?.id,
-                username: currentUser?.username
-            }
-        });
-
+        const response = await axios.get(`/api/admin/dashboard/${positionIds}/${year}`, adminParams());
         const {users, templates, monthlyData} = response.data;
-        const container = document.getElementById('position-dashboard-content');
+        const isGs = positionIds === '4';
 
-        if (!users || users.length === 0) {
-            container.innerHTML = '<div class="text-center py-8 text-gray-500">Không có dữ liệu</div>';
-            return;
-        }
+        if (isGs) {
+            gsDashboardData = {users: users || [], templates: templates || [], monthlyData: monthlyData || []};
+            gsFilteredUsers = [...gsDashboardData.users];
+            gsCurrentPage = 1;
 
-        const userMonthlyData = {};
-        monthlyData.forEach(m => {
-            if (!userMonthlyData[m.user_id]) userMonthlyData[m.user_id] = {};
-            userMonthlyData[m.user_id][m.month] = m;
-        });
+            const countEl = document.getElementById('gs-filter-count');
+            if (countEl) countEl.textContent = (users || []).length;
 
-        let html = '<div class="space-y-6">';
-
-        html += '<div>';
-        html += '<h4 class="text-lg font-bold text-blue-600 mb-3"><i class="fas fa-chart-line mr-2"></i>Bảng tổng hợp KPI</h4>';
-        html += '<div class="overflow-x-auto">';
-        html += '<table class="w-full text-sm border-collapse">';
-
-        html += '<thead class="bg-gradient-to-r from-blue-500 to-blue-600 text-white sticky top-0">';
-        html += '<tr>';
-        html += '<th class="border px-3 py-2 text-left sticky left-0 bg-blue-600 z-10">Họ và tên</th>';
-        html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
-
-        for (let m = 1; m <= 12; m++) {
-            html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
-        }
-
-        html += '</tr>';
-        html += '</thead>';
-
-        html += '<tbody>';
-        users.forEach((user, idx) => {
-            html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50">`;
-            html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
-            html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
-
-            for (let m = 1; m <= 12; m++) {
-                const monthData = userMonthlyData[user.id]?.[m];
-                if (monthData) {
-                    const kpiPercent = Math.round((monthData.total_kpi_score || 0) * 100);
-                    const kpiColor = kpiPercent >= 100 ? 'text-green-600' : kpiPercent >= 80 ? 'text-blue-600' : 'text-orange-600';
-
-                    html += `<td class="border px-2 py-2 text-center">
-            <span class="${kpiColor} font-bold text-base">${kpiPercent}%</span>
-          </td>`;
-                } else {
-                    html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
-                }
+            renderGsDashboardTable();
+        } else {
+            const container = document.getElementById('position-dashboard-content');
+            if (!users || users.length === 0) {
+                container.innerHTML = '<div class="text-center py-8 text-gray-500">Không có dữ liệu</div>';
+                return;
             }
-
-            html += '</tr>';
-        });
-        html += '</tbody>';
-        html += '</table>';
-        html += '</div>';
-        html += '</div>';
-
-        html += '<div>';
-        html += '<h4 class="text-lg font-bold text-green-600 mb-3"><i class="fas fa-star mr-2"></i>Bảng tổng hợp Level</h4>';
-        html += '<div class="overflow-x-auto">';
-        html += '<table class="w-full text-sm border-collapse">';
-
-        html += '<thead class="bg-gradient-to-r from-green-500 to-green-600 text-white sticky top-0">';
-        html += '<tr>';
-        html += '<th class="border px-3 py-2 text-left sticky left-0 bg-green-600 z-10">Họ và tên</th>';
-        html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
-
-        for (let m = 1; m <= 12; m++) {
-            html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
+            renderPositionDashboardHtml(container, users, monthlyData);
         }
-
-        html += '</tr>';
-        html += '</thead>';
-
-        html += '<tbody>';
-        users.forEach((user, idx) => {
-            html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-green-50">`;
-            html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
-            html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
-
-            for (let m = 1; m <= 12; m++) {
-                const monthData = userMonthlyData[user.id]?.[m];
-                if (monthData) {
-                    const levelPercent = Math.round((monthData.total_level_score || 0) * 100);
-                    const levelColor = levelPercent >= 100 ? 'text-green-600' : levelPercent >= 80 ? 'text-blue-600' : 'text-orange-600';
-
-                    html += `<td class="border px-2 py-2 text-center">
-            <span class="${levelColor} font-bold text-base">${levelPercent}%</span>
-          </td>`;
-                } else {
-                    html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
-                }
-            }
-
-            html += '</tr>';
-        });
-        html += '</tbody>';
-        html += '</table>';
-        html += '</div>';
-        html += '</div>';
-
-        html += '</div>';
-
-        container.innerHTML = html;
     } catch (error) {
         console.error('Error loading position dashboard:', error);
-        document.getElementById('position-dashboard-content').innerHTML =
-            '<div class="text-center py-8 text-red-500">Lỗi tải dữ liệu</div>';
+        document.getElementById('position-dashboard-content').innerHTML = '<div class="text-center py-8 text-red-500">Lỗi tải dữ liệu</div>';
     }
 }
 
+function renderPositionDashboardHtml(container, users, monthlyData) {
+    const userMonthlyData = {};
+    monthlyData.forEach(m => {
+        if (!userMonthlyData[m.user_id]) userMonthlyData[m.user_id] = {};
+        userMonthlyData[m.user_id][m.month] = m;
+    });
+
+    let html = '<div class="space-y-6">';
+
+    html += '<div>';
+    html += '<h4 class="text-lg font-bold text-blue-600 mb-3"><i class="fas fa-chart-line mr-2"></i>Bảng tổng hợp KPI</h4>';
+    html += '<div class="overflow-x-auto">';
+    html += '<table class="w-full text-sm border-collapse">';
+    html += '<thead class="bg-gradient-to-r from-blue-500 to-blue-600 text-white sticky top-0">';
+    html += '<tr>';
+    html += '<th class="border px-3 py-2 text-left sticky left-0 bg-blue-600 z-10">Họ và tên</th>';
+    html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
+    html += buildMonthHeaders();
+    html += '</tr></thead><tbody>';
+
+    users.forEach((user, idx) => {
+        html += `<tr class="${tableRowClass(idx)} hover:bg-blue-50">`;
+        html += `<td class="${stickyTdClass(idx)}">${user.full_name}</td>`;
+        html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
+        html += buildMonthCells(m => {
+            const d = userMonthlyData[user.id]?.[m];
+            if (d) {
+                const pct = Math.round((d.total_kpi_score || 0) * 100);
+                const color = scoreColor(pct);
+                return `<td class="border px-2 py-2 text-center"><span class="${color} font-bold text-base">${pct}%</span></td>`;
+            }
+            return '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+        });
+        html += '</tr>';
+    });
+    html += '</tbody></table></div></div>';
+
+    html += '<div>';
+    html += '<h4 class="text-lg font-bold text-green-600 mb-3"><i class="fas fa-star mr-2"></i>Bảng tổng hợp Level</h4>';
+    html += '<div class="overflow-x-auto">';
+    html += '<table class="w-full text-sm border-collapse">';
+    html += '<thead class="bg-gradient-to-r from-green-500 to-green-600 text-white sticky top-0">';
+    html += '<tr>';
+    html += '<th class="border px-3 py-2 text-left sticky left-0 bg-green-600 z-10">Họ và tên</th>';
+    html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
+    html += buildMonthHeaders();
+    html += '</tr></thead><tbody>';
+
+    users.forEach((user, idx) => {
+        html += `<tr class="${tableRowClass(idx)} hover:bg-green-50">`;
+        html += `<td class="${stickyTdClass(idx)}">${user.full_name}</td>`;
+        html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
+        html += buildMonthCells(m => {
+            const d = userMonthlyData[user.id]?.[m];
+            if (d) {
+                const pct = Math.round((d.total_level_score || 0) * 100);
+                const color = scoreColor(pct);
+                return `<td class="border px-2 py-2 text-center"><span class="${color} font-bold text-base">${pct}%</span></td>`;
+            }
+            return '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+        });
+        html += '</tr>';
+    });
+    html += '</tbody></table></div></div></div>';
+
+    container.innerHTML = html;
+}
+
+function filterGsDashboard() {
+    const search = document.getElementById('gs-search')?.value.toLowerCase() || '';
+    const regionId = document.getElementById('gs-region-filter')?.value || '';
+    const selectedRegion = adminMetadata.regions.find(r => String(r.id) === String(regionId));
+
+    gsFilteredUsers = gsDashboardData.users.filter(u => {
+        const matchSearch = !search || u.full_name.toLowerCase().includes(search) || u.username.toLowerCase().includes(search);
+        const matchRegion = !regionId || u.region_name === selectedRegion?.name;
+        return matchSearch && matchRegion;
+    });
+
+    gsCurrentPage = 1;
+    const countEl = document.getElementById('gs-filter-count');
+    if (countEl) countEl.textContent = gsFilteredUsers.length;
+    renderGsDashboardTable();
+}
+
+function goToGsPage(page) {
+    const totalPages = Math.ceil(gsFilteredUsers.length / GS_PAGE_SIZE);
+    if (page < 1 || page > totalPages) return;
+    gsCurrentPage = page;
+    renderGsDashboardTable();
+    document.getElementById('position-dashboard-content').scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
+function renderGsDashboardTable() {
+    const container = document.getElementById('position-dashboard-content');
+    const users = gsFilteredUsers;
+    const {monthlyData} = gsDashboardData;
+    const viewType = document.getElementById('gs-view-type')?.value || 'kpi';
+
+    if (!users || users.length === 0) {
+        container.innerHTML = '<div class="text-center py-8 text-gray-500">Không tìm thấy người dùng nào</div>';
+        return;
+    }
+
+    const userMonthlyData = {};
+    monthlyData.forEach(m => {
+        if (!userMonthlyData[m.user_id]) userMonthlyData[m.user_id] = {};
+        userMonthlyData[m.user_id][m.month] = m;
+    });
+
+    const totalPages = Math.ceil(users.length / GS_PAGE_SIZE);
+    const startIndex = (gsCurrentPage - 1) * GS_PAGE_SIZE;
+    const endIndex = Math.min(startIndex + GS_PAGE_SIZE, users.length);
+    const pageUsers = users.slice(startIndex, endIndex);
+
+    const isKpi = viewType === 'kpi';
+    const color = isKpi ? 'blue' : 'green';
+    const title = isKpi ? 'Bảng tổng hợp KPI' : 'Bảng tổng hợp Level';
+    const icon = isKpi ? 'fa-chart-line' : 'fa-star';
+    const scoreKey = isKpi ? 'total_kpi_score' : 'total_level_score';
+
+    let html = '<div>';
+    html += `<h4 class="text-lg font-bold text-${color}-600 mb-3"><i class="fas ${icon} mr-2"></i>${title}</h4>`;
+    html += '<div class="overflow-x-auto">';
+    html += '<table class="w-full text-sm border-collapse">';
+    html += `<thead class="bg-gradient-to-r from-${color}-500 to-${color}-600 text-white sticky top-0">`;
+    html += `<tr><th class="border px-3 py-2 text-left sticky left-0 bg-${color}-600 z-10">Họ và tên</th>`;
+    html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
+    html += buildMonthHeaders();
+    html += '</tr></thead><tbody>';
+
+    pageUsers.forEach((user, idx) => {
+        html += `<tr class="${tableRowClass(idx)} hover:bg-${color}-50">`;
+        html += `<td class="${stickyTdClass(idx)}">${user.full_name}</td>`;
+        html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
+        html += buildMonthCells(m => {
+            const d = userMonthlyData[user.id]?.[m];
+            if (d) {
+                const pct = Math.round((d[scoreKey] || 0) * 100);
+                return `<td class="border px-2 py-2 text-center"><span class="${scoreColor(pct)} font-bold text-base">${pct}%</span></td>`;
+            }
+            return '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+        });
+        html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+
+    if (totalPages > 1) {
+        html += renderPaginationHtml(gsCurrentPage, totalPages, users.length, startIndex, endIndex, 'goToGsPage');
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function renderPaginationHtml(currentPage, totalPages, totalItems, startIndex, endIndex, goFn) {
+    let html = '<div class="mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">';
+    html += `<div class="text-sm text-gray-600">Hiển thị <span class="font-semibold">${startIndex + 1}</span> đến <span class="font-semibold">${endIndex}</span> trong tổng số <span class="font-semibold">${totalItems}</span></div>`;
+    html += '<div class="flex items-center space-x-2">';
+
+    html += `<button onclick="${goFn}(${currentPage - 1})" class="px-3 py-2 rounded-lg ${currentPage === 1 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-500 text-white hover:bg-blue-600'}" ${currentPage === 1 ? 'disabled' : ''}><i class="fas fa-chevron-left"></i></button>`;
+
+    const maxPages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxPages / 2));
+    let endPage = Math.min(totalPages, startPage + maxPages - 1);
+    if (endPage - startPage < maxPages - 1) startPage = Math.max(1, endPage - maxPages + 1);
+
+    if (startPage > 1) {
+        html += `<button onclick="${goFn}(1)" class="px-3 py-2 rounded-lg bg-white border border-gray-300 hover:bg-gray-50">1</button>`;
+        if (startPage > 2) html += '<span class="px-2 text-gray-500">...</span>';
+    }
+    for (let i = startPage; i <= endPage; i++) {
+        html += `<button onclick="${goFn}(${i})" class="px-3 py-2 rounded-lg ${i === currentPage ? 'bg-blue-600 text-white font-semibold' : 'bg-white border border-gray-300 hover:bg-gray-50'}">${i}</button>`;
+    }
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) html += '<span class="px-2 text-gray-500">...</span>';
+        html += `<button onclick="${goFn}(${totalPages})" class="px-3 py-2 rounded-lg bg-white border border-gray-300 hover:bg-gray-50">${totalPages}</button>`;
+    }
+
+    html += `<button onclick="${goFn}(${currentPage + 1})" class="px-3 py-2 rounded-lg ${currentPage === totalPages ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-500 text-white hover:bg-blue-600'}" ${currentPage === totalPages ? 'disabled' : ''}><i class="fas fa-chevron-right"></i></button>`;
+    html += '</div></div>';
+    return html;
+}
+
 function renderKpiDetail(container, positionIds, positionName, kpiIds) {
+    const isGs = positionIds === '4';
+
+    // Thanh tìm kiếm, lọc và chọn năm — chỉ hiển thị cho tab GS
+    const searchFilterBar = isGs ? `
+      <div class="mb-6 p-4 bg-orange-50 rounded-xl border border-orange-200">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div class="md:col-span-2">
+            <label class="block text-sm font-semibold text-gray-700 mb-1">
+              <i class="fas fa-search mr-1 text-orange-500"></i>Tìm theo tên hoặc username
+            </label>
+            <input
+              type="text"
+              id="gs-kpi-search"
+              placeholder="Nhập tên hoặc username..."
+              oninput="filterGsKpiDetail()"
+              class="w-full px-4 py-2 border-2 border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+            >
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">
+              <i class="fas fa-map-marker-alt mr-1 text-orange-500"></i>Khu vực
+            </label>
+            <select
+              id="gs-kpi-region-filter"
+              onchange="filterGsKpiDetail()"
+              class="w-full px-4 py-2 border-2 border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+            >
+              <option value="">Tất cả khu vực</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">
+              <i class="fas fa-calendar-alt mr-1 text-orange-500"></i>Năm
+            </label>
+            <select
+              id="kpi-year"
+              onchange="loadKpiDetail('${positionIds}', '${positionName}', [${kpiIds}])"
+              class="w-full px-4 py-2 border-2 border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+            ></select>
+          </div>
+        </div>
+        <div class="mt-2 text-sm text-gray-500">
+          <i class="fas fa-info-circle mr-1"></i>
+          Hiển thị <span id="gs-kpi-filter-count" class="font-semibold text-orange-600">0</span> người dùng
+        </div>
+      </div>
+    ` : `
+      <div class="mb-4 flex justify-end">
+        <select id="kpi-year" onchange="loadKpiDetail('${positionIds}', '${positionName}', [${kpiIds}])" class="px-4 py-2 border-2 border-gray-300 rounded-lg"></select>
+      </div>
+    `;
+
     container.innerHTML = `
     <div class="bg-white rounded-2xl shadow-xl p-6">
-      <div class="flex items-center justify-between mb-6">
-        <h3 class="text-2xl font-bold text-gray-800">
-          <i class="fas fa-chart-line mr-2 text-orange-600"></i>${positionName} - Thống kê chỉ số trọng điểm
-        </h3>
-        <select id="kpi-year" class="px-4 py-2 border-2 border-gray-300 rounded-lg" onchange="loadKpiDetail('${positionIds}', '${positionName}', [${kpiIds}])">
-          
-        </select>
-      </div>
+      <h3 class="text-2xl font-bold text-gray-800 mb-6">
+        <i class="fas fa-chart-line mr-2 text-orange-600"></i>${positionName} - Thống kê chỉ số trọng điểm
+      </h3>
+      ${searchFilterBar}
       <div id="kpi-detail-content" class="overflow-x-auto">
         <div class="text-center py-12">
           <i class="fas fa-spinner fa-spin text-4xl text-gray-400 mb-4"></i>
@@ -4303,90 +4389,160 @@ function renderKpiDetail(container, positionIds, positionName, kpiIds) {
     </div>
   `;
 
-    ['kpi-year']
-        .forEach(generateYearOptions)
+    generateYearOptions('kpi-year');
+    if (positionIds === '4') loadAdminMetadata();
     loadKpiDetail(positionIds, positionName, kpiIds);
 }
 
 async function loadKpiDetail(positionIds, positionName, kpiIds) {
     try {
         const year = document.getElementById('kpi-year')?.value || CURRENT_YEAR;
-        const response = await axios.get(`/api/admin/kpi-detail/${positionIds}/${year}/${kpiIds.join(',')}`, {
-            params: {
-                userId: currentUser?.id,
-                username: currentUser?.username
-            }
-        });
+        const response = await axios.get(`/api/admin/kpi-detail/${positionIds}/${year}/${kpiIds.join(',')}`, adminParams());
 
         const {users, kpiTemplates, kpiData} = response.data;
-        const container = document.getElementById('kpi-detail-content');
+        const isGs = positionIds === '4';
 
-        if (!users || users.length === 0) {
-            container.innerHTML = '<div class="text-center py-8 text-gray-500">Không có dữ liệu</div>';
-            return;
-        }
+        if (isGs) {
+            gsKpiData = {users: users || [], kpiTemplates: kpiTemplates || [], kpiData: kpiData || []};
+            gsKpiFilteredUsers = [...gsKpiData.users];
+            gsKpiCurrentPage = 1;
 
-        const userKpiData = {};
-        kpiData.forEach(d => {
-            if (!userKpiData[d.user_id]) userKpiData[d.user_id] = {};
-            if (!userKpiData[d.user_id][d.kpi_template_id]) userKpiData[d.user_id][d.kpi_template_id] = {};
-            userKpiData[d.user_id][d.kpi_template_id][d.month] = d;
-        });
+            const countEl = document.getElementById('gs-kpi-filter-count');
+            if (countEl) countEl.textContent = (users || []).length;
 
-        let html = '<div class="space-y-8">';
-
-        kpiTemplates.forEach(kpi => {
-            html += '<div>';
-            html += `<h4 class="text-lg font-bold text-orange-600 mb-3"><i class="fas fa-chart-bar mr-2"></i>${kpi.kpi_name}</h4>`;
-            html += '<div class="overflow-x-auto">';
-            html += '<table class="w-full text-sm border-collapse">';
-
-            html += '<thead class="bg-gradient-to-r from-orange-500 to-red-600 text-white sticky top-0">';
-            html += '<tr>';
-            html += '<th class="border px-3 py-2 text-left sticky left-0 bg-orange-600 z-10">Họ và tên</th>';
-            html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
-
-            for (let m = 1; m <= 12; m++) {
-                html += `<th class="border px-2 py-2 text-center">T${m}</th>`;
+            renderGsKpiDetailTable();
+        } else {
+            const container = document.getElementById('kpi-detail-content');
+            if (!users || users.length === 0) {
+                container.innerHTML = '<div class="text-center py-8 text-gray-500">Không có dữ liệu</div>';
+                return;
             }
-
-            html += '</tr>';
-            html += '</thead>';
-
-            html += '<tbody>';
-            users.forEach((user, idx) => {
-                html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-orange-50">`;
-                html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
-                html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
-
-                for (let m = 1; m <= 12; m++) {
-                    const monthData = userKpiData[user.id]?.[kpi.id]?.[m];
-                    if (monthData && monthData.actual_value !== null) {
-                        const value = formatLargeNumber(monthData.actual_value, kpi.kpi_name);
-                        html += `<td class="border px-2 py-2 text-center">
-              <span class="font-bold text-blue-600">${value}</span>
-            </td>`;
-                    } else {
-                        html += '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
-                    }
-                }
-
-                html += '</tr>';
-            });
-            html += '</tbody>';
-            html += '</table>';
-            html += '</div>';
-            html += '</div>';
-        });
-
-        html += '</div>';
-
-        container.innerHTML = html;
+            renderKpiDetailHtml(container, users, kpiTemplates, kpiData);
+        }
     } catch (error) {
         console.error('Error loading KPI detail:', error);
-        document.getElementById('kpi-detail-content').innerHTML =
-            '<div class="text-center py-8 text-red-500">Lỗi tải dữ liệu</div>';
+        document.getElementById('kpi-detail-content').innerHTML = '<div class="text-center py-8 text-red-500">Lỗi tải dữ liệu</div>';
     }
+}
+
+function renderKpiDetailHtml(container, users, kpiTemplates, kpiData) {
+    const userKpiData = {};
+    kpiData.forEach(d => {
+        if (!userKpiData[d.user_id]) userKpiData[d.user_id] = {};
+        if (!userKpiData[d.user_id][d.kpi_template_id]) userKpiData[d.user_id][d.kpi_template_id] = {};
+        userKpiData[d.user_id][d.kpi_template_id][d.month] = d;
+    });
+
+    let html = '<div class="space-y-8">';
+    kpiTemplates.forEach(kpi => {
+        html += '<div>';
+        html += `<h4 class="text-lg font-bold text-orange-600 mb-3"><i class="fas fa-chart-bar mr-2"></i>${kpi.kpi_name}</h4>`;
+        html += '<div class="overflow-x-auto"><table class="w-full text-sm border-collapse">';
+        html += '<thead class="bg-gradient-to-r from-orange-500 to-red-600 text-white sticky top-0"><tr>';
+        html += '<th class="border px-3 py-2 text-left sticky left-0 bg-orange-600 z-10">Họ và tên</th>';
+        html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
+        html += buildMonthHeaders();
+        html += '</tr></thead><tbody>';
+
+        users.forEach((user, idx) => {
+            html += `<tr class="${tableRowClass(idx)} hover:bg-orange-50">`;
+            html += `<td class="${stickyTdClass(idx)}">${user.full_name}</td>`;
+            html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
+            html += buildMonthCells(m => {
+                const d = userKpiData[user.id]?.[kpi.id]?.[m];
+                if (d && d.actual_value !== null) {
+                    return `<td class="border px-2 py-2 text-center"><span class="font-bold text-blue-600">${formatLargeNumber(d.actual_value, kpi.kpi_name)}</span></td>`;
+                }
+                return '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table></div></div>';
+    });
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function filterGsKpiDetail() {
+    const search = document.getElementById('gs-kpi-search')?.value.toLowerCase() || '';
+    const regionId = document.getElementById('gs-kpi-region-filter')?.value || '';
+    const selectedRegion = adminMetadata.regions.find(r => String(r.id) === String(regionId));
+
+    gsKpiFilteredUsers = gsKpiData.users.filter(u => {
+        const matchSearch = !search || u.full_name.toLowerCase().includes(search) || u.username.toLowerCase().includes(search);
+        const matchRegion = !regionId || u.region_name === selectedRegion?.name;
+        return matchSearch && matchRegion;
+    });
+
+    gsKpiCurrentPage = 1;
+    const countEl = document.getElementById('gs-kpi-filter-count');
+    if (countEl) countEl.textContent = gsKpiFilteredUsers.length;
+    renderGsKpiDetailTable();
+}
+
+function goToGsKpiPage(page) {
+    const totalPages = Math.ceil(gsKpiFilteredUsers.length / GS_KPI_PAGE_SIZE);
+    if (page < 1 || page > totalPages) return;
+    gsKpiCurrentPage = page;
+    renderGsKpiDetailTable();
+    document.getElementById('kpi-detail-content').scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
+function renderGsKpiDetailTable() {
+    const container = document.getElementById('kpi-detail-content');
+    const users = gsKpiFilteredUsers;
+    const {kpiTemplates, kpiData} = gsKpiData;
+
+    if (!users || users.length === 0) {
+        container.innerHTML = '<div class="text-center py-8 text-gray-500">Không tìm thấy người dùng nào</div>';
+        return;
+    }
+
+    const userKpiData = {};
+    kpiData.forEach(d => {
+        if (!userKpiData[d.user_id]) userKpiData[d.user_id] = {};
+        if (!userKpiData[d.user_id][d.kpi_template_id]) userKpiData[d.user_id][d.kpi_template_id] = {};
+        userKpiData[d.user_id][d.kpi_template_id][d.month] = d;
+    });
+
+    const totalPages = Math.ceil(users.length / GS_KPI_PAGE_SIZE);
+    const startIndex = (gsKpiCurrentPage - 1) * GS_KPI_PAGE_SIZE;
+    const endIndex = Math.min(startIndex + GS_KPI_PAGE_SIZE, users.length);
+    const pageUsers = users.slice(startIndex, endIndex);
+
+    let html = '<div class="space-y-8">';
+    kpiTemplates.forEach(kpi => {
+        html += '<div>';
+        html += `<h4 class="text-lg font-bold text-orange-600 mb-3"><i class="fas fa-chart-bar mr-2"></i>${kpi.kpi_name}</h4>`;
+        html += '<div class="overflow-x-auto"><table class="w-full text-sm border-collapse">';
+        html += '<thead class="bg-gradient-to-r from-orange-500 to-red-600 text-white sticky top-0"><tr>';
+        html += '<th class="border px-3 py-2 text-left sticky left-0 bg-orange-600 z-10">Họ và tên</th>';
+        html += '<th class="border px-3 py-2 text-left">Khu vực</th>';
+        html += buildMonthHeaders();
+        html += '</tr></thead><tbody>';
+
+        pageUsers.forEach((user, idx) => {
+            html += `<tr class="${tableRowClass(idx)} hover:bg-orange-50">`;
+            html += `<td class="${stickyTdClass(idx)}">${user.full_name}</td>`;
+            html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
+            html += buildMonthCells(m => {
+                const d = userKpiData[user.id]?.[kpi.id]?.[m];
+                if (d && d.actual_value !== null) {
+                    return `<td class="border px-2 py-2 text-center"><span class="font-bold text-blue-600">${formatLargeNumber(d.actual_value, kpi.kpi_name)}</span></td>`;
+                }
+                return '<td class="border px-2 py-2 text-center text-gray-400">-</td>';
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table></div></div>';
+    });
+
+    if (totalPages > 1) {
+        html += renderPaginationHtml(gsKpiCurrentPage, totalPages, users.length, startIndex, endIndex, 'goToGsKpiPage');
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
 }
 
 function renderRevenuePlan(container) {
@@ -4443,12 +4599,7 @@ function renderRevenuePlan(container) {
 async function loadRevenuePlan() {
     try {
         const year = document.getElementById('plan-year')?.value || CURRENT_YEAR;
-        const response = await axios.get(`/api/admin/revenue-plan/${year}`, {
-            params: {
-                userId: currentUser?.id,
-                username: currentUser?.username
-            }
-        });
+        const response = await axios.get(`/api/admin/revenue-plan/${year}`, adminParams());
 
         const {users, plans} = response.data;
         const container = document.getElementById('revenue-plan-content');
@@ -4484,8 +4635,8 @@ async function loadRevenuePlan() {
 
         html += '<tbody>';
         users.forEach((user, idx) => {
-            html += `<tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-green-50">`;
-            html += `<td class="border px-3 py-2 font-semibold sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} z-5">${user.full_name}</td>`;
+            html += `<tr class="${tableRowClass(idx)} hover:bg-green-50">`;
+            html += `<td class="${stickyTdClass(idx)}">${user.full_name}</td>`;
             html += `<td class="border px-3 py-2 text-xs">${user.region_name}</td>`;
             html += `<td class="border px-3 py-2 text-xs">${user.position_name}</td>`;
 
@@ -4541,8 +4692,7 @@ async function loadRevenuePlan() {
         container.innerHTML = html;
     } catch (error) {
         console.error('Error loading revenue plan:', error);
-        document.getElementById('revenue-plan-content').innerHTML =
-            '<div class="text-center py-8 text-red-500">Lỗi tải dữ liệu</div>';
+        document.getElementById('revenue-plan-content').innerHTML = '<div class="text-center py-8 text-red-500">Lỗi tải dữ liệu</div>';
     }
 }
 
@@ -4559,9 +4709,7 @@ async function saveUserPlan(userId) {
         });
 
         await axios.post('/api/admin/revenue-plan', {
-            user_id: userId,
-            year: parseInt(year),
-            plans
+            user_id: userId, year: parseInt(year), plans
         });
 
         alert('✅ Lưu kế hoạch thành công!');
@@ -4595,9 +4743,7 @@ async function saveAllPlans() {
         for (const [userId, plans] of entries) {
             updateLoadingOverlay(`Đang lưu kế hoạch... (${++done}/${total})`);
             await axios.post('/api/admin/revenue-plan', {
-                user_id: parseInt(userId),
-                year: parseInt(year),
-                plans
+                user_id: parseInt(userId), year: parseInt(year), plans
             });
         }
 
@@ -4627,12 +4773,7 @@ function calculateRowTotal(userId) {
 async function exportRevenuePlanTemplate() {
     try {
         const year = document.getElementById('plan-year')?.value || CURRENT_YEAR;
-        const response = await axios.get(`/api/admin/revenue-plan/${year}`, {
-            params: {
-                userId: currentUser?.id,
-                username: currentUser?.username
-            }
-        });
+        const response = await axios.get(`/api/admin/revenue-plan/${year}`, adminParams());
 
         const {users, plans} = response.data;
 
@@ -4654,13 +4795,7 @@ async function exportRevenuePlanTemplate() {
         data.push(header);
 
         users.forEach((user, idx) => {
-            const row = [
-                idx + 1,
-                user.id,
-                user.full_name,
-                user.region_name,
-                user.position_name
-            ];
+            const row = [idx + 1, user.id, user.full_name, user.region_name, user.position_name];
 
             let total = 0;
             for (let m = 1; m <= 12; m++) {
@@ -4675,15 +4810,7 @@ async function exportRevenuePlanTemplate() {
 
         const ws = XLSX.utils.aoa_to_sheet(data);
 
-        ws['!cols'] = [
-            {wch: 5},
-            {wch: 10},
-            {wch: 25},
-            {wch: 15},
-            {wch: 20},
-            ...Array(12).fill({wch: 10}),
-            {wch: 12}
-        ];
+        ws['!cols'] = [{wch: 5}, {wch: 10}, {wch: 25}, {wch: 15}, {wch: 20}, ...Array(12).fill({wch: 10}), {wch: 12}];
 
         XLSX.utils.book_append_sheet(wb, ws, 'Kế hoạch Doanh thu');
 
@@ -4739,9 +4866,7 @@ async function importRevenuePlan(event) {
 
                     try {
                         await axios.post('/api/admin/revenue-plan', {
-                            user_id: userId,
-                            year: parseInt(year),
-                            plans
+                            user_id: userId, year: parseInt(year), plans
                         });
                     } catch (rowError) {
                         errors.push({
@@ -4865,9 +4990,7 @@ function downloadImportErrors(errors, year) {
     const rows = errors.map(e => [e.stt, e.userId, e.name, e.region, e.position, e.reason]);
 
     const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-    ws['!cols'] = [
-        {wch: 5}, {wch: 10}, {wch: 25}, {wch: 35}, {wch: 35}, {wch: 35}
-    ];
+    ws['!cols'] = [{wch: 5}, {wch: 10}, {wch: 25}, {wch: 35}, {wch: 35}, {wch: 35}];
 
     rows.forEach((_, i) => {
         const cell = ws[XLSX.utils.encode_cell({r: i + 1, c: 3})];
@@ -4934,24 +5057,15 @@ async function importActualRevenue(event) {
     const payload = rows.map(row => {
         let emailRaw = String(row.email || '').trim().toLowerCase();
 
-        const email = emailRaw.includes('@')
-            ? emailRaw.split('@')[0]
-            : emailRaw;
+        const email = emailRaw.includes('@') ? emailRaw.split('@')[0] : emailRaw;
 
         return {
-            email,
-            month: Number(row.month),
-            year: Number(row.year),
-            actual_value: Number(row.actual_value)
+            email, month: Number(row.month), year: Number(row.year), actual_value: Number(row.actual_value)
         };
     });
 
-    console.log("IMPORT DATA:", payload);
-
     const response = await fetch('/api/admin/import-actual-revenue', {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({rows: payload})
+        method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({rows: payload})
     });
 
     if (response.ok) {
@@ -5019,12 +5133,8 @@ async function submitChangePassword() {
 
     try {
         const response = await fetch('/api/change-password', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                userId: currentUser.id,
-                oldPassword: oldPwd,
-                newPassword: newPwd
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({
+                userId: currentUser.id, oldPassword: oldPwd, newPassword: newPwd
             })
         });
 
@@ -5071,13 +5181,9 @@ async function loadLockMonths() {
         const response = await fetch(`/api/admin/locked-months/${year}`);
         const data = await response.json();
 
-        const positions = [
-            {id: 1, name: 'PTGĐ'},
-            {id: 5, name: 'GĐKDCC'},
-            {id: 2, name: 'GĐKD'},
-            {id: 3, name: 'TLKD'},
-            {id: 4, name: 'Giám sát'}
-        ];
+        const positions = [{id: 1, name: 'PTGĐ'}, {id: 5, name: 'GĐKDCC'}, {id: 2, name: 'GĐKD'}, {
+            id: 3, name: 'TLKD'
+        }, {id: 4, name: 'Giám sát'}];
 
         let html = '<div class="overflow-x-auto"><table class="w-full"><thead class="bg-gray-100"><tr>';
         html += '<th class="px-4 py-2 text-left">Tháng</th>';
@@ -5121,11 +5227,8 @@ async function lockMonth(year, month, positionId) {
 
     try {
         const response = await fetch('/api/admin/lock-month', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                year, month, positionId,
-                userId: currentUser.id
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({
+                year, month, positionId, userId: currentUser.id
             })
         });
 
@@ -5211,8 +5314,7 @@ async function loadHolidayDays() {
         const holidayMap = {};
         holidays.forEach(h => holidayMap[h.month] = h);
 
-        const monthNames = ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
-            'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
+        const monthNames = ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
         const currentMonth = new Date().getMonth() + 1;
         const currentYear = new Date().getFullYear();
 
@@ -5227,11 +5329,7 @@ async function loadHolidayDays() {
             const hasHoliday = hCount > 0;
             const isCurrentMonth = m === currentMonth && year === currentYear;
 
-            const cardStyle = hasHoliday
-                ? 'border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50'
-                : isCurrentMonth
-                    ? 'border-blue-200 bg-blue-50'
-                    : 'border-gray-100 bg-gray-50 hover:border-gray-200';
+            const cardStyle = hasHoliday ? 'border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50' : isCurrentMonth ? 'border-blue-200 bg-blue-50' : 'border-gray-100 bg-gray-50 hover:border-gray-200';
 
             const wdTextColor = hasHoliday ? 'text-orange-500' : 'text-emerald-600';
 
@@ -5358,8 +5456,7 @@ async function saveHolidayDay(year, month) {
 }
 
 async function deleteHolidayDay(year, month) {
-    const monthNames = ['', 'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
-        'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
+    const monthNames = ['', 'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
     if (!confirm(`Xóa ngày lễ ${monthNames[month]}/${year}?\nNgày công sẽ về lại công thức cơ bản.`)) return;
 
     try {
@@ -5421,10 +5518,7 @@ async function loadLarkSyncStatus() {
         const stats = data.cacheStats || {};
 
         const statusColor = {
-            idle: 'text-gray-500',
-            running: 'text-blue-500',
-            done: 'text-emerald-600',
-            error: 'text-red-500'
+            idle: 'text-gray-500', running: 'text-blue-500', done: 'text-emerald-600', error: 'text-red-500'
         }[meta.status] || 'text-gray-500';
 
         const statusLabel = {
@@ -5434,23 +5528,19 @@ async function loadLarkSyncStatus() {
             error: 'Lỗi'
         }[meta.status] || 'Chưa sync';
 
-        const lastSynced = meta.last_synced_at
-            ? new Date(meta.last_synced_at.replace(' ', 'T') + 'Z')
-                .toLocaleString('vi-VN', {
-                    timeZone: 'Asia/Ho_Chi_Minh',
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    hour12: false
-                })
-            : 'Chưa có';
+        const lastSynced = meta.last_synced_at ? new Date(meta.last_synced_at.replace(' ', 'T') + 'Z')
+            .toLocaleString('vi-VN', {
+                timeZone: 'Asia/Ho_Chi_Minh',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            }) : 'Chưa có';
 
-        const triggeredByLabel = meta.triggered_by === 'cron'
-            ? '<i class="fas fa-clock mr-1"></i>Tự động'
-            : '<i class="fas fa-hand-pointer mr-1"></i>Thủ công';
+        const triggeredByLabel = meta.triggered_by === 'cron' ? '<i class="fas fa-clock mr-1"></i>Tự động' : '<i class="fas fa-hand-pointer mr-1"></i>Thủ công';
 
         statusEl.innerHTML = `
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
