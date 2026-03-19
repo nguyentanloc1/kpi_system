@@ -1719,7 +1719,7 @@ function formatValue(value) {
 function generateYearOptions(selectId) {
 
     const currentYear = new Date().getFullYear()
-    const startYear = 2025
+    const startYear = 2026
 
     const select = document.getElementById(selectId)
 
@@ -4119,8 +4119,6 @@ async function loadPositionDashboard(positionIds, positionName) {
             gsFilteredUsers = [...gsDashboardData.users];
             gsCurrentPage = 1;
 
-
-
             const countEl = document.getElementById('gs-filter-count');
             if (countEl) countEl.textContent = (users || []).length;
 
@@ -4408,8 +4406,6 @@ async function loadKpiDetail(positionIds, positionName, kpiIds) {
             gsKpiData = {users: users || [], kpiTemplates: kpiTemplates || [], kpiData: kpiData || []};
             gsKpiFilteredUsers = [...gsKpiData.users];
             gsKpiCurrentPage = 1;
-
-
 
             const countEl = document.getElementById('gs-kpi-filter-count');
             if (countEl) countEl.textContent = (users || []).length;
