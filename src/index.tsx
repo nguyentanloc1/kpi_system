@@ -2203,7 +2203,7 @@ app.get('/', (c) => {
       }
     </style>
 </head>
-<body class="bg-gray-50 select-none">
+<body class="bg-gray-50">
     <div id="app"></div>
     <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
     <script src="/app.js?v=${Date.now()}"></script>
