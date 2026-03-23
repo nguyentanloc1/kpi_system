@@ -1768,41 +1768,59 @@ function renderDashboardTab(container) {
                 <option value="4">H Chí Minh</option>
               </select>
             </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 mb-1.5">Phạm vi</label>
+              <select id="dash-scope" class="w-full px-3 py-2.5 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                <option value="" selected>--Tất cả--</option>
+                <option value="sub">Cấp dưới</option>                
+              </select>
+            </div>
           </div>
           <button id="load-dash-btn" class="w-full px-4 py-3 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all">
             <i class="fas fa-sync-alt mr-2"></i>Tải dữ liệu
           </button>
         </div>
         
-        <div class="hidden lg:flex items-end space-x-4">
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">Tháng</label>
-            <select id="dash-month-desktop" class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-              ${Array.from({length: 12}, (_, i) => i + 1).map(m => `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`).join('')}
-            </select>
-          </div>
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">Năm</label>
-            <select id="dash-year-desktop" class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-              
-            </select>
-          </div>
-          <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-1">Vùng</label>
-                <select id="dash-region-desktop" class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-                <option value="" selected>--Tất cả--</option>
-                <option value="1">Bình Dương</option>
-                <option value="2">Hà Nội</option>
-                <option value="3">Miền Trung</option>
-                <option value="4">Hồ Chí Minh</option>
-              </select>
-            </div>
-          <div>
-            <button id="load-dash-btn-desktop" class="px-6 py-2 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg hover:shadow-lg transition-all">
-              <i class="fas fa-sync-alt mr-2"></i>Tải dữ liệu
-            </button>
-          </div>
-        </div>
+        <div class="hidden lg:flex items-end space-x-3">
+  
+  <div>
+    <label class="block text-sm font-semibold text-gray-700 mb-1">Tháng</label>
+    <select id="dash-month-desktop" class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+      ${Array.from({length: 12}, (_, i) => i + 1).map(m => `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`).join('')}
+    </select>
+  </div>
+
+  <div>
+    <label class="block text-sm font-semibold text-gray-700 mb-1">Năm</label>
+    <select id="dash-year-desktop" class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"></select>
+  </div>
+
+  <div>
+    <label class="block text-sm font-semibold text-gray-700 mb-1">Vùng</label>
+    <select id="dash-region-desktop" class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+      <option value="" selected>--Tất cả--</option>
+      <option value="1">Bình Dương</option>
+      <option value="2">Hà Nội</option>
+      <option value="3">Miền Trung</option>
+      <option value="4">Hồ Chí Minh</option>
+    </select>
+  </div>
+  
+  <div>
+    <label class="block text-sm font-semibold text-gray-700 mb-1">Phạm vi</label>
+    <select id="dash-scope-desktop" class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+      <option value="" selected>--Tất cả--</option>
+      <option value="sub">Cấp dưới</option>
+    </select>
+  </div>
+
+  <div>
+    <button id="load-dash-btn-desktop" class="px-6 py-2 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg hover:shadow-lg transition-all">
+      <i class="fas fa-sync-alt mr-2"></i>Tải dữ liệu
+    </button>
+  </div>
+
+</div>
       </div>
       
       <div id="dashboard-container" class="text-center py-2 text-gray-500">
@@ -1832,6 +1850,11 @@ function renderDashboardTab(container) {
         const desktopRegion = document.getElementById('dash-region-desktop');
         if (desktopRegion) desktopRegion.value = region;
     });
+    document.getElementById('dash-scope').addEventListener('change', () => {
+        const scope = document.getElementById('dash-scope').value;
+        const desktopScope = document.getElementById('dash-scope-desktop');
+        if (desktopScope) desktopScope.value = scope;
+    });
 
     const desktopLoadBtn = document.getElementById('load-dash-btn-desktop');
     if (desktopLoadBtn) {
@@ -1848,6 +1871,10 @@ function renderDashboardTab(container) {
             const region = document.getElementById('dash-region-desktop').value;
             document.getElementById('dash-region').value = region;
         });
+        document.getElementById('dash-scope-desktop').addEventListener('change', () => {
+            const scope = document.getElementById('dash-scope-desktop').value;
+            document.getElementById('dash-scope').value = scope;
+        });
     }
 }
 
@@ -1855,12 +1882,14 @@ async function loadDashboardData() {
     const month = document.getElementById('dash-month').value;
     const year = document.getElementById('dash-year').value;
     const region = document.getElementById('dash-region').value;
+    const scope = document.getElementById('dash-scope').value;
+
     const container = document.getElementById('dashboard-container');
 
     container.innerHTML = '<div class="text-center py-12"><i class="fas fa-spinner fa-spin text-4xl text-green-500"></i></div>';
 
     try {
-        const response = await axios.get(`/api/dashboard/${currentUser.id}/${year}/${month}?region=${region}`);
+        const response = await axios.get(`/api/dashboard/${currentUser.id}/${year}/${month}?region=${region}&scope=${scope}`);
         const data = response.data.dashboard;
         const isAdmin = response.data.isAdmin;
 
@@ -2096,7 +2125,7 @@ async function loadSubordinatesKpiData() {
         </div>
       </div>
       
-      <div class="bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-xl border-2 border-purple-200">
+      <div class="bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-xl border-2 border-purple-200 mt-4">
         <h3 class="text-xl font-bold text-purple-800 mb-4 flex items-center">
           <i class="fas fa-star mr-2"></i>Theo dõi Level
         </h3>
