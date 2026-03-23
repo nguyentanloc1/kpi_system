@@ -2144,6 +2144,79 @@ app.post('/api/lark/sync-video-kpi', async (c) => {
     }
 })
 
+app.get('/api/admin/kpi-not-submitted/:year/:month', async (c) => {
+    try {
+        const year = parseInt(c.req.param('year'))
+        const month = parseInt(c.req.param('month'))
+        const regionId = c.req.query('region') || ''
+        const positionId = c.req.query('position') || ''
+
+        if (!year || !month) {
+            return c.json({ error: 'Thiếu thông tin year hoặc month' }, 400)
+        }
+
+        const conditions: string[] = [
+            `u.username NOT IN ('admin', 'admin1', 'admin2', 'admin3')`
+        ]
+        const bindings: any[] = []
+
+        if (regionId) {
+            conditions.push('u.region_id = ?')
+            bindings.push(parseInt(regionId))
+        }
+        if (positionId) {
+            conditions.push('u.position_id = ?')
+            bindings.push(parseInt(positionId))
+        }
+
+        const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
+
+        // Lấy danh sách user_id đã có ít nhất 1 bản ghi KPI (is_for_kpi=1) trong tháng/năm đó
+        const submittedUsersQuery = `
+            SELECT DISTINCT kd.user_id
+            FROM kpi_data kd
+            JOIN kpi_templates kt ON kd.kpi_template_id = kt.id
+            WHERE kd.year = ${year}
+              AND kd.month = ${month}
+              AND kt.is_for_kpi = 1
+        `
+
+        const query = `
+            SELECT
+                u.id,
+                u.full_name,
+                u.username,
+                r.name       AS region_name,
+                p.display_name AS position_name,
+                u.position_id,
+                u.region_id
+            FROM users u
+            JOIN regions r ON u.region_id = r.id
+            JOIN positions p ON u.position_id = p.id
+            ${whereClause}
+            AND u.id NOT IN (${submittedUsersQuery})
+            ORDER BY r.id, p.id, u.full_name
+        `
+
+        const stmt = bindings.length > 0
+            ? c.env.DB.prepare(query).bind(...bindings)
+            : c.env.DB.prepare(query)
+
+        const results = await stmt.all()
+
+        return c.json({
+            success: true,
+            users: results.results,
+            total: results.results.length,
+            month,
+            year
+        })
+    } catch (error: any) {
+        console.error('kpi-not-submitted error:', error)
+        return c.json({ error: 'Lỗi lấy danh sách chưa nhập KPI: ' + (error?.message ?? '') }, 500)
+    }
+})
+
 app.get('/', (c) => {
     c.header('Cache-Control', 'no-cache, no-store, must-revalidate')
     c.header('Pragma', 'no-cache')

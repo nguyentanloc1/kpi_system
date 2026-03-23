@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
-    <data-source source="LOCAL" name="5df751ddbe6ab451018acf12566757569bb135c225b87a93174edf82e3b19fa3.sqlite" uuid="4fd76cad-bbe1-4b94-913c-db69e476d5b1">
+    <data-source source="LOCAL" name="5df751ddbe6ab451018acf12566757569bb135c225b87a93174edf82e3b19fa3" uuid="31d384fe-03cb-48b6-ad58-fb8bdee43185">
       <driver-ref>sqlite.xerial</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
-      <jdbc-url>jdbc:sqlite:D:\CodingSpace\kpi_system\.wrangler\state\v3\d1\miniflare-D1DatabaseObject\5df751ddbe6ab451018acf12566757569bb135c225b87a93174edf82e3b19fa3.sqlite</jdbc-url>
+      <jdbc-url>jdbc:sqlite:$PROJECT_DIR$/.wrangler/state/v3/d1/miniflare-D1DatabaseObject/5df751ddbe6ab451018acf12566757569bb135c225b87a93174edf82e3b19fa3.sqlite</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
   </component>

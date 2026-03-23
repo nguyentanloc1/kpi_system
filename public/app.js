@@ -2477,6 +2477,9 @@ function renderAdminTab(container) {
           <button onclick="showAdminSubTab('lark-sync')" class="admin-subtab px-6 py-3 rounded-lg font-semibold transition-all" data-tab="lark-sync">
             <i class="fas fa-database mr-2"></i>Đồng bộ Lark
           </button>
+          <button onclick="showAdminSubTab('export-kpi')" class="admin-subtab px-6 py-3 rounded-lg font-semibold transition-all" data-tab="export-kpi">
+            <i class="fas fa-file-excel mr-2"></i>Export chưa nhập KPI
+          </button>
           <button onclick="showAdminSubTab('revenue-actual')" class="admin-subtab px-6 py-3 rounded-lg font-semibold transition-all" data-tab="revenue-actual">
             <i class="fas fa-upload mr-2"></i>Upload Doanh thu
           </button>
@@ -2548,6 +2551,8 @@ function showAdminSubTab(tabName) {
         renderHolidayDaysTab(content);
     } else if (tabName === 'lark-sync') {
         renderLarkSyncTab(content);
+    } else if (tabName === 'export-kpi') {
+        renderExportKpiTab(content);
     }
 }
 
@@ -5634,5 +5639,283 @@ async function triggerLarkFullSync() {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-sync mr-2"></i>Đồng bộ ngay';
         btn.className = btn.className.replace('from-gray-400 to-gray-500', 'from-blue-600 to-purple-600');
+    }
+}
+
+function renderExportKpiTab(container) {
+    const regionOptions = (adminMetadata?.regions || [])
+        .map(r => `<option value="${r.id}">${r.name}</option>`)
+        .join('');
+
+    const positionOptions = (adminMetadata?.positions || [])
+        .map(p => `<option value="${p.id}">${p.display_name}</option>`)
+        .join('');
+
+    const monthOptions = Array.from({length: 12}, (_, i) => i + 1)
+        .map(m => `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`)
+        .join('');
+
+    container.innerHTML = `
+    <div class="bg-white rounded-xl shadow-xl p-6">
+      <div class="mb-6">
+        <h3 class="text-2xl font-bold text-gray-800">
+          <i class="fas fa-file-excel mr-2 text-green-600"></i>Export danh sách chưa nhập KPI
+        </h3>
+        <p class="text-sm text-gray-400 mt-1">
+          Xuất file Excel danh sách nhân viên chưa nhập KPI trong tháng được chọn.
+        </p>
+      </div>
+
+      <div class="bg-green-50 border border-green-200 rounded-xl p-5 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">
+              <i class="fas fa-calendar-alt mr-1 text-green-600"></i>Tháng
+            </label>
+            <select id="export-kpi-month" class="w-full px-3 py-2 border-2 border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+              ${monthOptions}
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">
+              <i class="fas fa-calendar mr-1 text-green-600"></i>Năm
+            </label>
+            <select id="export-kpi-year" class="w-full px-3 py-2 border-2 border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">
+              <i class="fas fa-map-marker-alt mr-1 text-green-600"></i>Khu vực
+            </label>
+            <select id="export-kpi-region" class="w-full px-3 py-2 border-2 border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+              <option value="">Tất cả khu vực</option>
+              ${regionOptions}
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">
+              <i class="fas fa-briefcase mr-1 text-green-600"></i>Chức vụ
+            </label>
+            <select id="export-kpi-position" class="w-full px-3 py-2 border-2 border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+              <option value="">Tất cả chức vụ</option>
+              ${positionOptions}
+            </select>
+          </div>
+        </div>
+        <div class="mt-4 flex flex-wrap gap-3">
+          <button
+            onclick="previewKpiNotSubmitted()"
+            class="px-5 py-2.5 bg-white border-2 border-green-500 text-green-700 rounded-xl font-semibold hover:bg-green-50 transition-all"
+          >
+            <i class="fas fa-eye mr-2"></i>Xem trước
+          </button>
+          <button
+            onclick="exportKpiNotSubmitted()"
+            class="px-6 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all"
+          >
+            <i class="fas fa-file-excel mr-2"></i>Tải file Excel
+          </button>
+        </div>
+      </div>
+
+      <div id="export-kpi-preview" class="hidden">
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="text-lg font-bold text-gray-700">
+            <i class="fas fa-list mr-2 text-green-600"></i>
+            Danh sách chưa nhập KPI
+            (<span id="export-kpi-count" class="text-green-600">0</span> người)
+          </h4>
+        </div>
+        <div class="overflow-x-auto rounded-xl border border-gray-200">
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr class="bg-gradient-to-r from-green-500 to-emerald-600 text-white">
+                <th class="px-4 py-3 text-left">STT</th>
+                <th class="px-4 py-3 text-left">Họ và tên</th>
+                <th class="px-4 py-3 text-left">Username</th>
+                <th class="px-4 py-3 text-left">Khu vực</th>
+                <th class="px-4 py-3 text-left">Chức vụ</th>
+              </tr>
+            </thead>
+            <tbody id="export-kpi-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="export-kpi-empty" class="hidden text-center py-12">
+        <div class="inline-block p-5 bg-green-100 rounded-full mb-4">
+          <i class="fas fa-check-circle text-5xl text-green-500"></i>
+        </div>
+        <h4 class="text-xl font-bold text-green-700 mb-2">Tất cả đã nhập KPI! 🎉</h4>
+        <p class="text-gray-500">Không có nhân viên nào chưa nhập KPI trong tháng này.</p>
+      </div>
+    </div>
+  `;
+
+    generateYearOptions('export-kpi-year');
+
+    if (!adminMetadata?.regions || adminMetadata.regions.length === 0) {
+        loadAdminMetadata().then(() => {
+            const regionSel = document.getElementById('export-kpi-region');
+            const posSel = document.getElementById('export-kpi-position');
+            if (regionSel) {
+                regionSel.innerHTML = '<option value="">Tất cả khu vực</option>' +
+                    (adminMetadata?.regions || []).map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+            }
+            if (posSel) {
+                posSel.innerHTML = '<option value="">Tất cả chức vụ</option>' +
+                    (adminMetadata?.positions || []).map(p => `<option value="${p.id}">${p.display_name}</option>`).join('');
+            }
+        });
+    }
+}
+
+async function fetchKpiNotSubmittedData() {
+    const month = document.getElementById('export-kpi-month')?.value;
+    const year = document.getElementById('export-kpi-year')?.value;
+    const region = document.getElementById('export-kpi-region')?.value || '';
+    const position = document.getElementById('export-kpi-position')?.value || '';
+
+    if (!month || !year) {
+        alert('Vui lòng chọn tháng và năm');
+        return null;
+    }
+
+    let url = `/api/admin/kpi-not-submitted/${year}/${month}`;
+    const params = new URLSearchParams();
+    if (region) params.set('region', region);
+    if (position) params.set('position', position);
+    if (params.toString()) url += '?' + params.toString();
+
+    const res = await fetch(url);
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Lỗi HTTP ${res.status}`);
+    }
+    return await res.json();
+}
+
+async function previewKpiNotSubmitted() {
+    const previewDiv = document.getElementById('export-kpi-preview');
+    const emptyDiv = document.getElementById('export-kpi-empty');
+    const tbody = document.getElementById('export-kpi-table-body');
+    const countEl = document.getElementById('export-kpi-count');
+
+    if (!previewDiv || !tbody) return;
+
+    showLoadingOverlay('Đang tải danh sách...');
+    previewDiv.classList.add('hidden');
+    emptyDiv.classList.add('hidden');
+
+    try {
+        const data = await fetchKpiNotSubmittedData();
+        if (!data) return;
+
+        hideLoadingOverlay();
+
+        if (!data.users || data.users.length === 0) {
+            emptyDiv.classList.remove('hidden');
+            return;
+        }
+
+        countEl.textContent = data.total;
+        tbody.innerHTML = data.users.map((u, idx) => `
+          <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-green-50 transition-colors">
+            <td class="px-4 py-2.5 text-gray-500 font-mono text-xs">${idx + 1}</td>
+            <td class="px-4 py-2.5 font-semibold text-gray-800">${u.full_name}</td>
+            <td class="px-4 py-2.5">
+              <span class="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-mono">${u.username}</span>
+            </td>
+            <td class="px-4 py-2.5">
+              <span class="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs">${u.region_name}</span>
+            </td>
+            <td class="px-4 py-2.5">
+              <span class="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs">${u.position_name}</span>
+            </td>
+          </tr>
+        `).join('');
+
+        previewDiv.classList.remove('hidden');
+
+    } catch (err) {
+        hideLoadingOverlay();
+        alert('Lỗi tải dữ liệu: ' + err.message);
+    }
+}
+
+async function exportKpiNotSubmitted() {
+    const month = document.getElementById('export-kpi-month')?.value;
+    const year = document.getElementById('export-kpi-year')?.value;
+
+    if (!month || !year) {
+        alert('Vui lòng chọn tháng và năm');
+        return;
+    }
+
+    showLoadingOverlay('Đang lấy dữ liệu...');
+
+    try {
+        const data = await fetchKpiNotSubmittedData();
+        if (!data) return;
+
+        hideLoadingOverlay();
+
+        if (!data.users || data.users.length === 0) {
+            alert(`✅ Tháng ${month}/${year}: Tất cả nhân viên đã nhập KPI!`);
+            return;
+        }
+
+        showLoadingOverlay('Đang tạo file Excel...');
+
+        const sheetData = [
+            ['STT', 'Họ và tên', 'Username', 'Khu vực', 'Chức vụ', 'Trạng thái'],
+            ...data.users.map((u, idx) => [
+                idx + 1,
+                u.full_name,
+                u.username,
+                u.region_name,
+                u.position_name,
+                'Chưa nhập KPI'
+            ])
+        ];
+
+        const ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+        // Thiết lập độ rộng cột
+        ws['!cols'] = [
+            {wch: 5},   // STT
+            {wch: 28},  // Họ và tên
+            {wch: 16},  // Username
+            {wch: 20},  // Khu vực
+            {wch: 22},  // Chức vụ
+            {wch: 16},  // Trạng thái
+        ];
+
+        // Tạo workbook và thêm sheet
+        const wb = XLSX.utils.book_new();
+        const sheetName = `T${month}-${year}`;
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+        // Thêm sheet tóm tắt
+        const summaryData = [
+            ['Báo cáo: Nhân viên chưa nhập KPI'],
+            [`Tháng: ${month}/${year}`],
+            [`Tổng số chưa nhập: ${data.total} người`],
+            [`Thời gian xuất: ${new Date().toLocaleString('vi-VN', {timeZone: 'Asia/Ho_Chi_Minh'})}`],
+        ];
+        const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+        wsSummary['!cols'] = [{wch: 40}];
+        XLSX.utils.book_append_sheet(wb, wsSummary, 'Thông tin');
+
+        // Xuất file
+        const filename = `Chua_nhap_KPI_T${String(month).padStart(2, '0')}_${year}.xlsx`;
+        XLSX.writeFile(wb, filename);
+
+        hideLoadingOverlay();
+        alert(`✅ Đã tải file thành công!\n📋 ${data.total} nhân viên chưa nhập KPI tháng ${month}/${year}\n📁 File: ${filename}`);
+
+    } catch (err) {
+        hideLoadingOverlay();
+        alert('❌ Lỗi khi export: ' + err.message);
     }
 }
