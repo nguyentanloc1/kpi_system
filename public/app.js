@@ -2632,173 +2632,142 @@ function renderAdminUsers(container) {
         </button>
       </div>
 
-      <div id="edit-user-modal"
-        class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      
-        <div
-          class="bg-white w-full max-w-3xl mx-4 rounded-2xl shadow-2xl p-8 max-h-[90vh] overflow-y-auto">
-      
-          <div class="flex items-center justify-between mb-6">
-            <h3 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
-              <i class="fas fa-user-edit text-blue-600"></i>
-              Chỉnh sửa tài khoản
-            </h3>
-            <button onclick="hideEditUserModal()"
-              class="text-gray-400 hover:text-gray-600 transition">
-              <i class="fas fa-times text-xl"></i>
-            </button>
-          </div>
-      
+      <div id="edit-user-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+
+      <div class="bg-white w-full max-w-3xl mx-4 rounded-2xl shadow-2xl p-8 max-h-[90vh] overflow-y-auto">
+    
+        <!-- HEADER -->
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <i class="fas fa-user-edit text-blue-600"></i>
+            Chỉnh sửa tài khoản
+          </h3>
+          <button onclick="hideEditUserModal()"
+            class="text-gray-400 hover:text-gray-600 transition">
+            <i class="fas fa-times text-xl"></i>
+          </button>
+        </div>
+    
+        <!-- TAB -->
+        <div class="flex border-b mb-6">
+          <button id="tab-info"
+            onclick="switchUserTab('info')"
+            class="px-4 py-2 font-semibold border-b-2 border-blue-500 text-blue-600">
+            Thông tin
+          </button>
+          <button id="tab-history"
+          onclick="switchUserTab('history')"
+          class="px-4 py-2 font-semibold text-gray-500 border-b-2 border-transparent hover:text-blue-600">
+          Lịch sử chức vụ
+        </button>
+        </div>
+    
+        <!-- ================= TAB INFO ================= -->
+        <div id="tab-content-info">
+    
+          <!-- THÔNG TIN TÀI KHOẢN -->
           <div class="mb-8">
             <h4 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">
               Thông tin tài khoản
             </h4>
-      
+    
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div class="md:col-span-2">
                 <label class="block text-sm font-semibold text-gray-700 mb-1">
                   Tên đăng nhập
                 </label>
                 <input type="text" id="edit-username" disabled
-                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed">
-                <p class="text-xs text-gray-500 mt-1">Không thể thay đổi</p>
+                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-gray-100">
               </div>
+    
               <div class="md:col-span-2">
                 <label class="block text-sm font-semibold text-gray-700 mb-1">
-                  Họ và tên <span class="text-red-500">*</span>
+                  Họ và tên *
                 </label>
-                <input type="text" id="edit-fullname" required
-                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
-                         focus:outline-none focus:border-blue-500 transition">
+                <input type="text" id="edit-fullname"
+                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500">
               </div>
-      
+    
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1">
                   Mật khẩu mới
                 </label>
                 <input type="password" id="edit-password"
-                  placeholder="Để trống nếu không đổi"
-                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
-                         focus:outline-none focus:border-blue-500 transition">
+                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg">
               </div>
-      
+    
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1">
                   Xác nhận mật khẩu
                 </label>
                 <input type="password" id="edit-password-confirm"
-                  placeholder="Nhập lại mật khẩu"
-                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
-                         focus:outline-none focus:border-blue-500 transition">
+                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg">
               </div>
             </div>
           </div>
-      
-          <div class="mb-8">
-            <h4 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">
-              Thông tin công việc
-            </h4>
-      
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-1">
-                  Khối vận hành <span class="text-red-500">*</span>
-                </label>
-                <select 
-                    id="edit-region" 
-                    class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg 
-                    focus:outline-none focus:border-blue-500 transition"
-                    onchange="loadEditPotentialManagers()"
-                >
-                  <option value="">Chọn khối</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-1">
-                  Vị trí <span class="text-red-500">*</span>
-                </label>
-                <select 
-                    id="edit-position" 
-                    class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition"
-                    onchange="loadEditPotentialManagers()"
-                >
-                  <option value="">Chọn vị trí</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-1">
-                  Quản lý <span class="text-red-500">*</span>
-                </label>
-                <select id="edit-manager"
-                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
-                         focus:outline-none focus:border-blue-500 transition">
-                  <option value="">Chọn quản lý</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-1">
-                  Team
-                </label>
-                <input type="text" id="edit-team"
-                  placeholder="VD: BD1U1, HCM2"
-                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
-                         focus:outline-none focus:border-blue-500 transition">
-                <p class="text-xs text-gray-500 mt-1">
-                  Ví dụ:
-                  <span class="font-mono bg-gray-100 px-2 py-0.5 rounded">
-                    BD1U1
-                  </span>
-                </p>
-              </div>
-              <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-1">
-                  Ngày nhận việc <span class="text-red-500">*</span>
-                </label>
-                <input type="date" id="edit-startdate"
-                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
-                         focus:outline-none focus:border-blue-500 transition">
-              </div>
-            </div>
-          </div>
-      
+    
+          <!-- THÔNG TIN CÔNG VIỆC -->
+          <div class="mb-8"> <h4 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-4"> Thông tin công việc </h4> <div class="grid grid-cols-1 md:grid-cols-2 gap-4"> <div> <label class="block text-sm font-semibold text-gray-700 mb-1"> Khối vận hành <span class="text-red-500">*</span> </label> <select id="edit-region" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition" onchange="loadEditPotentialManagers()" > <option value="">Chọn khối</option> </select> </div> <div> <label class="block text-sm font-semibold text-gray-700 mb-1"> Vị trí <span class="text-red-500">*</span> </label> <select id="edit-position" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition" onchange="loadEditPotentialManagers()" > <option value="">Chọn vị trí</option> </select> </div> <div> <label class="block text-sm font-semibold text-gray-700 mb-1"> Quản lý <span class="text-red-500">*</span> </label> <select id="edit-manager" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition"> <option value="">Chọn quản lý</option> </select> </div> <div> <label class="block text-sm font-semibold text-gray-700 mb-1"> Team </label> <input type="text" id="edit-team" placeholder="VD: BD1U1, HCM2" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition"> <p class="text-xs text-gray-500 mt-1"> Ví dụ: <span class="font-mono bg-gray-100 px-2 py-0.5 rounded"> BD1U1 </span> </p> </div> <div> <label class="block text-sm font-semibold text-gray-700 mb-1"> Ngày nhận việc <span class="text-red-500">*</span> </label> <input type="date" id="edit-startdate" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition"> </div> </div> </div>
+    
+          <!-- COVER -->
           <div class="mb-8">
             <h4 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">
               Ảnh Cover KPI
             </h4>
-      
-            <label class="block text-sm font-semibold text-gray-700 mb-1">
-              URL ảnh
-            </label>
+    
             <input type="text" id="edit-cover-url"
-              placeholder="https://www.genspark.ai/api/files/s/..."
-              class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
-                     focus:outline-none focus:border-purple-500 transition">
-      
-            <p class="text-xs text-gray-500 mt-1">
-              Dán link ảnh từ GenSpark AI Drive
-            </p>
-      
+              class="w-full px-4 py-2 border-2 rounded-lg">
+    
             <div id="edit-cover-preview" class="hidden mt-4">
               <img class="w-full max-h-48 object-contain rounded-lg border">
             </div>
           </div>
-      
+    
+          <!-- ACTION -->
           <div class="flex gap-4">
             <button onclick="saveEditUser()"
-              class="flex-1 py-3 rounded-lg font-semibold text-white
-                     bg-gradient-to-r from-green-500 to-teal-500
-                     hover:shadow-lg transition">
-              <i class="fas fa-save mr-2"></i>Lưu thay đổi
+              class="flex-1 py-3 rounded-lg text-white bg-green-500">
+              Lưu thay đổi
             </button>
-      
             <button onclick="hideEditUserModal()"
-              class="flex-1 py-3 rounded-lg font-semibold text-white
-                     bg-gray-500 hover:shadow-lg transition">
+              class="flex-1 py-3 rounded-lg text-white bg-gray-500">
               Hủy
             </button>
           </div>
+    
         </div>
+    
+        <!-- ================= TAB HISTORY ================= -->
+        <div id="tab-content-history" class="hidden">
+    
+          <h4 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">
+            Lịch sử chức vụ
+          </h4>
+    
+          <div class="overflow-x-auto">
+            <table class="w-full border rounded-lg">
+              <thead class="bg-gray-100">
+                <tr>
+                  <th class="px-4 py-2 text-left">Chức vụ</th>
+                  <th class="px-4 py-2 text-left">Từ ngày</th>
+                  <th class="px-4 py-2 text-left">Đến ngày</th>
+                  <th class="px-4 py-2 text-left">Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody id="position-history-body">
+                <tr>
+                  <td colspan="4" class="text-center py-4 text-gray-500">
+                    Đang tải...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+    
+        </div>
+    
       </div>
+    </div>
       
       <div id="create-user-form" class="hidden mb-8 p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border-2 border-blue-200">
         <h3 class="text-xl font-bold text-gray-800 mb-4">
@@ -2924,6 +2893,69 @@ function renderAdminUsers(container) {
 
     loadAdminMetadata();
     loadAdminUsers();
+}
+
+function setActiveTab(activeTab, inactiveTab) {
+    activeTab.classList.add('border-blue-500', 'text-blue-600')
+    activeTab.classList.remove('border-transparent', 'text-gray-500')
+
+    inactiveTab.classList.remove('border-blue-500', 'text-blue-600')
+    inactiveTab.classList.add('border-transparent', 'text-gray-500')
+}
+
+function switchUserTab(tab) {
+    const info = document.getElementById('tab-content-info')
+    const history = document.getElementById('tab-content-history')
+
+    const tabInfo = document.getElementById('tab-info')
+    const tabHistory = document.getElementById('tab-history')
+
+    if (tab === 'info') {
+        info.classList.remove('hidden')
+        history.classList.add('hidden')
+        setActiveTab(tabInfo, tabHistory)
+    } else {
+        info.classList.add('hidden')
+        history.classList.remove('hidden')
+        setActiveTab(tabHistory, tabInfo)
+        loadPositionHistory(currentEditUserId)
+    }
+}
+
+
+async function loadPositionHistory(userId) {
+    const tbody = document.getElementById('position-history-body')
+
+    try {
+        const res = await axios.get(`/api/admin/users/${userId}/position-history`)
+        const data = res.data
+
+        if (!data.length) {
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4">Không có dữ liệu</td></tr>`
+            return
+        }
+
+        tbody.innerHTML = data.map(item => `
+            <tr class="border-t">
+              <td class="px-4 py-2">${item.position_name || '-'}</td>
+              <td class="px-4 py-2">${formatDate(item.start_date)}</td>
+              <td class="px-4 py-2">
+                ${item.end_date ? formatDate(item.end_date) : '<span class="text-green-600">Hiện tại</span>'}
+              </td>
+              <td class="px-4 py-2">
+                ${!item.end_date ? 'Đang áp dụng' : 'Đã kết thúc'}
+              </td>
+            </tr>
+        `).join('')
+
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-red-500">Lỗi tải dữ liệu</td></tr>`
+    }
+}
+
+function formatDate(dateStr) {
+    const d = new Date(dateStr)
+    return d.toLocaleDateString('vi-VN')
 }
 
 let adminMetadata = {regions: [], positions: []};

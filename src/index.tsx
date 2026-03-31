@@ -1084,7 +1084,7 @@ app.get('/api/dashboard/:userId/:year/:month', async (c) => {
         `).bind(userId).first()
 
         if (!currentUser) {
-            return c.json({ error: 'User not found' }, 404)
+            return c.json({error: 'User not found'}, 404)
         }
 
         // =========================
@@ -1103,13 +1103,13 @@ app.get('/api/dashboard/:userId/:year/:month', async (c) => {
 
         if (scope === 'sub') {
             recursiveCTE = `
-                WITH RECURSIVE subordinates AS (
-                    SELECT id FROM users WHERE manager_id = ?
-                    UNION ALL
-                    SELECT u.id
-                    FROM users u
-                    INNER JOIN subordinates s ON u.manager_id = s.id
-                )
+                WITH RECURSIVE subordinates AS (SELECT id
+                                                FROM users
+                                                WHERE manager_id = ?
+                                                UNION ALL
+                                                SELECT u.id
+                                                FROM users u
+                                                         INNER JOIN subordinates s ON u.manager_id = s.id)
             `
             scopeFilter = ` AND u.id IN (SELECT id FROM subordinates) `
             bindings.unshift(currentUser.id)
@@ -1208,7 +1208,7 @@ app.get('/api/dashboard/:userId/:year/:month', async (c) => {
 
     } catch (error) {
         console.error('Dashboard error:', error)
-        return c.json({ error: 'Lỗi lấy dashboard' }, 500)
+        return c.json({error: 'Lỗi lấy dashboard'}, 500)
     }
 })
 
@@ -1673,52 +1673,144 @@ app.put('/api/admin/users/:userId', async (c) => {
     try {
         const userId = c.req.param('userId')
         const body = await c.req.json()
+        const db = c.env.DB
+        const now = new Date().toISOString()
+
+        // 🧠 1. Lấy user hiện tại
+        const currentUser = await db
+            .prepare(`SELECT *
+                      FROM users
+                      WHERE id = ?`)
+            .bind(userId)
+            .first()
+
+        if (!currentUser) {
+            return c.json({error: 'User không tồn tại'}, 404)
+        }
+
+        // 🧠 2. Chuẩn hóa dữ liệu input (fix bug undefined/null/0)
+        const newData = {
+            full_name: body.full_name ?? body.fullName,
+            password: body.password?.trim() || null,
+            region_id: body.region_id ?? body.regionId,
+            position_id: body.position_id ?? body.positionId,
+            manager_id: body.manager_id ?? body.managerId,
+            team: body.hasOwnProperty('team') ? (body.team || null) : undefined,
+            start_date: body.start_date ?? body.startDate,
+            cover_image_url: body.hasOwnProperty('cover_image_url')
+                ? (body.cover_image_url || null)
+                : undefined
+        }
+
+        // 🧠 3. HANDLE POSITION HISTORY (QUAN TRỌNG NHẤT)
+        if (
+            newData.position_id !== undefined &&
+            newData.position_id !== currentUser.position_id
+        ) {
+            // 3.1 Đóng history cũ
+            await db.prepare(`
+                UPDATE user_position_history
+                SET end_date = ?
+                WHERE user_id = ?
+                  AND end_date IS NULL
+            `)
+                .bind(now, userId)
+                .run()
+
+            // 3.2 Tạo history mới
+            await db.prepare(`
+                INSERT INTO user_position_history (user_id, position_id, start_date, created_at)
+                VALUES (?, ?, ?, ?)
+            `)
+                .bind(userId, newData.position_id, now, now)
+                .run()
+        }
+
+        // 🧱 4. Build dynamic update
         const updates: string[] = []
         const bindings: any[] = []
 
-        if (body.full_name || body.fullName) {
-            updates.push('full_name = ?');
-            bindings.push(body.full_name || body.fullName)
-        }
-        if (body.password?.trim()) {
-            updates.push('password = ?');
-            bindings.push(body.password)
-        }
-        if (body.region_id || body.regionId) {
-            updates.push('region_id = ?');
-            bindings.push(body.region_id || body.regionId)
-        }
-        if (body.position_id || body.positionId) {
-            updates.push('position_id = ?');
-            bindings.push(body.position_id || body.positionId)
-        }
-        if (body.manager_id || body.managerId) {
-            updates.push('manager_id = ?');
-            bindings.push(body.manager_id || body.managerId)
-        }
-        if (body.hasOwnProperty('team')) {
-            updates.push('team = ?');
-            bindings.push(body.team || null)
-        }
-        if (body.start_date || body.startDate) {
-            updates.push('start_date = ?');
-            bindings.push(body.start_date || body.startDate)
-        }
-        if (body.hasOwnProperty('cover_image_url')) {
-            updates.push('cover_image_url = ?');
-            bindings.push(body.cover_image_url || null)
+        if (newData.full_name !== undefined) {
+            updates.push('full_name = ?')
+            bindings.push(newData.full_name)
         }
 
-        if (updates.length === 0) return c.json({error: 'Không có thông tin để cập nhật'}, 400)
+        if (newData.password) {
+            updates.push('password = ?')
+            bindings.push(newData.password)
+        }
+
+        if (newData.region_id !== undefined) {
+            updates.push('region_id = ?')
+            bindings.push(newData.region_id)
+        }
+
+        if (newData.position_id !== undefined) {
+            updates.push('position_id = ?')
+            bindings.push(newData.position_id)
+        }
+
+        if (newData.manager_id !== undefined) {
+            updates.push('manager_id = ?')
+            bindings.push(newData.manager_id || null)
+        }
+
+        if (newData.team !== undefined) {
+            updates.push('team = ?')
+            bindings.push(newData.team)
+        }
+
+        if (newData.start_date !== undefined) {
+            updates.push('start_date = ?')
+            bindings.push(newData.start_date)
+        }
+
+        if (newData.cover_image_url !== undefined) {
+            updates.push('cover_image_url = ?')
+            bindings.push(newData.cover_image_url)
+        }
+
+        if (updates.length === 0) {
+            return c.json({error: 'Không có thông tin để cập nhật'}, 400)
+        }
 
         bindings.push(userId)
-        await c.env.DB.prepare(`UPDATE users
-                                SET ${updates.join(', ')}
-                                WHERE id = ?`).bind(...bindings).run()
-        return c.json({success: true, message: 'Cập nhật thành công'})
+
+        // 🧱 5. Update user
+        await db.prepare(`
+            UPDATE users
+            SET ${updates.join(', ')}
+            WHERE id = ?
+        `)
+            .bind(...bindings)
+            .run()
+
+        return c.json({
+            success: true,
+            message: 'Cập nhật thành công'
+        })
+
     } catch (error) {
+        console.error('Update user error:', error)
         return c.json({error: 'Lỗi cập nhật thông tin'}, 500)
     }
+})
+
+app.get('/api/admin/users/:userId/position-history', async (c) => {
+    const userId = c.req.param('userId')
+    const db = c.env.DB
+
+    const rows = await db.prepare(`
+        SELECT h.*, p.display_name as position_name
+        FROM user_position_history h
+                 LEFT JOIN positions p ON h.position_id = p.id
+        WHERE h.user_id = ?
+        ORDER BY h.start_date DESC
+    `)
+        .bind(userId)
+        .all()
+
+    return c.json(rows.results)
 })
 
 app.delete('/api/admin/users/:userId', async (c) => {
@@ -2129,7 +2221,7 @@ app.get('/api/admin/export-kpi/:year/:month/:type', async (c) => {
         const positionId = c.req.query('position') || ''
 
         if (!year || !month) {
-            return c.json({ error: 'Thiếu thông tin year hoặc month' }, 400)
+            return c.json({error: 'Thiếu thông tin year hoặc month'}, 400)
         }
 
         // Lấy toàn bộ users theo filter region/position
