@@ -2120,10 +2120,11 @@ app.post('/api/lark/sync-video-kpi', async (c) => {
     }
 })
 
-app.get('/api/admin/kpi-not-submitted/:year/:month', async (c) => {
+app.get('/api/admin/export-kpi/:year/:month/:type', async (c) => {
     try {
         const year = parseInt(c.req.param('year'))
         const month = parseInt(c.req.param('month'))
+        const type = c.req.param('type')
         const regionId = c.req.query('region') || ''
         const positionId = c.req.query('position') || ''
 
@@ -2131,65 +2132,120 @@ app.get('/api/admin/kpi-not-submitted/:year/:month', async (c) => {
             return c.json({ error: 'Thiếu thông tin year hoặc month' }, 400)
         }
 
-        const conditions: string[] = [
-            `u.username NOT IN ('admin', 'admin1', 'admin2', 'admin3')`
-        ]
-        const bindings: any[] = []
+        // Lấy toàn bộ users theo filter region/position
+        const extraConditions: string[] = []
+        const userBindings: any[] = []
 
         if (regionId) {
-            conditions.push('u.region_id = ?')
-            bindings.push(parseInt(regionId))
+            extraConditions.push('u.region_id = ?')
+            userBindings.push(parseInt(regionId))
         }
         if (positionId) {
-            conditions.push('u.position_id = ?')
-            bindings.push(parseInt(positionId))
+            extraConditions.push('u.position_id = ?')
+            userBindings.push(parseInt(positionId))
         }
 
-        const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
+        const extraWhere = extraConditions.length > 0 ? 'AND ' + extraConditions.join(' AND ') : ''
 
-        // Lấy danh sách user_id đã có ít nhất 1 bản ghi KPI (is_for_kpi=1) trong tháng/năm đó
-        const submittedUsersQuery = `
-            SELECT DISTINCT kd.user_id
-            FROM kpi_data kd
-            JOIN kpi_templates kt ON kd.kpi_template_id = kt.id
-            WHERE kd.year = ${year}
-              AND kd.month = ${month}
-              AND kt.is_for_kpi = 1
-        `
-
-        const query = `
-            SELECT
-                u.id,
-                u.full_name,
-                u.username,
-                r.name       AS region_name,
-                p.display_name AS position_name,
-                u.position_id,
-                u.region_id
+        const allUsers = await c.env.DB.prepare(`
+            SELECT u.id, u.full_name, u.username,
+                   r.name         AS region_name,
+                   p.display_name AS position_name,
+                   u.position_id,
+                   u.region_id
             FROM users u
             JOIN regions r ON u.region_id = r.id
             JOIN positions p ON u.position_id = p.id
-            ${whereClause}
-            AND u.id NOT IN (${submittedUsersQuery})
+            WHERE u.username NOT LIKE 'admin%'
+              ${extraWhere}
             ORDER BY r.id, p.id, u.full_name
-        `
+        `).bind(...userBindings).all()
 
-        const stmt = bindings.length > 0
-            ? c.env.DB.prepare(query).bind(...bindings)
-            : c.env.DB.prepare(query)
+        const users = allUsers.results as any[]
+        if (users.length === 0) {
+            return c.json({success: true, users: [], total: 0, month, year, type})
+        }
 
-        const results = await stmt.all()
+        // Lấy số template is_for_kpi=1 theo từng position_id
+        const positionIds = [...new Set(users.map((u: any) => u.position_id))]
+        const templateCountRows = await c.env.DB.prepare(`
+            SELECT position_id, COUNT(*) as total_templates
+            FROM kpi_templates
+            WHERE is_for_kpi = 1
+              AND position_id IN (${positionIds.join(',')})
+            GROUP BY position_id
+        `).all()
+        const templateCountMap: Record<number, number> = {};
+        (templateCountRows.results as any[]).forEach((r: any) => {
+            templateCountMap[r.position_id] = r.total_templates
+        })
+
+        // Lấy số bản ghi đã nhập của từng user trong tháng (is_for_kpi=1)
+        const userIds = users.map((u: any) => u.id).join(',')
+        const submittedCountRows = await c.env.DB.prepare(`
+            SELECT kd.user_id, COUNT(*) as submitted_count
+            FROM kpi_data kd
+            JOIN kpi_templates kt ON kd.kpi_template_id = kt.id
+            WHERE kd.year = ?
+              AND kd.month = ?
+              AND kt.is_for_kpi = 1
+              AND kd.user_id IN (${userIds})
+            GROUP BY kd.user_id
+        `).bind(year, month).all()
+
+        const submittedCountMap: Record<number, number> = {};
+        (submittedCountRows.results as any[]).forEach((r: any) => {
+            submittedCountMap[r.user_id] = r.submitted_count
+        })
+
+        // Lấy actual_value của kpi_template_id=38 cho GS (position_id=4) khi export "đã nhập"
+        let gsKpi38Map: Record<number, number | null> = {}
+        if (type === '2') {
+            const gs38Rows = await c.env.DB.prepare(`
+                SELECT user_id, actual_value
+                FROM kpi_data
+                WHERE year = ?
+                  AND month = ?
+                  AND kpi_template_id = 38
+                  AND user_id IN (${userIds})
+            `).bind(year, month).all();
+            (gs38Rows.results as any[]).forEach((r: any) => {
+                gsKpi38Map[r.user_id] = r.actual_value
+            })
+        }
+
+        // Phân loại "đã nhập đủ" = số đã nhập >= số template của vị trí đó
+        const isFullySubmitted = (u: any): boolean => {
+            const required = templateCountMap[u.position_id] ?? 0
+            const submitted = submittedCountMap[u.id] ?? 0
+            return required > 0 && submitted >= required
+        }
+
+        let filtered: any[]
+        if (type === '1') {
+            filtered = users.filter((u: any) => !isFullySubmitted(u))
+        } else if (type === '2') {
+            filtered = users.filter((u: any) => isFullySubmitted(u))
+        } else {
+            filtered = users
+        }
+
+        const result = filtered.map((u: any) => ({
+            ...u,
+            kpi_38_value: u.position_id === 4 ? (gsKpi38Map[u.id] ?? null) : undefined
+        }))
 
         return c.json({
             success: true,
-            users: results.results,
-            total: results.results.length,
+            users: result,
+            total: result.length,
             month,
-            year
+            year,
+            type
         })
     } catch (error: any) {
-        console.error('kpi-not-submitted error:', error)
-        return c.json({ error: 'Lỗi lấy danh sách chưa nhập KPI: ' + (error?.message ?? '') }, 500)
+        console.error('export-kpi error:', error)
+        return c.json({error: 'Lỗi lấy danh sách KPI: ' + (error?.message ?? '')}, 500)
     }
 })
 
