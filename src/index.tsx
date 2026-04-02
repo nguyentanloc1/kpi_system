@@ -1084,7 +1084,7 @@ app.get('/api/dashboard/:userId/:year/:month', async (c) => {
         `).bind(userId).first()
 
         if (!currentUser) {
-            return c.json({error: 'User not found'}, 404)
+            return c.json({ error: 'User not found' }, 404)
         }
 
         // =========================
@@ -1103,13 +1103,13 @@ app.get('/api/dashboard/:userId/:year/:month', async (c) => {
 
         if (scope === 'sub') {
             recursiveCTE = `
-                WITH RECURSIVE subordinates AS (SELECT id
-                                                FROM users
-                                                WHERE manager_id = ?
-                                                UNION ALL
-                                                SELECT u.id
-                                                FROM users u
-                                                         INNER JOIN subordinates s ON u.manager_id = s.id)
+                WITH RECURSIVE subordinates AS (
+                    SELECT id FROM users WHERE manager_id = ?
+                    UNION ALL
+                    SELECT u.id
+                    FROM users u
+                    INNER JOIN subordinates s ON u.manager_id = s.id
+                )
             `
             scopeFilter = ` AND u.id IN (SELECT id FROM subordinates) `
             bindings.unshift(currentUser.id)
@@ -1208,7 +1208,7 @@ app.get('/api/dashboard/:userId/:year/:month', async (c) => {
 
     } catch (error) {
         console.error('Dashboard error:', error)
-        return c.json({error: 'Lỗi lấy dashboard'}, 500)
+        return c.json({ error: 'Lỗi lấy dashboard' }, 500)
     }
 })
 
@@ -1673,144 +1673,52 @@ app.put('/api/admin/users/:userId', async (c) => {
     try {
         const userId = c.req.param('userId')
         const body = await c.req.json()
-        const db = c.env.DB
-        const now = new Date().toISOString()
-
-        // 🧠 1. Lấy user hiện tại
-        const currentUser = await db
-            .prepare(`SELECT *
-                      FROM users
-                      WHERE id = ?`)
-            .bind(userId)
-            .first()
-
-        if (!currentUser) {
-            return c.json({error: 'User không tồn tại'}, 404)
-        }
-
-        // 🧠 2. Chuẩn hóa dữ liệu input (fix bug undefined/null/0)
-        const newData = {
-            full_name: body.full_name ?? body.fullName,
-            password: body.password?.trim() || null,
-            region_id: body.region_id ?? body.regionId,
-            position_id: body.position_id ?? body.positionId,
-            manager_id: body.manager_id ?? body.managerId,
-            team: body.hasOwnProperty('team') ? (body.team || null) : undefined,
-            start_date: body.start_date ?? body.startDate,
-            cover_image_url: body.hasOwnProperty('cover_image_url')
-                ? (body.cover_image_url || null)
-                : undefined
-        }
-
-        // 🧠 3. HANDLE POSITION HISTORY (QUAN TRỌNG NHẤT)
-        if (
-            newData.position_id !== undefined &&
-            newData.position_id !== currentUser.position_id
-        ) {
-            // 3.1 Đóng history cũ
-            await db.prepare(`
-                UPDATE user_position_history
-                SET end_date = ?
-                WHERE user_id = ?
-                  AND end_date IS NULL
-            `)
-                .bind(now, userId)
-                .run()
-
-            // 3.2 Tạo history mới
-            await db.prepare(`
-                INSERT INTO user_position_history (user_id, position_id, start_date, created_at)
-                VALUES (?, ?, ?, ?)
-            `)
-                .bind(userId, newData.position_id, now, now)
-                .run()
-        }
-
-        // 🧱 4. Build dynamic update
         const updates: string[] = []
         const bindings: any[] = []
 
-        if (newData.full_name !== undefined) {
-            updates.push('full_name = ?')
-            bindings.push(newData.full_name)
+        if (body.full_name || body.fullName) {
+            updates.push('full_name = ?');
+            bindings.push(body.full_name || body.fullName)
+        }
+        if (body.password?.trim()) {
+            updates.push('password = ?');
+            bindings.push(body.password)
+        }
+        if (body.region_id || body.regionId) {
+            updates.push('region_id = ?');
+            bindings.push(body.region_id || body.regionId)
+        }
+        if (body.position_id || body.positionId) {
+            updates.push('position_id = ?');
+            bindings.push(body.position_id || body.positionId)
+        }
+        if (body.manager_id || body.managerId) {
+            updates.push('manager_id = ?');
+            bindings.push(body.manager_id || body.managerId)
+        }
+        if (body.hasOwnProperty('team')) {
+            updates.push('team = ?');
+            bindings.push(body.team || null)
+        }
+        if (body.start_date || body.startDate) {
+            updates.push('start_date = ?');
+            bindings.push(body.start_date || body.startDate)
+        }
+        if (body.hasOwnProperty('cover_image_url')) {
+            updates.push('cover_image_url = ?');
+            bindings.push(body.cover_image_url || null)
         }
 
-        if (newData.password) {
-            updates.push('password = ?')
-            bindings.push(newData.password)
-        }
-
-        if (newData.region_id !== undefined) {
-            updates.push('region_id = ?')
-            bindings.push(newData.region_id)
-        }
-
-        if (newData.position_id !== undefined) {
-            updates.push('position_id = ?')
-            bindings.push(newData.position_id)
-        }
-
-        if (newData.manager_id !== undefined) {
-            updates.push('manager_id = ?')
-            bindings.push(newData.manager_id || null)
-        }
-
-        if (newData.team !== undefined) {
-            updates.push('team = ?')
-            bindings.push(newData.team)
-        }
-
-        if (newData.start_date !== undefined) {
-            updates.push('start_date = ?')
-            bindings.push(newData.start_date)
-        }
-
-        if (newData.cover_image_url !== undefined) {
-            updates.push('cover_image_url = ?')
-            bindings.push(newData.cover_image_url)
-        }
-
-        if (updates.length === 0) {
-            return c.json({error: 'Không có thông tin để cập nhật'}, 400)
-        }
+        if (updates.length === 0) return c.json({error: 'Không có thông tin để cập nhật'}, 400)
 
         bindings.push(userId)
-
-        // 🧱 5. Update user
-        await db.prepare(`
-            UPDATE users
-            SET ${updates.join(', ')}
-            WHERE id = ?
-        `)
-            .bind(...bindings)
-            .run()
-
-        return c.json({
-            success: true,
-            message: 'Cập nhật thành công'
-        })
-
+        await c.env.DB.prepare(`UPDATE users
+                                SET ${updates.join(', ')}
+                                WHERE id = ?`).bind(...bindings).run()
+        return c.json({success: true, message: 'Cập nhật thành công'})
     } catch (error) {
-        console.error('Update user error:', error)
         return c.json({error: 'Lỗi cập nhật thông tin'}, 500)
     }
-})
-
-app.get('/api/admin/users/:userId/position-history', async (c) => {
-    const userId = c.req.param('userId')
-    const db = c.env.DB
-
-    const rows = await db.prepare(`
-        SELECT h.*, p.display_name as position_name
-        FROM user_position_history h
-                 LEFT JOIN positions p ON h.position_id = p.id
-        WHERE h.user_id = ?
-        ORDER BY h.start_date DESC
-    `)
-        .bind(userId)
-        .all()
-
-    return c.json(rows.results)
 })
 
 app.delete('/api/admin/users/:userId', async (c) => {
@@ -2212,22 +2120,50 @@ app.post('/api/lark/sync-video-kpi', async (c) => {
     }
 })
 
+app.get('/api/admin/managers-with-subordinates', async (c) => {
+    try {
+        const results = await c.env.DB.prepare(`
+            SELECT DISTINCT u.id, u.full_name, u.username,
+                   p.display_name AS position_name,
+                   r.name         AS region_name
+            FROM users u
+            JOIN positions p ON u.position_id = p.id
+            JOIN regions r ON u.region_id = r.id
+            WHERE u.id IN (
+                SELECT DISTINCT manager_id FROM users
+                WHERE manager_id IS NOT NULL
+            )
+              AND u.username NOT LIKE 'admin%' 
+            ORDER BY p.id, r.id, u.full_name
+        `).all()
+        return c.json({managers: results.results})
+    } catch (error: any) {
+        return c.json({error: 'Lỗi lấy danh sách quản lý: ' + (error?.message ?? '')}, 500)
+    }
+})
+
 app.get('/api/admin/export-kpi/:year/:month/:type', async (c) => {
     try {
         const year = parseInt(c.req.param('year'))
         const month = parseInt(c.req.param('month'))
-        const type = c.req.param('type')
+        const type = c.req.param('type') // '1'=chưa nhập đủ, '2'=đã nhập đủ, '3'=tất cả
         const regionId = c.req.query('region') || ''
         const positionId = c.req.query('position') || ''
+        const managerId = c.req.query('manager') || ''
 
         if (!year || !month) {
             return c.json({error: 'Thiếu thông tin year hoặc month'}, 400)
         }
 
-        // Lấy toàn bộ users theo filter region/position
+        // --- Bước 1: Lấy toàn bộ users theo filter ---
         const extraConditions: string[] = []
         const userBindings: any[] = []
 
+        if (managerId) {
+            // Lọc theo người quản lý trực tiếp (manager_id = người được chọn)
+            extraConditions.push('u.manager_id = ?')
+            userBindings.push(parseInt(managerId))
+        }
         if (regionId) {
             extraConditions.push('u.region_id = ?')
             userBindings.push(parseInt(regionId))
@@ -2258,7 +2194,9 @@ app.get('/api/admin/export-kpi/:year/:month/:type', async (c) => {
             return c.json({success: true, users: [], total: 0, month, year, type})
         }
 
-        // Lấy số template is_for_kpi=1 theo từng position_id
+        const userIds = users.map((u: any) => u.id).join(',')
+
+        // --- Bước 2: Đếm số template is_for_kpi=1 theo từng position_id ---
         const positionIds = [...new Set(users.map((u: any) => u.position_id))]
         const templateCountRows = await c.env.DB.prepare(`
             SELECT position_id, COUNT(*) as total_templates
@@ -2267,13 +2205,12 @@ app.get('/api/admin/export-kpi/:year/:month/:type', async (c) => {
               AND position_id IN (${positionIds.join(',')})
             GROUP BY position_id
         `).all()
-        const templateCountMap: Record<number, number> = {};
-        (templateCountRows.results as any[]).forEach((r: any) => {
+        const templateCountMap: Record<number, number> = {}
+        ;(templateCountRows.results as any[]).forEach((r: any) => {
             templateCountMap[r.position_id] = r.total_templates
         })
 
-        // Lấy số bản ghi đã nhập của từng user trong tháng (is_for_kpi=1)
-        const userIds = users.map((u: any) => u.id).join(',')
+        // --- Bước 3: Đếm số KPI đã nhập của từng user trong tháng ---
         const submittedCountRows = await c.env.DB.prepare(`
             SELECT kd.user_id, COUNT(*) as submitted_count
             FROM kpi_data kd
@@ -2285,14 +2222,14 @@ app.get('/api/admin/export-kpi/:year/:month/:type', async (c) => {
             GROUP BY kd.user_id
         `).bind(year, month).all()
 
-        const submittedCountMap: Record<number, number> = {};
-        (submittedCountRows.results as any[]).forEach((r: any) => {
+        const submittedCountMap: Record<number, number> = {}
+        ;(submittedCountRows.results as any[]).forEach((r: any) => {
             submittedCountMap[r.user_id] = r.submitted_count
         })
 
-        // Lấy actual_value của kpi_template_id=38 cho GS (position_id=4) khi export "đã nhập"
+        // --- Bước 4: Lấy actual_value kpi_template_id=38 cho GS khi cần ---
         let gsKpi38Map: Record<number, number | null> = {}
-        if (type === '2') {
+        if (type === '2' || type === '3') {
             const gs38Rows = await c.env.DB.prepare(`
                 SELECT user_id, actual_value
                 FROM kpi_data
@@ -2300,13 +2237,13 @@ app.get('/api/admin/export-kpi/:year/:month/:type', async (c) => {
                   AND month = ?
                   AND kpi_template_id = 38
                   AND user_id IN (${userIds})
-            `).bind(year, month).all();
-            (gs38Rows.results as any[]).forEach((r: any) => {
+            `).bind(year, month).all()
+            ;(gs38Rows.results as any[]).forEach((r: any) => {
                 gsKpi38Map[r.user_id] = r.actual_value
             })
         }
 
-        // Phân loại "đã nhập đủ" = số đã nhập >= số template của vị trí đó
+        // --- Bước 5: Phân loại "đã nhập đủ" theo số template của vị trí ---
         const isFullySubmitted = (u: any): boolean => {
             const required = templateCountMap[u.position_id] ?? 0
             const submitted = submittedCountMap[u.id] ?? 0
