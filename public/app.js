@@ -2632,142 +2632,173 @@ function renderAdminUsers(container) {
         </button>
       </div>
 
-      <div id="edit-user-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-
-      <div class="bg-white w-full max-w-3xl mx-4 rounded-2xl shadow-2xl p-8 max-h-[90vh] overflow-y-auto">
-    
-        <!-- HEADER -->
-        <div class="flex items-center justify-between mb-6">
-          <h3 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <i class="fas fa-user-edit text-blue-600"></i>
-            Chỉnh sửa tài khoản
-          </h3>
-          <button onclick="hideEditUserModal()"
-            class="text-gray-400 hover:text-gray-600 transition">
-            <i class="fas fa-times text-xl"></i>
-          </button>
-        </div>
-    
-        <!-- TAB -->
-        <div class="flex border-b mb-6">
-          <button id="tab-info"
-            onclick="switchUserTab('info')"
-            class="px-4 py-2 font-semibold border-b-2 border-blue-500 text-blue-600">
-            Thông tin
-          </button>
-          <button id="tab-history"
-          onclick="switchUserTab('history')"
-          class="px-4 py-2 font-semibold text-gray-500 border-b-2 border-transparent hover:text-blue-600">
-          Lịch sử chức vụ
-        </button>
-        </div>
-    
-        <!-- ================= TAB INFO ================= -->
-        <div id="tab-content-info">
-    
-          <!-- THÔNG TIN TÀI KHOẢN -->
+      <div id="edit-user-modal"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      
+        <div
+          class="bg-white w-full max-w-3xl mx-4 rounded-2xl shadow-2xl p-8 max-h-[90vh] overflow-y-auto">
+      
+          <div class="flex items-center justify-between mb-6">
+            <h3 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+              <i class="fas fa-user-edit text-blue-600"></i>
+              Chỉnh sửa tài khoản
+            </h3>
+            <button onclick="hideEditUserModal()"
+              class="text-gray-400 hover:text-gray-600 transition">
+              <i class="fas fa-times text-xl"></i>
+            </button>
+          </div>
+      
           <div class="mb-8">
             <h4 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">
               Thông tin tài khoản
             </h4>
-    
+      
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div class="md:col-span-2">
                 <label class="block text-sm font-semibold text-gray-700 mb-1">
                   Tên đăng nhập
                 </label>
                 <input type="text" id="edit-username" disabled
-                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-gray-100">
+                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed">
+                <p class="text-xs text-gray-500 mt-1">Không thể thay đổi</p>
               </div>
-    
               <div class="md:col-span-2">
                 <label class="block text-sm font-semibold text-gray-700 mb-1">
-                  Họ và tên *
+                  Họ và tên <span class="text-red-500">*</span>
                 </label>
-                <input type="text" id="edit-fullname"
-                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500">
+                <input type="text" id="edit-fullname" required
+                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
+                         focus:outline-none focus:border-blue-500 transition">
               </div>
-    
+      
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1">
                   Mật khẩu mới
                 </label>
                 <input type="password" id="edit-password"
-                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg">
+                  placeholder="Để trống nếu không đổi"
+                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
+                         focus:outline-none focus:border-blue-500 transition">
               </div>
-    
+      
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1">
                   Xác nhận mật khẩu
                 </label>
                 <input type="password" id="edit-password-confirm"
-                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg">
+                  placeholder="Nhập lại mật khẩu"
+                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
+                         focus:outline-none focus:border-blue-500 transition">
               </div>
             </div>
           </div>
-    
-          <!-- THÔNG TIN CÔNG VIỆC -->
-          <div class="mb-8"> <h4 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-4"> Thông tin công việc </h4> <div class="grid grid-cols-1 md:grid-cols-2 gap-4"> <div> <label class="block text-sm font-semibold text-gray-700 mb-1"> Khối vận hành <span class="text-red-500">*</span> </label> <select id="edit-region" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition" onchange="loadEditPotentialManagers()" > <option value="">Chọn khối</option> </select> </div> <div> <label class="block text-sm font-semibold text-gray-700 mb-1"> Vị trí <span class="text-red-500">*</span> </label> <select id="edit-position" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition" onchange="loadEditPotentialManagers()" > <option value="">Chọn vị trí</option> </select> </div> <div> <label class="block text-sm font-semibold text-gray-700 mb-1"> Quản lý <span class="text-red-500">*</span> </label> <select id="edit-manager" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition"> <option value="">Chọn quản lý</option> </select> </div> <div> <label class="block text-sm font-semibold text-gray-700 mb-1"> Team </label> <input type="text" id="edit-team" placeholder="VD: BD1U1, HCM2" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition"> <p class="text-xs text-gray-500 mt-1"> Ví dụ: <span class="font-mono bg-gray-100 px-2 py-0.5 rounded"> BD1U1 </span> </p> </div> <div> <label class="block text-sm font-semibold text-gray-700 mb-1"> Ngày nhận việc <span class="text-red-500">*</span> </label> <input type="date" id="edit-startdate" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition"> </div> </div> </div>
-    
-          <!-- COVER -->
+      
+          <div class="mb-8">
+            <h4 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">
+              Thông tin công việc
+            </h4>
+      
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">
+                  Khối vận hành <span class="text-red-500">*</span>
+                </label>
+                <select 
+                    id="edit-region" 
+                    class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg 
+                    focus:outline-none focus:border-blue-500 transition"
+                    onchange="loadEditPotentialManagers()"
+                >
+                  <option value="">Chọn khối</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">
+                  Vị trí <span class="text-red-500">*</span>
+                </label>
+                <select 
+                    id="edit-position" 
+                    class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition"
+                    onchange="loadEditPotentialManagers()"
+                >
+                  <option value="">Chọn vị trí</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">
+                  Quản lý <span class="text-red-500">*</span>
+                </label>
+                <select id="edit-manager"
+                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
+                         focus:outline-none focus:border-blue-500 transition">
+                  <option value="">Chọn quản lý</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">
+                  Team
+                </label>
+                <input type="text" id="edit-team"
+                  placeholder="VD: BD1U1, HCM2"
+                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
+                         focus:outline-none focus:border-blue-500 transition">
+                <p class="text-xs text-gray-500 mt-1">
+                  Ví dụ:
+                  <span class="font-mono bg-gray-100 px-2 py-0.5 rounded">
+                    BD1U1
+                  </span>
+                </p>
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">
+                  Ngày nhận việc <span class="text-red-500">*</span>
+                </label>
+                <input type="date" id="edit-startdate"
+                  class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
+                         focus:outline-none focus:border-blue-500 transition">
+              </div>
+            </div>
+          </div>
+      
           <div class="mb-8">
             <h4 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">
               Ảnh Cover KPI
             </h4>
-    
+      
+            <label class="block text-sm font-semibold text-gray-700 mb-1">
+              URL ảnh
+            </label>
             <input type="text" id="edit-cover-url"
-              class="w-full px-4 py-2 border-2 rounded-lg">
-    
+              placeholder="https://www.genspark.ai/api/files/s/..."
+              class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg
+                     focus:outline-none focus:border-purple-500 transition">
+      
+            <p class="text-xs text-gray-500 mt-1">
+              Dán link ảnh từ GenSpark AI Drive
+            </p>
+      
             <div id="edit-cover-preview" class="hidden mt-4">
               <img class="w-full max-h-48 object-contain rounded-lg border">
             </div>
           </div>
-    
-          <!-- ACTION -->
+      
           <div class="flex gap-4">
             <button onclick="saveEditUser()"
-              class="flex-1 py-3 rounded-lg text-white bg-green-500">
-              Lưu thay đổi
+              class="flex-1 py-3 rounded-lg font-semibold text-white
+                     bg-gradient-to-r from-green-500 to-teal-500
+                     hover:shadow-lg transition">
+              <i class="fas fa-save mr-2"></i>Lưu thay đổi
             </button>
+      
             <button onclick="hideEditUserModal()"
-              class="flex-1 py-3 rounded-lg text-white bg-gray-500">
+              class="flex-1 py-3 rounded-lg font-semibold text-white
+                     bg-gray-500 hover:shadow-lg transition">
               Hủy
             </button>
           </div>
-    
         </div>
-    
-        <!-- ================= TAB HISTORY ================= -->
-        <div id="tab-content-history" class="hidden">
-    
-          <h4 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">
-            Lịch sử chức vụ
-          </h4>
-    
-          <div class="overflow-x-auto">
-            <table class="w-full border rounded-lg">
-              <thead class="bg-gray-100">
-                <tr>
-                  <th class="px-4 py-2 text-left">Chức vụ</th>
-                  <th class="px-4 py-2 text-left">Từ ngày</th>
-                  <th class="px-4 py-2 text-left">Đến ngày</th>
-                  <th class="px-4 py-2 text-left">Trạng thái</th>
-                </tr>
-              </thead>
-              <tbody id="position-history-body">
-                <tr>
-                  <td colspan="4" class="text-center py-4 text-gray-500">
-                    Đang tải...
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-    
-        </div>
-    
       </div>
-    </div>
       
       <div id="create-user-form" class="hidden mb-8 p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border-2 border-blue-200">
         <h3 class="text-xl font-bold text-gray-800 mb-4">
@@ -2893,69 +2924,6 @@ function renderAdminUsers(container) {
 
     loadAdminMetadata();
     loadAdminUsers();
-}
-
-function setActiveTab(activeTab, inactiveTab) {
-    activeTab.classList.add('border-blue-500', 'text-blue-600')
-    activeTab.classList.remove('border-transparent', 'text-gray-500')
-
-    inactiveTab.classList.remove('border-blue-500', 'text-blue-600')
-    inactiveTab.classList.add('border-transparent', 'text-gray-500')
-}
-
-function switchUserTab(tab) {
-    const info = document.getElementById('tab-content-info')
-    const history = document.getElementById('tab-content-history')
-
-    const tabInfo = document.getElementById('tab-info')
-    const tabHistory = document.getElementById('tab-history')
-
-    if (tab === 'info') {
-        info.classList.remove('hidden')
-        history.classList.add('hidden')
-        setActiveTab(tabInfo, tabHistory)
-    } else {
-        info.classList.add('hidden')
-        history.classList.remove('hidden')
-        setActiveTab(tabHistory, tabInfo)
-        loadPositionHistory(currentEditUserId)
-    }
-}
-
-
-async function loadPositionHistory(userId) {
-    const tbody = document.getElementById('position-history-body')
-
-    try {
-        const res = await axios.get(`/api/admin/users/${userId}/position-history`)
-        const data = res.data
-
-        if (!data.length) {
-            tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4">Không có dữ liệu</td></tr>`
-            return
-        }
-
-        tbody.innerHTML = data.map(item => `
-            <tr class="border-t">
-              <td class="px-4 py-2">${item.position_name || '-'}</td>
-              <td class="px-4 py-2">${formatDate(item.start_date)}</td>
-              <td class="px-4 py-2">
-                ${item.end_date ? formatDate(item.end_date) : '<span class="text-green-600">Hiện tại</span>'}
-              </td>
-              <td class="px-4 py-2">
-                ${!item.end_date ? 'Đang áp dụng' : 'Đã kết thúc'}
-              </td>
-            </tr>
-        `).join('')
-
-    } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-red-500">Lỗi tải dữ liệu</td></tr>`
-    }
-}
-
-function formatDate(dateStr) {
-    const d = new Date(dateStr)
-    return d.toLocaleDateString('vi-VN')
 }
 
 let adminMetadata = {regions: [], positions: []};
@@ -4473,7 +4441,7 @@ async function loadKpiDetail(positionIds, positionName, kpiIds) {
             gsKpiData = {users: users || [], kpiTemplates: kpiTemplates || [], kpiData: kpiData || []};
             gsKpiFilteredUsers = [...gsKpiData.users];
             gsKpiCurrentPage = 1;
-
+            console.log(gsKpiData)
             const countEl = document.getElementById('gs-kpi-filter-count');
             if (countEl) countEl.textContent = (users || []).length;
 
@@ -5709,28 +5677,25 @@ function renderExportKpiTab(container) {
         .map(r => `<option value="${r.id}">${r.name}</option>`)
         .join('');
 
-    const positionOptions = (adminMetadata?.positions || [])
-        .map(p => `<option value="${p.id}">${p.display_name}</option>`)
-        .join('');
-
     const monthOptions = Array.from({length: 12}, (_, i) => i + 1)
         .map(m => `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`)
         .join('');
 
+    currentKpiType = '1';
+
     container.innerHTML = `
     <div class="bg-white rounded-xl shadow-xl p-6">
       <div class="mb-6">
-        <h3 class="text-2xl font-bold text-gray-800" id="export_kpi_title">
-          <i class="fas fa-file-excel mr-2 text-green-600"></i>
-          Export danh sách chưa nhập KPI
+        <h3 class="text-2xl font-bold text-gray-800">
+          <i class="fas fa-file-excel mr-2 text-green-600"></i>Export danh sách KPI nhân viên
         </h3>
-        <p class="text-sm text-gray-400 mt-1" id="export_kpi_subtitle">
-          Xuất file Excel danh sách nhân viên chưa nhập KPI trong tháng được chọn.
+        <p class="text-sm text-gray-400 mt-1">
+          Xuất file Excel theo trạng thái nhập KPI. Có thể lọc theo quản lý, khu vực hoặc chức vụ.
         </p>
       </div>
 
       <div class="bg-green-50 border border-green-200 rounded-xl p-5 mb-6">
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1">
               <i class="fas fa-calendar-alt mr-1 text-green-600"></i>Tháng
@@ -5748,47 +5713,54 @@ function renderExportKpiTab(container) {
           </div>
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1">
-              <i class="fas fa-map-marker-alt mr-1 text-green-600"></i>Loại
+              <i class="fas fa-filter mr-1 text-green-600"></i>Trạng thái KPI
             </label>
-            <select 
-                id="export-kpi-type" 
-                class="w-full px-3 py-2 border-2 border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                onchange="changeTypeKPI(this.value)"
-            >
-              <option value="1">Chưa nhập</option>
-              <option value="2">Đã nhập</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">
-              <i class="fas fa-map-marker-alt mr-1 text-green-600"></i>Khu vực
-            </label>
-            <select id="export-kpi-region" class="w-full px-3 py-2 border-2 border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-              <option value="">Tất cả khu vực</option>
-              ${regionOptions}
-            </select>
-          </div>
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">
-              <i class="fas fa-briefcase mr-1 text-green-600"></i>Chức vụ
-            </label>
-            <select id="export-kpi-position" class="w-full px-3 py-2 border-2 border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-              <option value="">Tất cả chức vụ</option>
-              ${positionOptions}
+            <select id="export-kpi-type" class="w-full px-3 py-2 border-2 border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+              onchange="onChangeKpiType(this)">
+              <option value="1">Chưa nhập đủ KPI</option>
+              <option value="2">Đã nhập đủ KPI</option>
+              <option value="3" selected>Tất cả</option>
             </select>
           </div>
         </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">
+                <i class="fas fa-user-tie mr-1 text-indigo-500"></i>Theo quản lý
+              </label>
+              <select id="export-kpi-management" class="w-full px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    onchange="onKpiManagementChange()">
+                <option value="">-- Tất cả --</option>
+              </select>
+              <p class="text-xs text-gray-400 mt-1">Cấp dưới trực tiếp của người này</p>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">
+                <i class="fas fa-map-marker-alt mr-1 text-green-500"></i>Theo khu vực
+              </label>
+              <select id="export-kpi-region" class="w-full px-3 py-2 border-2 border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                <option value="">-- Tất cả --</option>
+                ${regionOptions}
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">
+                <i class="fas fa-briefcase mr-1 text-orange-500"></i>Theo chức vụ
+              </label>
+              <select id="export-kpi-position" class="w-full px-3 py-2 border-2 border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
+                <option value="">-- Tất cả --</option>
+              </select>
+            </div>
+        </div>
+
         <div class="mt-4 flex flex-wrap gap-3">
-          <button
-            onclick="previewKpiData()"
-            class="px-5 py-2.5 bg-white border-2 border-green-500 text-green-700 rounded-xl font-semibold hover:bg-green-50 transition-all"
-          >
+          <button onclick="previewKpiData()"
+            class="px-5 py-2.5 bg-white border-2 border-green-500 text-green-700 rounded-xl font-semibold hover:bg-green-50 transition-all">
             <i class="fas fa-eye mr-2"></i>Xem trước
           </button>
-          <button
-            onclick="exportKpiData()"
-            class="px-6 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all"
-          >
+          <button onclick="exportKpiData()"
+            class="px-6 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all">
             <i class="fas fa-file-excel mr-2"></i>Tải file Excel
           </button>
         </div>
@@ -5796,22 +5768,21 @@ function renderExportKpiTab(container) {
 
       <div id="export-kpi-preview" class="hidden">
         <div class="flex items-center justify-between mb-3">
-          <h4 class="text-lg font-bold text-gray-700">
-            <i class="fas fa-list mr-2 text-green-600"></i>
-            <span id="export-kpi-preview-title">Danh sách chưa nhập KPI</span>
+          <h4 class="text-lg font-bold text-gray-700" id="export-kpi-preview-title">
+            <i class="fas fa-list mr-2 text-green-600"></i>Danh sách
             (<span id="export-kpi-count" class="text-green-600">0</span> người)
           </h4>
         </div>
         <div class="overflow-x-auto rounded-xl border border-gray-200">
           <table class="w-full text-sm border-collapse">
             <thead>
-              <tr class="bg-gradient-to-r from-green-500 to-emerald-600 text-white">
+              <tr class="bg-gradient-to-r from-green-500 to-emerald-600 text-white" id="export-kpi-thead-row">
                 <th class="px-4 py-3 text-left">STT</th>
                 <th class="px-4 py-3 text-left">Họ và tên</th>
                 <th class="px-4 py-3 text-left">Username</th>
                 <th class="px-4 py-3 text-left">Khu vực</th>
                 <th class="px-4 py-3 text-left">Chức vụ</th>
-                ${currentKpiType === '2' ? `<th class="px-4 py-3 text-left">Số lao động</th>` : ''}
+                <th class="px-4 py-3 text-left">Trạng thái</th>
               </tr>
             </thead>
             <tbody id="export-kpi-table-body"></tbody>
@@ -5820,73 +5791,83 @@ function renderExportKpiTab(container) {
       </div>
 
       <div id="export-kpi-empty" class="hidden text-center py-12">
-        <h4 class="text-xl font-bold text-green-700 mb-2">Không có dữ liệu</h4>
+        <div class="inline-block p-5 bg-green-100 rounded-full mb-4">
+          <i class="fas fa-check-circle text-5xl text-green-500"></i>
+        </div>
+        <h4 class="text-xl font-bold text-green-700 mb-2" id="export-kpi-empty-msg">Không có dữ liệu.</h4>
       </div>
     </div>
   `;
 
     generateYearOptions('export-kpi-year');
 
+    // Load managers và metadata
+    loadExportKpiManagers();
     if (!adminMetadata?.regions || adminMetadata.regions.length === 0) {
         loadAdminMetadata().then(() => {
             const regionSel = document.getElementById('export-kpi-region');
             const posSel = document.getElementById('export-kpi-position');
             if (regionSel) {
-                regionSel.innerHTML = '<option value="">Tất cả khu vực</option>' +
+                regionSel.innerHTML = '<option value="">-- Tất cả --</option>' +
                     (adminMetadata?.regions || []).map(r => `<option value="${r.id}">${r.name}</option>`).join('');
             }
             if (posSel) {
-                posSel.innerHTML = '<option value="">Tất cả chức vụ</option>' +
+                posSel.innerHTML = '<option value="">-- Tất cả --</option>' +
                     (adminMetadata?.positions || []).map(p => `<option value="${p.id}">${p.display_name}</option>`).join('');
             }
         });
     }
 }
 
-function changeTypeKPI(type) {
-    const title = document.getElementById('export_kpi_title');
-    const subtitle = document.getElementById('export_kpi_subtitle');
+// Load danh sách quản lý có cấp dưới
+async function loadExportKpiManagers() {
+    try {
+        const res = await fetch('/api/admin/managers-with-subordinates');
+        const data = await res.json();
+        const sel = document.getElementById('export-kpi-management');
+        if (!sel) return;
+        sel.innerHTML = '';
+        sel.innerHTML = '<option value="">-- Tất cả --</option>' +
+            (data.managers || []).map(m =>
+                `<option value="${m.id}">${m.full_name} (${m.position_name} - ${m.region_name})</option>`
+            ).join('');
+    } catch (e) {
+        console.warn('Không thể load danh sách quản lý:', e.message);
+    }
+}
+
+function onChangeKpiType(e) {
     const positions = document.getElementById('export-kpi-position');
 
-    switch (type) {
-        case '1':
-            currentKpiType = type;
-            title.innerHTML = `
-                <i class="fas fa-file-excel mr-2 text-green-600"></i>
-                Export danh sách chưa nhập KPI
-                `;
-            subtitle.textContent = `Xuất file Excel danh sách nhân viên chưa nhập KPI trong tháng được chọn.`;
-            positions.innerHTML = `<option value="">Tất cả chức vụ</option>` + (adminMetadata?.positions || [])
+    switch (e.value) {
+        case "1":
+            currentKpiType = e.value
+            positions.innerHTML = `<option value="">-- Tất cả --</option>` + (adminMetadata?.positions || [])
                 .map(p => `<option value="${p.id}">${p.display_name}</option>`)
                 .join('');
             break;
-        case '2':
-            currentKpiType = type;
-            title.innerHTML = `
-                <i class="fas fa-file-excel mr-2 text-green-600"></i>
-                Export danh sách đã nhập KPI
-                `;
-            subtitle.textContent = `Xuất file Excel danh sách nhân viên đã nhập KPI trong tháng được chọn.`;
+        case "2":
+            currentKpiType = e.value
             positions.innerHTML = `<option value="4">Giám sát</option>`;
             break;
         default:
-            currentKpiType = '1';
-            title.innerHTML = `
-                <i class="fas fa-file-excel mr-2 text-green-600"></i>
-                Export danh sách chưa nhập KPI
-                `;
-            subtitle.textContent = `Xuất file Excel danh sách nhân viên chưa nhập KPI trong tháng được chọn.`;
-            positions.innerHTML = (adminMetadata?.positions || [])
+            currentKpiType = "3";
+            positions.innerHTML = `<option value="">-- Tất cả --</option>` + (adminMetadata?.positions || [])
                 .map(p => `<option value="${p.id}">${p.display_name}</option>`)
                 .join('');
             break;
     }
 }
 
+function onKpiManagementChange() {
+    document.getElementById('export-kpi-region').value = '';
+}
+
 async function fetchKpiData() {
     const month = document.getElementById('export-kpi-month')?.value;
     const year = document.getElementById('export-kpi-year')?.value;
     const type = document.getElementById('export-kpi-type')?.value || '1';
+    const manager = document.getElementById('export-kpi-management')?.value || '';
     const region = document.getElementById('export-kpi-region')?.value || '';
     const position = document.getElementById('export-kpi-position')?.value || '';
 
@@ -5897,7 +5878,7 @@ async function fetchKpiData() {
 
     let url = `/api/admin/export-kpi/${year}/${month}/${type}`;
     const params = new URLSearchParams();
-    if (type) params.set('type', type);
+    if (manager) params.set('manager', manager);
     if (region) params.set('region', region);
     if (position) params.set('position', position);
     if (params.toString()) url += '?' + params.toString();
@@ -5914,21 +5895,17 @@ async function previewKpiData() {
     const previewDiv = document.getElementById('export-kpi-preview');
     const emptyDiv = document.getElementById('export-kpi-empty');
     const tbody = document.getElementById('export-kpi-table-body');
-    const countEl = document.getElementById('export-kpi-count');
     const previewTitle = document.getElementById('export-kpi-preview-title');
-    const type = document.getElementById('export-kpi-type')?.value || '1';
+    const emptyMsg = document.getElementById('export-kpi-empty-msg');
 
     if (!previewDiv || !tbody) return;
+
+    const type = document.getElementById('export-kpi-type')?.value || '1';
+    const typeLabel = type === '1' ? 'Chưa nhập đủ KPI' : type === '2' ? 'Đã nhập đủ KPI' : 'Tất cả';
 
     showLoadingOverlay('Đang tải danh sách...');
     previewDiv.classList.add('hidden');
     emptyDiv.classList.add('hidden');
-
-    if (currentKpiType === '1') {
-        previewTitle.textContent = 'Danh sách chưa nhập KPI'
-    } else {
-        previewTitle.textContent = 'Danh sách đã nhập KPI'
-    }
 
     try {
         const data = await fetchKpiData();
@@ -5937,12 +5914,33 @@ async function previewKpiData() {
         hideLoadingOverlay();
 
         if (!data.users || data.users.length === 0) {
+            const msg = type === '1' ? 'Tất cả nhân viên đã nhập đủ KPI! 🎉'
+                : type === '2' ? 'Chưa có nhân viên nào nhập đủ KPI.'
+                : 'Không tìm thấy nhân viên nào với bộ lọc này.';
+            if (emptyMsg) emptyMsg.textContent = msg;
             emptyDiv.classList.remove('hidden');
             return;
         }
 
-        countEl.textContent = data.total;
-        const hasGs38 = type === '2' && data.users.some(u => u.position_id === 4);
+        if (previewTitle) previewTitle.innerHTML = `
+            <i class="fas fa-list mr-2 text-green-600"></i>
+            Danh sách <span class="text-green-700 font-bold">${typeLabel}</span>
+            (<span id="export-kpi-count" class="text-green-600">${data.total}</span> người)`;
+
+        // Kiểm tra có cần cột số lao động không
+        const hasGs38 = (type === '2' || type === '3') && data.users.some(u => u.position_id === 4);
+
+        // Cập nhật header
+        const theadRow = document.getElementById('export-kpi-thead-row');
+        if (theadRow) {
+            const existing38 = theadRow.querySelector('.th-38');
+            if (hasGs38 && !existing38) {
+                theadRow.insertAdjacentHTML('beforeend', '<th class="px-4 py-3 text-left th-38">Số lao động</th>');
+            } else if (!hasGs38 && existing38) {
+                existing38.remove();
+            }
+        }
+
         tbody.innerHTML = data.users.map((u, idx) => `
           <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-green-50 transition-colors">
             <td class="px-4 py-2.5 text-gray-500 font-mono text-xs">${idx + 1}</td>
@@ -5956,20 +5954,20 @@ async function previewKpiData() {
             <td class="px-4 py-2.5">
               <span class="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs">${u.position_name}</span>
             </td>
+            <td class="px-4 py-2.5">
+              ${type === '1'
+                ? '<span class="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-semibold">Chưa nhập</span>'
+                : type === '2'
+                    ? '<span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold">Đã nhập</span>'
+                    : u.kpi_38_value === null 
+                        ? '<span class="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-semibold">Chưa nhập</span>'
+                        : u.kpi_38_value != null 
+                            ? '<span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold">Đã nhập</span>'
+                            : '<span class="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs">-</span>'}
+            </td>
             ${hasGs38 ? `<td class="px-4 py-2.5 text-center font-semibold text-blue-700">${u.position_id === 4 ? (u.kpi_38_value ?? '-') : ''}</td>` : ''}
           </tr>
         `).join('');
-
-        // Cập nhật header bảng nếu có cột số lao động
-        const thead = previewDiv.querySelector('thead tr');
-        if (thead) {
-            const existing38Th = thead.querySelector('.th-38');
-            if (hasGs38 && !existing38Th) {
-                thead.insertAdjacentHTML('beforeend', '<th class="px-4 py-3 text-left th-38">Số lao động</th>');
-            } else if (!hasGs38 && existing38Th) {
-                existing38Th.remove();
-            }
-        }
 
         previewDiv.classList.remove('hidden');
 
@@ -5982,11 +5980,21 @@ async function previewKpiData() {
 async function exportKpiData() {
     const month = document.getElementById('export-kpi-month')?.value;
     const year = document.getElementById('export-kpi-year')?.value;
+    const type = document.getElementById('export-kpi-type')?.value || '1';
 
     if (!month || !year) {
         alert('Vui lòng chọn tháng và năm');
         return;
     }
+
+    const typeLabel = type === '1' ? 'Chưa nhập đủ KPI' : type === '2' ? 'Đã nhập đủ KPI' : 'Tất cả';
+    const filePrefix = type === '1' ? 'Chua_nhap_KPI' : type === '2' ? 'Da_nhap_KPI' : 'Tat_ca_KPI';
+
+    // Tên người quản lý nếu đang filter theo quản lý
+    const managerSel = document.getElementById('export-kpi-management');
+    const managerName = managerSel?.value
+        ? managerSel.options[managerSel.selectedIndex]?.text?.split(' (')[0] || ''
+        : '';
 
     showLoadingOverlay('Đang lấy dữ liệu...');
 
@@ -5994,33 +6002,31 @@ async function exportKpiData() {
         const data = await fetchKpiData();
         if (!data) return;
 
-        hideLoadingOverlay();
-
-        const type = document.getElementById('export-kpi-type')?.value || '1';
-        const typeLabel = type === '1' ? 'Chưa nhập KPI' : 'Đã nhập KPI';
-        const statusText = type === '1' ? 'Chưa nhập' : 'Đã nhập';
-        const filePrefix = type === '1' ? 'Chua_nhap_KPI' : 'Da_nhap_KPI';
-
         if (!data.users || data.users.length === 0) {
             hideLoadingOverlay();
-            const msg = type === '1' ? `✅ Tháng ${month}/${year}: Tất cả nhân viên đã nhập đủ KPI!`
-                : type === '2' ? `Tháng ${month}/${year}: Chưa có nhân viên nào nhập đủ KPI.`
-                : `Không có dữ liệu.`;
-            alert(msg);
+            alert(type === '1'
+                ? `✅ Tháng ${month}/${year}: Tất cả nhân viên đã nhập đủ KPI!`
+                : `Không có dữ liệu để xuất.`);
             return;
         }
 
-        showLoadingOverlay('Đang tạo file Excel...');
+        updateLoadingOverlay('Đang tạo file Excel...');
 
-        // Thêm cột số lao động nếu có GS trong kết quả và type là đã nhập
-        const hasGs38 = type === '2' && data.users.some(u => u.position_id === 4);
+        const hasGs38 = (type === '2' || type === '3') && data.users.some(u => u.position_id === 4);
         const headers = ['STT', 'Họ và tên', 'Username', 'Khu vực', 'Chức vụ', 'Trạng thái KPI'];
         if (hasGs38) headers.push('Số lao động');
 
         const sheetData = [
             headers,
             ...data.users.map((u, idx) => {
-                const row = [idx + 1, u.full_name, u.username, u.region_name, u.position_name, statusText];
+                let kpiStatus = null;
+                if (u.kpi_38_value != null) {
+                    kpiStatus = "Đã nhập";
+                } else if (u.kpi_38_value === null) {
+                    kpiStatus = "Chưa nhập";
+                }
+
+                const row = [idx + 1, u.full_name, u.username, u.region_name, u.position_name, kpiStatus];
                 if (hasGs38) row.push(u.position_id === 4 ? (u.kpi_38_value ?? '-') : '');
                 return row;
             })
@@ -6029,29 +6035,22 @@ async function exportKpiData() {
         const ws = XLSX.utils.aoa_to_sheet(sheetData);
         ws['!cols'] = [
             {wch: 5}, {wch: 28}, {wch: 16}, {wch: 20}, {wch: 22}, {wch: 14},
-            ...(hasGs38 ? [{wch: 22}] : [])
+            ...(hasGs38 ? [{wch: 20}] : [])
         ];
-
-        const summaryData = [
-            [`Báo cáo KPI — ${typeLabel}`],
-            [`Tháng: ${month}/${year}`],
-            [`Tổng số: ${data.total} người`],
-            [`Thời gian xuất: ${new Date().toLocaleString('vi-VN', {timeZone: 'Asia/Ho_Chi_Minh'})}`],
-        ];
-        const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-        wsSummary['!cols'] = [{wch: 40}];
 
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, `T${month}-${year}`);
-        XLSX.utils.book_append_sheet(wb, wsSummary, 'Tóm tắt');
 
-        const filename = `${filePrefix}_T${String(month).padStart(2, '0')}_${year}.xlsx`;
+        const managerSuffix = managerName ? `_${managerName.replace(/\s+/g, '_')}` : '';
+        const filename = `${filePrefix}${managerSuffix}_T${String(month).padStart(2, '0')}_${year}.xlsx`;
         XLSX.writeFile(wb, filename);
 
         hideLoadingOverlay();
         alert(`✅ Xuất file thành công!\n📋 ${data.total} nhân viên (${typeLabel}) tháng ${month}/${year}\n📁 ${filename}`);
+
     } catch (err) {
         hideLoadingOverlay();
         alert('❌ Lỗi khi export: ' + err.message);
     }
 }
+
