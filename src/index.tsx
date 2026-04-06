@@ -2155,12 +2155,10 @@ app.get('/api/admin/export-kpi/:year/:month/:type', async (c) => {
             return c.json({error: 'Thiếu thông tin year hoặc month'}, 400)
         }
 
-        // --- Bước 1: Lấy toàn bộ users theo filter ---
         const extraConditions: string[] = []
         const userBindings: any[] = []
 
         if (managerId) {
-            // Lọc theo người quản lý trực tiếp (manager_id = người được chọn)
             extraConditions.push('u.manager_id = ?')
             userBindings.push(parseInt(managerId))
         }
@@ -2196,38 +2194,17 @@ app.get('/api/admin/export-kpi/:year/:month/:type', async (c) => {
 
         const userIds = users.map((u: any) => u.id).join(',')
 
-        // --- Bước 2: Đếm số template is_for_kpi=1 theo từng position_id ---
-        const positionIds = [...new Set(users.map((u: any) => u.position_id))]
-        const templateCountRows = await c.env.DB.prepare(`
-            SELECT position_id, COUNT(*) as total_templates
-            FROM kpi_templates
-            WHERE is_for_kpi = 1
-              AND position_id IN (${positionIds.join(',')})
-            GROUP BY position_id
-        `).all()
-        const templateCountMap: Record<number, number> = {}
-        ;(templateCountRows.results as any[]).forEach((r: any) => {
-            templateCountMap[r.position_id] = r.total_templates
-        })
-
-        // --- Bước 3: Đếm số KPI đã nhập của từng user trong tháng ---
-        const submittedCountRows = await c.env.DB.prepare(`
-            SELECT kd.user_id, COUNT(*) as submitted_count
-            FROM kpi_data kd
-            JOIN kpi_templates kt ON kd.kpi_template_id = kt.id
-            WHERE kd.year = ?
-              AND kd.month = ?
-              AND kt.is_for_kpi = 1
-              AND kd.user_id IN (${userIds})
-            GROUP BY kd.user_id
+        const summaryRows = await c.env.DB.prepare(`
+            SELECT user_id
+            FROM monthly_summary
+            WHERE year = ?
+              AND month = ?
+              AND user_id IN (${userIds})
+              AND total_kpi_score IS NOT NULL
         `).bind(year, month).all()
 
-        const submittedCountMap: Record<number, number> = {}
-        ;(submittedCountRows.results as any[]).forEach((r: any) => {
-            submittedCountMap[r.user_id] = r.submitted_count
-        })
+        const submittedSet = new Set((summaryRows.results as any[]).map((r: any) => r.user_id))
 
-        // --- Bước 4: Lấy actual_value kpi_template_id=38 cho GS khi cần ---
         let gsKpi38Map: Record<number, number | null> = {}
         if (type === '2' || type === '3') {
             const gs38Rows = await c.env.DB.prepare(`
@@ -2243,18 +2220,11 @@ app.get('/api/admin/export-kpi/:year/:month/:type', async (c) => {
             })
         }
 
-        // --- Bước 5: Phân loại "đã nhập đủ" theo số template của vị trí ---
-        const isFullySubmitted = (u: any): boolean => {
-            const required = templateCountMap[u.position_id] ?? 0
-            const submitted = submittedCountMap[u.id] ?? 0
-            return required > 0 && submitted >= required
-        }
-
         let filtered: any[]
         if (type === '1') {
-            filtered = users.filter((u: any) => !isFullySubmitted(u))
+            filtered = users.filter((u: any) => !submittedSet.has(u.id))
         } else if (type === '2') {
-            filtered = users.filter((u: any) => isFullySubmitted(u))
+            filtered = users.filter((u: any) => u.position_id === 4 && submittedSet.has(u.id))
         } else {
             filtered = users
         }

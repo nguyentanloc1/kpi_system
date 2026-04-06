@@ -5677,10 +5677,6 @@ function renderExportKpiTab(container) {
         .map(r => `<option value="${r.id}">${r.name}</option>`)
         .join('');
 
-    const positionOptions = (adminMetadata?.positions || [])
-        .map(p => `<option value="${p.id}">${p.display_name}</option>`)
-        .join('');
-
     const monthOptions = Array.from({length: 12}, (_, i) => i + 1)
         .map(m => `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>Tháng ${m}</option>`)
         .join('');
@@ -5720,10 +5716,10 @@ function renderExportKpiTab(container) {
               <i class="fas fa-filter mr-1 text-green-600"></i>Trạng thái KPI
             </label>
             <select id="export-kpi-type" class="w-full px-3 py-2 border-2 border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-              onchange="currentKpiType = this.value">
+              onchange="onChangeKpiType(this)">
               <option value="1">Chưa nhập đủ KPI</option>
               <option value="2">Đã nhập đủ KPI</option>
-              <option value="3">Tất cả</option>
+              <option value="3" selected>Tất cả</option>
             </select>
           </div>
         </div>
@@ -5754,7 +5750,6 @@ function renderExportKpiTab(container) {
               </label>
               <select id="export-kpi-position" class="w-full px-3 py-2 border-2 border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
                 <option value="">-- Tất cả --</option>
-                ${positionOptions}
               </select>
             </div>
         </div>
@@ -5841,9 +5836,31 @@ async function loadExportKpiManagers() {
     }
 }
 
+function onChangeKpiType(e) {
+    const positions = document.getElementById('export-kpi-position');
+
+    switch (e.value) {
+        case "1":
+            currentKpiType = e.value
+            positions.innerHTML = `<option value="">-- Tất cả --</option>` + (adminMetadata?.positions || [])
+                .map(p => `<option value="${p.id}">${p.display_name}</option>`)
+                .join('');
+            break;
+        case "2":
+            currentKpiType = e.value
+            positions.innerHTML = `<option value="4">Giám sát</option>`;
+            break;
+        default:
+            currentKpiType = "3";
+            positions.innerHTML = `<option value="">-- Tất cả --</option>` + (adminMetadata?.positions || [])
+                .map(p => `<option value="${p.id}">${p.display_name}</option>`)
+                .join('');
+            break;
+    }
+}
+
 function onKpiManagementChange() {
     document.getElementById('export-kpi-region').value = '';
-    document.getElementById('export-kpi-position').value = '';
 }
 
 async function fetchKpiData() {
@@ -5942,7 +5959,11 @@ async function previewKpiData() {
                 ? '<span class="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-semibold">Chưa nhập</span>'
                 : type === '2'
                     ? '<span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold">Đã nhập</span>'
-                    : '<span class="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs">-</span>'}
+                    : u.kpi_38_value === null 
+                        ? '<span class="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-semibold">Chưa nhập</span>'
+                        : u.kpi_38_value != null 
+                            ? '<span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold">Đã nhập</span>'
+                            : '<span class="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs">-</span>'}
             </td>
             ${hasGs38 ? `<td class="px-4 py-2.5 text-center font-semibold text-blue-700">${u.position_id === 4 ? (u.kpi_38_value ?? '-') : ''}</td>` : ''}
           </tr>
@@ -5966,9 +5987,7 @@ async function exportKpiData() {
         return;
     }
 
-    const typeLabel = type === '1' ? 'Chưa nhập đủ KPI'
-        : type === '2' ? 'Đã nhập đủ KPI' : 'Tất cả';
-    const statusText = type === '1' ? 'Chưa nhập' : type === '2' ? 'Đã nhập' : '-';
+    const typeLabel = type === '1' ? 'Chưa nhập đủ KPI' : type === '2' ? 'Đã nhập đủ KPI' : 'Tất cả';
     const filePrefix = type === '1' ? 'Chua_nhap_KPI' : type === '2' ? 'Da_nhap_KPI' : 'Tat_ca_KPI';
 
     // Tên người quản lý nếu đang filter theo quản lý
@@ -5995,12 +6014,19 @@ async function exportKpiData() {
 
         const hasGs38 = (type === '2' || type === '3') && data.users.some(u => u.position_id === 4);
         const headers = ['STT', 'Họ và tên', 'Username', 'Khu vực', 'Chức vụ', 'Trạng thái KPI'];
-        if (hasGs38) headers.push('Số lao động (KPI 38)');
+        if (hasGs38) headers.push('Số lao động');
 
         const sheetData = [
             headers,
             ...data.users.map((u, idx) => {
-                const row = [idx + 1, u.full_name, u.username, u.region_name, u.position_name, statusText];
+                let kpiStatus = null;
+                if (u.kpi_38_value != null) {
+                    kpiStatus = "Đã nhập";
+                } else if (u.kpi_38_value === null) {
+                    kpiStatus = "Chưa nhập";
+                }
+
+                const row = [idx + 1, u.full_name, u.username, u.region_name, u.position_name, kpiStatus];
                 if (hasGs38) row.push(u.position_id === 4 ? (u.kpi_38_value ?? '-') : '');
                 return row;
             })
@@ -6012,19 +6038,8 @@ async function exportKpiData() {
             ...(hasGs38 ? [{wch: 20}] : [])
         ];
 
-        const summaryData = [
-            [`Báo cáo KPI — ${typeLabel}`],
-            [`Tháng/Năm: ${month}/${year}`],
-            ...(managerName ? [[`Quản lý: ${managerName}`]] : []),
-            [`Tổng số: ${data.total} người`],
-            [`Thời gian xuất: ${new Date().toLocaleString('vi-VN', {timeZone: 'Asia/Ho_Chi_Minh'})}`],
-        ];
-        const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-        wsSummary['!cols'] = [{wch: 40}];
-
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, `T${month}-${year}`);
-        XLSX.utils.book_append_sheet(wb, wsSummary, 'Tóm tắt');
 
         const managerSuffix = managerName ? `_${managerName.replace(/\s+/g, '_')}` : '';
         const filename = `${filePrefix}${managerSuffix}_T${String(month).padStart(2, '0')}_${year}.xlsx`;
